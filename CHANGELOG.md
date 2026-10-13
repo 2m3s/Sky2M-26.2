@@ -2,6 +2,12 @@
 
 All notable changes to Sky2M are listed here, newest first.
 
+## Unreleased
+
+### Fixed
+- Logging in to the Sky2M server could count as successful when the server never answered: a slow, lost or rejected login now counts as failed after 10 seconds (it was 3), says "The Sky2M server didn't answer the login", and the next try or reconnect logs in again normally.
+- After the connection to the Sky2M server dropped, the friends list, who's online, the party finder and your cosmetics kept showing old data until the next reconnect. They now clear and show "offline", ask again when the connection is back, and anything sent while reconnecting waits for the new login.
+
 ## 1.0 — 2026-10-10
 
 The first Sky2M release: SkyBalls is now Sky2M. Commands are /s2 and /s2m (/sb and /skyballs are gone), chat messages start with [S2M], and your SkyBalls settings, keybinds and data are copied over the first time you start it. Remove the old SkyBalls jar from your mods folder.
