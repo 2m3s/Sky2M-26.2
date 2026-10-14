@@ -1,5 +1,6 @@
 package com.epic60869.sky2m.mixin;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.epic60869.sky2m.Sky2MGlobalChat;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -64,5 +65,22 @@ public abstract class Sky2MChatScreenMixin {
         mc.gui.hud.getChat().captureClickableText(finder, mc.getWindow().getGuiScaledHeight(), mc.gui.hud.getGuiTicks(), displayMode);
         com.epic60869.sky2m.Sky2MImagePreview.render(graphics, finder.result(), mouseX, mouseY);
         com.epic60869.sky2m.features.sbc.SbcChatOverlay.render(graphics, ((ChatScreen) (Object) this).height, mouseX, mouseY);
+        com.epic60869.sky2m.features.misc.ChatTabs.render(graphics, ((ChatScreen) (Object) this).height, input, mouseX, mouseY);
+    }
+
+    /** Chat Tabs: clicking a tab, Ctrl+F, and Enter while searching. */
+    @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
+    private void sky2m$chatTabsClick(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick, CallbackInfoReturnable<Boolean> cir) {
+        if (com.epic60869.sky2m.features.misc.ChatTabs.mouseClicked(event.x(), event.y(), ((ChatScreen) (Object) this).height, input)) cir.setReturnValue(true);
+    }
+
+    @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
+    private void sky2m$chatTabsKey(KeyEvent event, CallbackInfoReturnable<Boolean> cir) {
+        if (com.epic60869.sky2m.features.misc.ChatTabs.keyPressed(event.key(), event.hasControlDown(), input)) cir.setReturnValue(true);
+    }
+
+    @Inject(method = "removed", at = @At("HEAD"))
+    private void sky2m$chatTabsClosed(CallbackInfo ci) {
+        com.epic60869.sky2m.features.misc.ChatTabs.closed();
     }
 }

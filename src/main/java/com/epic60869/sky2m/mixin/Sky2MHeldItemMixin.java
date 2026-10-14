@@ -8,6 +8,7 @@ import com.epic60869.sky2m.features.helditem.HeldItemTransforms;
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.ItemInHandRenderer;
@@ -55,6 +56,18 @@ public abstract class Sky2MHeldItemMixin {
         HumanoidArm arm = hand == InteractionHand.MAIN_HAND ? player.getMainArm() : player.getMainArm().getOpposite();
         HeldItemSwing.renderWithSwing(stack, attack, arm,
             () -> original.call(player, frameInterp, xRot, hand, attack, stack, inverseArmHeight, pose, collector, light));
+    }
+
+    /** Swing In Place: the swing still turns the item, without its slide across the screen. */
+    @WrapOperation(method = "swingArm", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;translate(FFF)V"))
+    private void sky2m$swingInPlace(PoseStack pose, float x, float y, float z, Operation<Void> original) {
+        boolean skip;
+        try {
+            skip = HeldItemSwing.skipSwingSlide();
+        } catch (Throwable e) {
+            skip = false;
+        }
+        if (!skip) original.call(pose, x, y, z);
     }
 
     /** Swing style Item Only: the arm doesn't swing (the item does, in renderItem). */
