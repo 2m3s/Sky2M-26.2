@@ -1,6 +1,5 @@
 package com.epic60869.sky2m.mixin;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import com.epic60869.sky2m.Sky2MGlobalChat;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.GuiGraphicsExtractor;

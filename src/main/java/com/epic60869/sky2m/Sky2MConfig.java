@@ -1,6 +1,5 @@
 package com.epic60869.sky2m;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.annotations.Expose;
@@ -33,6 +32,9 @@ import java.nio.file.Path;
  * The configuration screen is powered directly by MoulConfig, the same
  * configuration engine used by SkyHanni/NotEnoughUpdates.
  */
+// The old-style accordions (@ConfigEditorAccordion / @ConfigAccordionId) are deprecated in MoulConfig, but moving to
+// @Accordion objects would change the saved config layout and reset everyone's settings, so they stay.
+@SuppressWarnings("deprecation")
 public final class Sky2MConfig extends Config {
     public static final class General {
         @Expose

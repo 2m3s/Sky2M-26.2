@@ -1,6 +1,5 @@
 package com.epic60869.sky2m.features;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import com.epic60869.sky2m.sb.utils.waypoint.Waypoint;
 import com.epic60869.sky2m.features.fishing.FishingData;
 import com.google.gson.annotations.Expose;
@@ -24,6 +23,8 @@ import io.github.notenoughupdates.moulconfig.annotations.ConfigOption;
  * accordions from {@link com.epic60869.sky2m.Sky2MConfig}. HUD positions and scales are
  * set in /s2 gui and stored in sky2m-huds.json.
  */
+// Uses the deprecated old-style accordions on purpose, like Sky2MConfig (moving would reset saved settings).
+@SuppressWarnings("deprecation")
 public final class FeatureConfigs {
     public static final class Combat {
 
