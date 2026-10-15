@@ -35,6 +35,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Zealot tracker in the style of SkyHanni's trackers: kills and Summoning Eyes, shown either for
@@ -64,6 +66,9 @@ public final class ZealotCounter {
     private static long lastCombatXp;
     private static final long XP_WINDOW_MS = 1500;
     private static final java.util.regex.Pattern COMBAT_XP = java.util.regex.Pattern.compile("\\+[\\d,.]+ Combat \\(");
+    private static final Pattern TAB_COUNTER_VALUE = Pattern.compile("([\\d,]+)\\s*/\\s*([\\d,]+)");
+    /** True while Hypixel's authoritative tab-list pity counter is available. */
+    private static boolean tabPityDetected;
     private static final long UPTIME_IDLE_MS = 10_000L;
     private static long uptimeAccumulated;
     private static long uptimeSegmentStart;
@@ -115,11 +120,11 @@ public final class ZealotCounter {
             lastEyeTime = now;
             totalEyes++;
             sessionEyes++;
-            // The Zealot that dropped it is usually still waiting for its Combat XP to be counted, so kills waiting
-            // now count towards this Eye (and not again towards the next one once they're confirmed).
-            lastEyeKills = sinceEye + PENDING.size();
+            // Prefer Hypixel's own pity value when present; it includes kills our entity tracker cannot see.
+            // Fall back to our local count on older servers / when the tab widget is unavailable.
+            lastEyeKills = tabPityDetected ? sinceEye : sinceEye + PENDING.size();
             BEFORE_EYE.addAll(PENDING.keySet());
-            sinceEye = 0;
+            if (!tabPityDetected) sinceEye = 0;
             save();
         });
         // "RARE DROP! Summoning Eye (Kills: 100)": how many Zealots that eye took, added to Hypixel's drop line.
@@ -252,6 +257,7 @@ public final class ZealotCounter {
 
     private static void tick(Minecraft mc) {
         updateUptime(System.currentTimeMillis());
+        updateTabPity(mc);
         if (mc.player == null || mc.level == null || !enabled()) {
             HIT_BY_YOU.clear();
             COUNTED.clear();
@@ -311,10 +317,65 @@ public final class ZealotCounter {
         PENDING.put(entity.getId(), System.currentTimeMillis());
     }
 
+    /**
+     * Reads Hypixel's live Zealot/Eye pity counter from the ordered TAB entries. This is more
+     * reliable than counting visible entities because it includes kills from every supported method.
+     */
+    private static void updateTabPity(Minecraft mc) {
+        tabPityDetected = false;
+        if (mc.getConnection() == null) return;
+
+        Integer pity = null;
+        // Prefer an explicitly labelled pity row so we never mistake a displayed chance (for example 1/420)
+        // for the number of kills since the last eye.
+        for (var entry : mc.getConnection().getOnlinePlayers()) {
+            Component row = com.epic60869.sky2m.custom.util.Compat.rawTabName(entry);
+            if (row == null) continue;
+            String text = Sky2MLocation.strip(row.getString()).toLowerCase(Locale.ROOT);
+            if (!text.contains("pity") || !(text.contains("zealot") || text.contains("eye"))) continue;
+            Matcher matcher = TAB_COUNTER_VALUE.matcher(text);
+            if (matcher.find()) {
+                pity = parseTabNumber(matcher.group(1));
+                break;
+            }
+        }
+
+        // Some TAB layouts name the row as a Zealot/Eye counter rather than explicitly calling it pity.
+        if (pity == null) {
+            for (var entry : mc.getConnection().getOnlinePlayers()) {
+                Component row = com.epic60869.sky2m.custom.util.Compat.rawTabName(entry);
+                if (row == null) continue;
+                String text = Sky2MLocation.strip(row.getString()).toLowerCase(Locale.ROOT);
+                if (!(text.contains("zealot") || text.contains("summoning eye"))
+                    || !(text.contains("counter") || text.contains("kills") || text.contains("eye pity"))
+                    || text.contains("chance") || text.contains("odds")) continue;
+                Matcher matcher = TAB_COUNTER_VALUE.matcher(text);
+                if (matcher.find()) {
+                    pity = parseTabNumber(matcher.group(1));
+                    break;
+                }
+            }
+        }
+
+        if (pity != null && pity >= 0) {
+            sinceEye = pity;
+            tabPityDetected = true;
+        }
+    }
+
+    private static int parseTabNumber(String value) {
+        try {
+            return Integer.parseInt(value.replace(",", ""));
+        } catch (NumberFormatException ignored) {
+            return -1;
+        }
+    }
+
     private static void count(boolean beforeEye, long killedAt) {
         totalKills++;
         sessionKills++;
-        if (!beforeEye) sinceEye++;
+        // Hypixel's pity value is authoritative for this display; local tracking remains the fallback.
+        if (!tabPityDetected && !beforeEye) sinceEye++;
         recordKillTime(killedAt);
         if (totalKills % 25 == 0) save();
     }
