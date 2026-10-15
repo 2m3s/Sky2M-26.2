@@ -67,6 +67,8 @@ public final class ZealotCounter {
     private static final long XP_WINDOW_MS = 1500;
     private static final java.util.regex.Pattern COMBAT_XP = java.util.regex.Pattern.compile("\\+[\\d,.]+ Combat \\(");
     private static final Pattern TAB_COUNTER_VALUE = Pattern.compile("([\\d,]+)\\s*/\\s*([\\d,]+)");
+    /** Hypixel TAB row: "Special Zealots: 123 / 400"; the first number is kills since the last eye. */
+    private static final Pattern SPECIAL_ZEALOTS_TAB = Pattern.compile("special\\s+zealots\\s*:\\s*([\\d,]+)\\s*/\\s*400", Pattern.CASE_INSENSITIVE);
     /** True while Hypixel's authoritative tab-list pity counter is available. */
     private static boolean tabPityDetected;
     private static final long UPTIME_IDLE_MS = 10_000L;
@@ -326,8 +328,20 @@ public final class ZealotCounter {
         if (mc.getConnection() == null) return;
 
         Integer pity = null;
-        // Prefer an explicitly labelled pity row so we never mistake a displayed chance (for example 1/420)
-        // for the number of kills since the last eye.
+        // Hypixel's actual TAB row is "Special Zealots: <kills> / 400". Match this exact label first;
+        // don't require the word "pity", "counter" or "kills" to appear in the row.
+        for (var entry : mc.getConnection().getOnlinePlayers()) {
+            Component row = com.epic60869.sky2m.custom.util.Compat.rawTabName(entry);
+            if (row == null) continue;
+            String text = Sky2MLocation.strip(row.getString()).toLowerCase(Locale.ROOT);
+            Matcher matcher = SPECIAL_ZEALOTS_TAB.matcher(text);
+            if (matcher.find()) {
+                pity = parseTabNumber(matcher.group(1));
+                break;
+            }
+        }
+
+        // Fall back to explicitly labelled pity rows on other TAB layouts.
         for (var entry : mc.getConnection().getOnlinePlayers()) {
             Component row = com.epic60869.sky2m.custom.util.Compat.rawTabName(entry);
             if (row == null) continue;
