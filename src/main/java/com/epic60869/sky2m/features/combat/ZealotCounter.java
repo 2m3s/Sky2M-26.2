@@ -71,6 +71,8 @@ public final class ZealotCounter {
     private static final Pattern SPECIAL_ZEALOTS_TAB = Pattern.compile("special\\s+zealots\\s*:\\s*([\\d,]+)\\s*/\\s*400", Pattern.CASE_INSENSITIVE);
     /** True while Hypixel's authoritative tab-list pity counter is available. */
     private static boolean tabPityDetected;
+    /** Last observed Hypixel Special Zealots counter, used to add only newly observed kills to totals. */
+    private static int lastObservedTabPity = -1;
     private static final long UPTIME_IDLE_MS = 10_000L;
     private static long uptimeAccumulated;
     private static long uptimeSegmentStart;
@@ -110,6 +112,8 @@ public final class ZealotCounter {
         ClientPlayConnectionEvents.JOIN.register((handler, sender, mc) -> {
             COUNTED.clear();
             HIT_BY_YOU.clear();
+            lastObservedTabPity = -1;
+            tabPityDetected = false;
         });
         Sky2MChat.onChat(message -> {
             String text = message.text().trim();
@@ -374,6 +378,23 @@ public final class ZealotCounter {
         if (pity != null && pity >= 0) {
             sinceEye = pity;
             tabPityDetected = true;
+
+            // The TAB counter is authoritative. Add only the increase since the last sample,
+            // so kills missed by entity tracking are recovered without double-counting locally detected kills.
+            if (lastObservedTabPity < 0) {
+                lastObservedTabPity = pity;
+            } else if (pity >= lastObservedTabPity) {
+                int gained = pity - lastObservedTabPity;
+                if (gained > 0) {
+                    totalKills += gained;
+                    sessionKills += gained;
+                    if (totalKills % 25 < gained) save();
+                }
+                lastObservedTabPity = pity;
+            } else {
+                // Counter reset after an eye (or a new counter cycle): the previous value was already counted.
+                lastObservedTabPity = pity;
+            }
         }
     }
 
@@ -386,12 +407,15 @@ public final class ZealotCounter {
     }
 
     private static void count(boolean beforeEye, long killedAt) {
-        totalKills++;
-        sessionKills++;
-        // Hypixel's pity value is authoritative for this display; local tracking remains the fallback.
-        if (!tabPityDetected && !beforeEye) sinceEye++;
+        // When TAB pity is available, updateTabPity() adds only counter increases to the totals.
+        // Avoid incrementing again here, as entity detection can overlap with TAB updates.
+        if (!tabPityDetected) {
+            totalKills++;
+            sessionKills++;
+            if (!beforeEye) sinceEye++;
+            if (totalKills % 25 == 0) save();
+        }
         recordKillTime(killedAt);
-        if (totalKills % 25 == 0) save();
     }
 
     private static void recordKillTime(long killedAt) {
