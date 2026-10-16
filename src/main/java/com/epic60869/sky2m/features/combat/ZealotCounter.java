@@ -67,7 +67,7 @@ public final class ZealotCounter {
     private static final long XP_WINDOW_MS = 1500;
     private static final java.util.regex.Pattern COMBAT_XP = java.util.regex.Pattern.compile("\\+[\\d,.]+ Combat \\(");
     /** Hypixel Wither Impact feedback, e.g. "Your Implosion hit 3 enemies for 1,023,504.2 damage." */
-    private static final Pattern IMPLOSION_HITS = Pattern.compile("Your\\s+Implosion\\s+hit\\s+(\\d+)\\s+enemies?\\s+for\\s+[\\d,.]+(?:\\s+damage)?\\.? ", Pattern.CASE_INSENSITIVE);
+    private static final Pattern IMPLOSION_HITS = Pattern.compile("Your\\s+Implosion\\s+hit\\s+(\\d+)\\s+enemies?\\s+for\\s+[\\d,.]+(?:\\s+damage)?\\.?$", Pattern.CASE_INSENSITIVE);
     private static final long IMPLOSION_CONFIRM_MS = 1800;
     private static int pendingImplosionHits;
     private static long pendingImplosionAt;
