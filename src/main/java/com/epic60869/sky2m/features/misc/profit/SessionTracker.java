@@ -36,10 +36,8 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * /s2 session: your Diana, Mining and Farming for this game session, counted in the background whether or not their
- * profit trackers are on ({@link ProfitTracker} counts the drops, coins and actions into the session too). Each
- * activity's playtime pauses after a few seconds of not mining, farming or digging. The session lasts until the game
- * closes; on the next launch it's moved to the saved past sessions and its breakdown is shown in chat.
+ * /s2 session: one local-calendar-day record for every built-in profit preset, counted in the background even when
+ * an individual profit tracker is disabled. Reopening the game does not start another section for the same day.
  */
 public final class SessionTracker {
     /** Every built-in profit preset, including trackers whose HUD is disabled. */
