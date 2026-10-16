@@ -1,18 +1,7 @@
 name: Build Testing JAR
 
+# Manual only: commits to testing will not automatically trigger a build.
 on:
-  push:
-    branches:
-      - testing
-    paths:
-      - '**.java'
-      - '**.kt'
-      - '**.gradle'
-      - '**.gradle.kts'
-      - 'gradle.properties'
-      - 'gradle/**'
-      - 'src/**'
-      - '.github/workflows/build-testing.yml'
   workflow_dispatch:
 
 permissions:
