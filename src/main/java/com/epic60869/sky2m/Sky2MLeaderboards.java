@@ -314,6 +314,15 @@ public final class Sky2MLeaderboards {
     private static List<String> nameSuggestions() {
         List<String> out = new ArrayList<>(boards.stream().map(Board::name).toList());
         out.add("slayer");
+        out.add("collection");
+        out.add("collections");
+        out.add("slayer xp");
+        out.add("slayer xp zombie");
+        out.add("slayer xp spider");
+        out.add("slayer xp wolf");
+        out.add("slayer xp enderman");
+        out.add("slayer xp blaze");
+        out.add("slayer xp vampire");
         for (String boss : com.epic60869.sky2m.features.slayer.SlayerLeaderboard.suggestions()) out.add("slayer " + boss);
         return out;
     }
@@ -327,6 +336,22 @@ public final class Sky2MLeaderboards {
         Board board = boards.stream().filter(b -> b.name().equalsIgnoreCase(input)).findFirst().orElse(null);
         if (board == null) {
             String lower = input.toLowerCase(Locale.ROOT);
+            if (lower.equals("collection") || lower.equals("collections") || lower.equals("slayer xp")) {
+                JsonObject packet = new JsonObject();
+                packet.addProperty("type", "statLeaderboardGet");
+                packet.addProperty("boardType", "list");
+                Sky2MGlobalChat.send(packet);
+                say(Component.literal("Loading collection and slayer stat leaderboards…").withStyle(ChatFormatting.GRAY));
+                return 1;
+            }
+            if (lower.startsWith("collection ") || lower.startsWith("collections ")) {
+                String key = input.substring(input.indexOf(" ") + 1).trim().toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9_ ]", "").replaceAll("\\s+", "_");
+                return requestStatBoard("collection", key);
+            }
+            if (lower.startsWith("slayer xp ")) {
+                String key = input.substring("slayer xp ".length()).trim();
+                return requestStatBoard("slayer", key);
+            }
             if (lower.equals("slayer")) {
                 com.epic60869.sky2m.features.slayer.SlayerLeaderboard.showSummary();
                 return 1;
@@ -355,6 +380,8 @@ public final class Sky2MLeaderboards {
         switch (type) {
             case "leaderboardsActive" -> boards = parseBoards(packet);
             case "leaderboardStandings" -> showStandings(packet);
+            case "statLeaderboardList" -> showStatList(packet);
+            case "statLeaderboardResult" -> showStatStandings(packet);
             case "leaderboardProgressResult" -> {
                 boolean ok = packet.has("ok") && packet.get("ok").getAsBoolean();
                 String message = string(packet, "message");
@@ -372,6 +399,95 @@ public final class Sky2MLeaderboards {
             }
             default -> {}
         }
+    }
+
+    private static int requestStatBoard(String type, String key) {
+        if (key.isBlank()) {
+            say(Component.literal("Enter a collection ID or slayer name. Use /s2 leaderboard collection or /s2 leaderboard slayer xp to browse.")
+                .withStyle(ChatFormatting.YELLOW));
+            return 1;
+        }
+        JsonObject packet = new JsonObject();
+        packet.addProperty("type", "statLeaderboardGet");
+        packet.addProperty("boardType", type);
+        packet.addProperty("key", key);
+        if (!Sky2MGlobalChat.send(packet)) {
+            say(Component.literal("Connecting to the Sky2M server; try again in a moment.").withStyle(ChatFormatting.YELLOW));
+        }
+        return 1;
+    }
+
+    private static void showStatList(JsonObject packet) {
+        say(Component.literal("Permanent Stat Leaderboards").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
+        if (packet.has("refreshing") && packet.get("refreshing").getAsBoolean()) {
+            say(Component.literal("Hypixel profile stats are refreshing in the background; standings may take a moment to appear.")
+                .withStyle(ChatFormatting.GRAY));
+        }
+        if (packet.has("collections") && packet.get("collections").isJsonArray()) {
+            MutableComponent line = Component.literal("Collections: ").withStyle(ChatFormatting.GRAY);
+            JsonArray entries = packet.getAsJsonArray("collections");
+            int shown = 0;
+            for (JsonElement element : entries) {
+                if (shown >= 20) break;
+                JsonObject board = element.getAsJsonObject();
+                if (shown++ > 0) line.append(Component.literal(", ").withStyle(ChatFormatting.DARK_GRAY));
+                String id = string(board, "id");
+                String name = string(board, "name");
+                line.append(Component.literal(name).withStyle(style -> style.withColor(ChatFormatting.GREEN)
+                    .withClickEvent(new net.minecraft.network.chat.ClickEvent.RunCommand("/s2 leaderboard collection " + id))
+                    .withHoverEvent(new net.minecraft.network.chat.HoverEvent.ShowText(Component.literal("Show " + name + " collection standings")))));
+            }
+            say(line);
+            if (entries.size() > 20) say(Component.literal("Showing the first 20 collections; use the website for the full list.")
+                .withStyle(ChatFormatting.GRAY));
+        }
+        if (packet.has("slayers") && packet.get("slayers").isJsonArray()) {
+            MutableComponent line = Component.literal("Slayer XP: ").withStyle(ChatFormatting.GRAY);
+            JsonArray entries = packet.getAsJsonArray("slayers");
+            for (int i = 0; i < entries.size(); i++) {
+                JsonObject board = entries.get(i).getAsJsonObject();
+                if (i > 0) line.append(Component.literal(", ").withStyle(ChatFormatting.DARK_GRAY));
+                String id = string(board, "id");
+                String name = string(board, "name");
+                line.append(Component.literal(name).withStyle(style -> style.withColor(ChatFormatting.RED)
+                    .withClickEvent(new net.minecraft.network.chat.ClickEvent.RunCommand("/s2 leaderboard slayer xp " + id))
+                    .withHoverEvent(new net.minecraft.network.chat.HoverEvent.ShowText(Component.literal("Show " + name + " XP standings")))));
+            }
+            say(line);
+        }
+        say(Component.literal("Website: shadowisabot.com/leaderboards").withStyle(style -> style.withColor(ChatFormatting.AQUA)
+            .withClickEvent(new net.minecraft.network.chat.ClickEvent.OpenUrl(java.net.URI.create("https://shadowisabot.com/leaderboards")))
+            .withHoverEvent(new net.minecraft.network.chat.HoverEvent.ShowText(Component.literal("Open the full leaderboard browser")))));
+    }
+
+    private static void showStatStandings(JsonObject packet) {
+        if (!packet.has("ok") || !packet.get("ok").getAsBoolean()) {
+            say(Component.literal(string(packet, "message").isBlank()
+                ? "That leaderboard isn't ready yet. Try again in a moment." : string(packet, "message")).withStyle(ChatFormatting.YELLOW));
+            return;
+        }
+        say(Component.literal(string(packet, "name")).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
+        if (!packet.has("entries") || !packet.get("entries").isJsonArray() || packet.getAsJsonArray("entries").isEmpty()) {
+            say(Component.literal("No scores are available yet.").withStyle(ChatFormatting.GRAY));
+            return;
+        }
+        JsonArray entries = packet.getAsJsonArray("entries");
+        int limit = Math.min(10, entries.size());
+        for (int i = 0; i < limit; i++) {
+            JsonObject entry = entries.get(i).getAsJsonObject();
+            int rank = entry.has("rank") ? entry.get("rank").getAsInt() : i + 1;
+            String username = string(entry, "username");
+            long value = entry.has("value") ? entry.get("value").getAsLong() : 0L;
+            ChatFormatting colour = rank == 1 ? ChatFormatting.GOLD : rank == 2 ? ChatFormatting.GRAY : rank == 3 ? ChatFormatting.YELLOW : ChatFormatting.WHITE;
+            MutableComponent row = Component.literal("#" + rank + " ").withStyle(colour)
+                .append(Component.literal(username).withStyle(ChatFormatting.WHITE))
+                .append(Component.literal(" — " + String.format(Locale.ROOT, "%,d", value)
+                    + ("slayer".equals(string(packet, "type")) ? " XP" : "")).withStyle(ChatFormatting.GREEN));
+            say(row);
+        }
+        say(Component.literal("Full rankings: shadowisabot.com/leaderboards").withStyle(style -> style.withColor(ChatFormatting.AQUA)
+            .withClickEvent(new net.minecraft.network.chat.ClickEvent.OpenUrl(java.net.URI.create("https://shadowisabot.com/leaderboards")))
+            .withHoverEvent(new net.minecraft.network.chat.HoverEvent.ShowText(Component.literal("Open the full leaderboard")))));
     }
 
     private static List<Board> parseBoards(JsonObject packet) {
