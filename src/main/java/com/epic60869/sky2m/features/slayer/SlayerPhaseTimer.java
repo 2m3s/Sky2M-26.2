@@ -4,6 +4,7 @@ import com.epic60869.sky2m.Sky2MConfig;
 import com.epic60869.sky2m.features.FeatureConfigs;
 import com.epic60869.sky2m.features.core.Sky2MAlerts;
 import com.epic60869.sky2m.features.core.Sky2MHuds;
+import com.epic60869.sky2m.features.core.Sky2MChat;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -22,12 +23,13 @@ import java.util.regex.Pattern;
 public final class SlayerPhaseTimer {
     private static final Pattern HITS = Pattern.compile("\\b\\d+ Hits?\\b");
     private static final long KEEP_MS = 10_000;
+    private static final long MISSING_GRACE_MS = 5_000;
 
     private record Phase(boolean hits, long millis) {}
 
     private static final List<Phase> phases = new ArrayList<>();
     private static boolean active, currentHits;
-    private static long fightStart, phaseStart, endedAt;
+    private static long fightStart, phaseStart, endedAt, missingSince;
 
     private SlayerPhaseTimer() {}
 
@@ -46,15 +48,28 @@ public final class SlayerPhaseTimer {
             SlayerPhaseTimer::lines,
             List.of(line(true, 1, 3_200), line(false, 1, 5_400), line(true, 2, 2_100)), 8, 240);
         Sky2MHuds.setting("slayer_phase_timer", () -> config() != null && config().enabled);
+        Sky2MChat.onChat(message -> {
+            String text = message.text().trim();
+            if (text.equals("SLAYER QUEST STARTED!")) {
+                reset();
+            } else if (text.equals("NICE! SLAYER BOSS SLAIN!") || text.startsWith("YOU COCOONED YOUR SLAYER BOSS")) {
+                if (active) finish(System.currentTimeMillis());
+            } else if (text.equals("SLAYER QUEST FAILED!")) {
+                reset();
+            }
+        });
     }
 
     /** The boss's health line every other tick (null when you have no boss). */
     static void onBoss(String text) {
         long now = System.currentTimeMillis();
         if (text == null) {
-            if (active) finish(now);
+            // Tarantula nametags disappear during the Conjoined Brood transition; do not finish immediately.
+            if (active && missingSince == 0) missingSince = now;
+            if (active && now - missingSince >= MISSING_GRACE_MS) finish(now);
             return;
         }
+        missingSince = 0;
         boolean hits = HITS.matcher(text).find();
         if (!active) {
             active = true;
@@ -77,7 +92,9 @@ public final class SlayerPhaseTimer {
     }
 
     private static void finish(long now) {
+        if (!active) return;
         active = false;
+        missingSince = 0;
         phases.add(new Phase(currentHits, now - phaseStart));
         endedAt = now;
         FeatureConfigs.SlayerPhaseTimer c = config();
@@ -92,6 +109,16 @@ public final class SlayerPhaseTimer {
         }
         msg.append(Component.literal(" (total " + seconds(now - fightStart) + ")").withStyle(ChatFormatting.GRAY));
         Sky2MAlerts.chat(msg);
+    }
+
+    private static void reset() {
+        active = false;
+        phases.clear();
+        fightStart = 0;
+        phaseStart = 0;
+        endedAt = 0;
+        missingSince = 0;
+        currentHits = false;
     }
 
     private static String seconds(long millis) {
