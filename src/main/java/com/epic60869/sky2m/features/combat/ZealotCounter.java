@@ -78,6 +78,10 @@ public final class ZealotCounter {
     private static boolean tabPityDetected;
     /** Last observed Hypixel Special Zealots counter, used to reconcile TAB updates with local detections. */
     private static int lastObservedTabPity = -1;
+    /** Previous TAB count captured when Hypixel resets the counter after spawning a Special Zealot. */
+    private static int tabPityBeforeReset = -1;
+    private static long tabPityResetAt;
+    private static final long TAB_RESET_DROP_WINDOW_MS = 3000;
     /** Locally counted kills that TAB has not caught up with yet. Prevents delayed TAB updates double-counting them. */
     private static int localUnconfirmedKills;
     private static final long UPTIME_IDLE_MS = 10_000L;
@@ -120,6 +124,8 @@ public final class ZealotCounter {
             COUNTED.clear();
             HIT_BY_YOU.clear();
             lastObservedTabPity = -1;
+            tabPityBeforeReset = -1;
+            tabPityResetAt = 0;
             localUnconfirmedKills = 0;
             tabPityDetected = false;
             pendingImplosionHits = 0;
@@ -136,9 +142,15 @@ public final class ZealotCounter {
             lastEyeTime = now;
             totalEyes++;
             sessionEyes++;
-            // Prefer Hypixel's own pity value when present; it includes kills our entity tracker cannot see.
-            // Fall back to our local count on older servers / when the tab widget is unavailable.
-            lastEyeKills = tabPityDetected ? sinceEye : sinceEye + PENDING.size();
+            // TAB can reset to 0 as soon as a Special Zealot spawns, before its eye drop message arrives.
+            // If a reset happened just now, use the value TAB showed immediately before the reset.
+            // Otherwise use the live TAB value, or the local estimate if TAB is unavailable.
+            boolean justReset = tabPityBeforeReset >= 0 && now - tabPityResetAt <= TAB_RESET_DROP_WINDOW_MS;
+            lastEyeKills = justReset ? tabPityBeforeReset : (tabPityDetected ? sinceEye : sinceEye + PENDING.size());
+            if (justReset) {
+                tabPityBeforeReset = -1;
+                tabPityResetAt = 0;
+            }
             BEFORE_EYE.addAll(PENDING.keySet());
             if (!tabPityDetected) sinceEye = 0;
             save();
@@ -442,7 +454,10 @@ public final class ZealotCounter {
                 }
                 lastObservedTabPity = pity;
             } else {
-                // TAB reset after an eye. Previously counted kills remain in totals; start a new pity baseline.
+                // Hypixel can reset this counter when a Special Zealot spawns, not only when an eye drops.
+                // Preserve the previous displayed value briefly so the imminent eye-drop line reports that count.
+                tabPityBeforeReset = lastObservedTabPity;
+                tabPityResetAt = System.currentTimeMillis();
                 lastObservedTabPity = pity;
             }
         }
