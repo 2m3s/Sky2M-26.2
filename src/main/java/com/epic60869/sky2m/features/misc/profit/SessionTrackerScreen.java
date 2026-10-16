@@ -151,7 +151,7 @@ public final class SessionTrackerScreen extends Screen {
         g.pose().scale(2.5f, 2.5f);
         g.centeredText(font, profitText, 0, 0, profit >= 0 ? GREEN : RED);
         g.pose().popMatrix();
-        boolean anyUnknown = tab < TOTAL ? unknown[tab] : unknown[0] || unknown[1] || unknown[2];
+        boolean anyUnknown = tab < TOTAL ? unknown[tab] : java.util.Arrays.stream(toBoxed(unknown)).anyMatch(Boolean::booleanValue);
         long ago = (System.currentTimeMillis() - pricedAt) / 1000;
         g.centeredText(font, (anyUnknown ? "Known profit" : "Profit") + " · prices updated " + ago + "s ago", width / 2, top + 50, TEXT);
 
@@ -277,6 +277,10 @@ public final class SessionTrackerScreen extends Screen {
             g.fill(left + W - 4, y, left + W - 2, y + trackH, 0xFF0C0F16);
             g.fill(left + W - 4, thumbY, left + W - 2, thumbY + thumb, EDGE);
         }
+    }
+
+    private static boolean[] toBoxed(boolean[] values) {
+        return values;
     }
 
     private static String signed(double value) {
