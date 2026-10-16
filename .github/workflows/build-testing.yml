@@ -1,8 +1,10 @@
 name: Build Testing JAR
 
-# Manual only: commits to testing will not automatically trigger a build.
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - testing
 
 permissions:
   contents: read
