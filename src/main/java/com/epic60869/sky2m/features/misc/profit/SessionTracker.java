@@ -42,12 +42,13 @@ import java.util.Map;
  * closes; on the next launch it's moved to the saved past sessions and its breakdown is shown in chat.
  */
 public final class SessionTracker {
-    /** The activities, in the screen's tab order (after Total). */
-    static final ProfitTracker.Preset[] ACTIVITIES = {
-        ProfitTracker.Preset.FARMING, ProfitTracker.Preset.MINING, ProfitTracker.Preset.MYTHOLOGICAL_RITUAL};
+    /** Every built-in profit preset, including trackers whose HUD is disabled. */
+    static final ProfitTracker.Preset[] ACTIVITIES = ProfitTracker.Preset.values();
 
     static final class Session {
-        /** When the game was started. */
+        /** Epoch day this daily section belongs to (local timezone). */
+        @Expose long day;
+        /** First time Sky2M saw this day. */
         @Expose long started;
         /** When the session was last saved: about when the game closed, for a past session. */
         @Expose long ended;
@@ -122,13 +123,27 @@ public final class SessionTracker {
         file = configDir.resolve("sky2m").resolve("sessions.json");
         load();
         // The last game's session ended when it closed: keep it with the past sessions and show its breakdown.
-        if (saved.current != null && saved.current.hasAny()) {
-            saved.history.addFirst(saved.current);
-            pendingSummary = saved.current;
+        long today = java.time.LocalDate.now().toEpochDay();
+        if (saved.current != null) {
+            if (saved.current.day == 0) saved.current.day = java.time.Instant.ofEpochMilli(saved.current.started).atZone(ZoneId.systemDefault()).toLocalDate().toEpochDay();
+            if (saved.current.day == today) {
+                current = saved.current;
+            } else {
+                if (saved.current.hasAny()) {
+                    saved.history.addFirst(saved.current);
+                    pendingSummary = saved.current;
+                }
+                current = new Session();
+                current.day = today;
+                current.started = System.currentTimeMillis();
+                saved.current = current;
+            }
+        } else {
+            current = new Session();
+            current.day = today;
+            current.started = System.currentTimeMillis();
+            saved.current = current;
         }
-        current = new Session();
-        current.started = System.currentTimeMillis();
-        saved.current = current;
         trim();
         save();
         ClientTickEvents.END_CLIENT_TICK.register(SessionTracker::tick);
@@ -146,11 +161,9 @@ public final class SessionTracker {
 
     // ------------------------------------------------------------------------------------------------ counting
 
-    /** Whether the session is counting this preset (Diana, Mining or Farming, with the Session Tracker on). */
+    /** Collect every built-in profit preset while daily history is enabled, independent of HUD/feature toggles. */
     static boolean tracks(ProfitTracker.Preset preset) {
-        if (!on()) return false;
-        for (ProfitTracker.Preset p : ACTIVITIES) if (p == preset) return true;
-        return false;
+        return on() && preset != null;
     }
 
     /** Where {@link ProfitTracker} adds this preset's drops, coins and actions for the session; null if not tracked. */
@@ -189,6 +202,19 @@ public final class SessionTracker {
         playerTicks++;
         showSummary(mc);
         if (!on() || current == null) return;
+
+        // One daily section, regardless of how often the game is launched.
+        long today = java.time.LocalDate.now().toEpochDay();
+        if (current.day != today) {
+            if (current.hasAny()) saved.history.addFirst(current);
+            current = new Session();
+            current.day = today;
+            current.started = now;
+            saved.current = current;
+            lastActive.clear();
+            trim();
+            dirty = true;
+        }
 
         // Mining and farming are holding attack on a block; Diana is using or swinging the spade.
         ProfitTracker.Preset where = ProfitTracker.currentPreset();
@@ -332,7 +358,12 @@ public final class SessionTracker {
             for (Session s : loaded.history) fix(s);
             if (loaded.current != null) {
                 if (loaded.current.activities == null) loaded.current = null;
-                else fix(loaded.current);
+                else {
+                    fix(loaded.current);
+                    if (loaded.current.day == 0 && loaded.current.started > 0) {
+                        loaded.current.day = Instant.ofEpochMilli(loaded.current.started).atZone(ZoneId.systemDefault()).toLocalDate().toEpochDay();
+                    }
+                }
             }
             saved = loaded;
         } catch (Exception e) {
@@ -341,6 +372,7 @@ public final class SessionTracker {
     }
 
     private static void fix(Session s) {
+        if (s.day == 0 && s.started > 0) s.day = Instant.ofEpochMilli(s.started).atZone(ZoneId.systemDefault()).toLocalDate().toEpochDay();
         if (s.firstActive == null) s.firstActive = new LinkedHashMap<>();
         for (ProfitTracker.Stats stats : s.activities.values()) {
             if (stats.items == null) stats.items = new LinkedHashMap<>();
