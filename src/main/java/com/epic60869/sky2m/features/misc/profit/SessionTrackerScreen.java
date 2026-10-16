@@ -212,7 +212,7 @@ public final class SessionTrackerScreen extends Screen {
         int y = tabsY + 40;
         if (!s.hasAny()) {
             boolean on = SessionTracker.on();
-            g.centeredText(font, on ? "Nothing yet this session. Go mining, farming or do some Diana!"
+            g.centeredText(font, on ? "No profit tracked for this day yet."
                 : "Turn on the Session Tracker (Profit Trackers > Session Tracker).", width / 2, y + 20, TEXT);
         } else if (tab == TOTAL) {
             total(g, left, y, bottom, mouseX, mouseY);
