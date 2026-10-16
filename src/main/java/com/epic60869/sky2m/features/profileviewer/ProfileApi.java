@@ -282,6 +282,14 @@ public final class ProfileApi {
     }
 
     /** Mojang's session handshake for a backend token, kept for 23 of its 24 hours. */
+    /** Start the backend sign-in before the first /pv, so opening a viewer does not pay its handshake latency. */
+    public static void warmBackend() {
+        backendToken().exceptionally(error -> {
+            System.err.println("[Sky2M] Profile Viewer: backend warm-up failed: " + reason(error));
+            return null;
+        });
+    }
+
     private static synchronized CompletableFuture<String> backendToken() {
         String token = backendToken;
         if (token != null && System.currentTimeMillis() - backendTokenAt < 23L * 60 * 60 * 1000) return CompletableFuture.completedFuture(token);
