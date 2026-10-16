@@ -17,6 +17,10 @@ All notable changes to Sky2M are listed here, newest first.
 - Refined profit/session tracker presentation and tracking so session data is retained and displayed more consistently.
 
 ### Fixed
+- Slayer Phase Timer: no longer ends immediately when a boss nametag briefly disappears. This prevents Tarantula's Conjoined Brood transition from recording a tiny false phase/PB, and phase state resets when a new slayer quest starts or fails.
+- Copy RNG Drops: rare crops and other Garden drops are no longer copied by the RNG-only toggle; use Copy Garden Drops for those.
+- Item Pickup Log: sack entries use repository-matched item IDs for better icons and no longer have the `[Sack]` name prefix. Inventory changes are ignored while container menus are open, preventing false pickup/drop entries from menus such as the Experimentation Table.
+- Bazaar Notifications: fully filled (100%) orders are removed from the outbid watcher instead of continuing to trigger outdated alerts.
 - Hit Colour: corrected the opacity scale so 0 is fully opaque and 100 is fully transparent.
 - Sacks Value: stopped guessing Bazaar item IDs from unmatched sack names. A guessed ID could point to a different product and apply its price to the wrong item, inflating the total. Unknown items are now skipped rather than assigned a potentially unrelated price.
 - Improved category filtering in the HUD editor and settings navigation to make enabled HUDs easier to find and manage.
