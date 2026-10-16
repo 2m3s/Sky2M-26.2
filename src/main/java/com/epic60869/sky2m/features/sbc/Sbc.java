@@ -70,6 +70,7 @@ public final class Sbc {
                 case "updateAvailable", "announcement", "motd" -> SbcServer.handle(type, packet);
                 case "reactions", "reactionError", "chatBlocked", "muted", "unmuted" -> SbcChat.handle(type, packet);
                 case "cosmetics", "cosmeticsProfile", "cosmeticsError", "badgeEarned" -> SbcCosmetics.handle(type, packet);
+                case "nameTagTable", "nameTagUpdate" -> SbcNameTags.handle(type, packet);
                 case "online", "whoResult", "friends", "friendEvent", "socialSettings", "ignoreResult", "ignoreList", "socialError" -> SbcSocial.handle(type, packet);
                 case "settingsSaved", "settings", "settingsSlots", "settingsDeleted", "settingsError" -> SbcSettingsSync.handle(type, packet);
                 default -> {
@@ -86,6 +87,7 @@ public final class Sbc {
     public static void onConnected() {
         SbcSocial.onConnected();
         SbcCosmetics.onConnected();
+        SbcNameTags.onConnected();
     }
 
     /**

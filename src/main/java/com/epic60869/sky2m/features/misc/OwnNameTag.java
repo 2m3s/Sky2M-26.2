@@ -12,6 +12,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
+import com.epic60869.sky2m.features.sbc.SbcNameTags;
 
 import java.util.Locale;
 import java.util.UUID;
@@ -33,6 +35,7 @@ public final class OwnNameTag {
     private static volatile long networth = -1, lastTry;
     private static volatile double skillAverage = -1;
     private static volatile UUID owner;
+    private static volatile long lastPublish;
 
     private OwnNameTag() {}
 
@@ -51,8 +54,9 @@ public final class OwnNameTag {
 
     /** The stats line above {@code entity}'s name tag, or null. */
     public static Component line(Entity entity) {
-        Sky2MConfig.OwnNameTag c = config();
         Minecraft mc = Minecraft.getInstance();
+        if (entity instanceof Player player && player != mc.player) return SbcNameTags.line(player.getUUID());
+        Sky2MConfig.OwnNameTag c = config();
         if (c == null || !c.stats || entity != mc.player || !Sky2MLocation.onSkyblock()) return null;
         refresh(mc);
         MutableComponent line = Component.empty();
@@ -66,7 +70,14 @@ public final class OwnNameTag {
             line.append(Component.literal(String.format(Locale.ROOT, "Skill Avg %.1f", skillAverage)).withStyle(ChatFormatting.GREEN));
             any = true;
         }
-        return any ? line : null;
+        if (!any) return null;
+        long now = System.currentTimeMillis();
+        if (now - lastPublish >= 30_000L) {
+            lastPublish = now;
+            String board = c.showCollectionLeaderboard ? c.collectionLeaderboard.trim().toUpperCase(Locale.ROOT) : "";
+            SbcNameTags.publish(line.getString(), board);
+        }
+        return line;
     }
 
     /** Loads your profile in the background when the cached stats are old (or someone else's, after an account switch). */
