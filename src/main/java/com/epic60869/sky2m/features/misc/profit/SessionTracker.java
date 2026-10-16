@@ -120,7 +120,7 @@ public final class SessionTracker {
     public static void init(Path configDir) {
         file = configDir.resolve("sky2m").resolve("sessions.json");
         load();
-        // The last game's session ended when it closed: keep it with the past sessions and show its breakdown.
+        // Keep one record per day across game restarts; only a day rollover creates a new history entry.
         long today = java.time.LocalDate.now().toEpochDay();
         if (saved.current != null) {
             if (saved.current.day == 0) saved.current.day = java.time.Instant.ofEpochMilli(saved.current.started).atZone(ZoneId.systemDefault()).toLocalDate().toEpochDay();
