@@ -306,7 +306,7 @@ public final class ProfitTracker {
         Preset preferred = null;
         if (counting(Preset.MYTHOLOGICAL_RITUAL) && island.equals("Hub") && spadeInHotbar(mc)) preferred = Preset.MYTHOLOGICAL_RITUAL;
         if (preferred == null) preferred = slayerQuest();
-        if (preferred == null && enabled(Preset.FISHING) && (mc.player.fishing != null || !paused(Preset.FISHING, System.currentTimeMillis()) && lastActivity.containsKey(Preset.FISHING))) {
+        if (preferred == null && counting(Preset.FISHING) && (mc.player.fishing != null || !paused(Preset.FISHING, System.currentTimeMillis()) && lastActivity.containsKey(Preset.FISHING))) {
             preferred = Preset.FISHING;
         }
         Preset preset = forLocation(island, area, preferred);
