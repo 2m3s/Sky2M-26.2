@@ -24,6 +24,8 @@ All notable changes to Sky2M are listed here, newest first.
 - Hit Colour: corrected the opacity scale so 0 is fully opaque and 100 is fully transparent.
 - Sacks Value: stopped guessing Bazaar item IDs from unmatched sack names. A guessed ID could point to a different product and apply its price to the wrong item, inflating the total. Unknown items are now skipped rather than assigned a potentially unrelated price.
 - Improved category filtering in the HUD editor and settings navigation to make enabled HUDs easier to find and manage.
+- Enchanted Book Labels now show each single-enchantment book's numeric level in the bottom corner as well as its abbreviated name at the top.
+- Item Protection now blocks protected items from clicks in identifiable NPC sell/shop/trade menus, in addition to blocking drops.
 - Improved command suggestion handling for supported Hypixel commands to avoid replacing or suggesting the wrong argument text.
 
 ## 1.0.1 — 2026-10-12
@@ -121,7 +123,7 @@ The first Sky2M release: SkyBalls is now Sky2M. Commands are /s2 and /s2m (/sb a
 - Trail (Misc > Visual > Trail), from Killer560's Mod: a trail of squares behind you as you move, in one colour on the ground and another in the air, with its length, square size, lifetime and fade.
 - Auto Join SkyBlock (Misc > Hypixel & Commands), like SkyHanni: when you join Hypixel you go straight into SkyBlock instead of staying in the main lobby. Only once per join, so /lobby still works.
 - Livid Finder (Dungeons > Floors 4-6, on by default), from SkyHanni: once the wool above the arena shows which Livid is real, she's boxed and labelled with a line from your crosshair (not while you're blind). It can also hide the wrong Livids and force the highlight colour. Replaces Odin's Livid Solver.
-- Enchanted Book Labels (Misc > Items & Tooltips, on by default): two letters in the top right of enchanted books naming their enchantment (Sh for Sharpness, UW for Ultimate Wise, in pink for Ultimate enchantments), so you can tell them apart without hovering. Books with several enchantments aren't labelled.
+- Enchanted Book Labels (Misc > Items & Tooltips, on by default): an abbreviated enchantment name in the top corner and its numeric level in the bottom corner (for example, Legion V shows the label and 5), so you can tell books apart without hovering. Books with several enchantments aren't labelled.
 - Discord Rich Presence (Misc > Discord & Screenshots, on by default): your Discord profile shows you're playing Sky2M, with where you are on SkyBlock and for how long. Needs the Discord app open; Show Location in Discord turns the location off.
 - Collection Portfolio (Misc > Collections, on by default): your collections are saved every 30 minutes on SkyBlock so /s2 collections can show how much each one went up over the last day, week or month. Needs your Collections API on.
 - Livid Solver (Dungeons, F5/M5), from Odin: once the wool above the arena shows which Livid is real, a chat line names her and she's boxed in a colour you choose (not while you're blind), plus a HUD counting down her invulnerability.
