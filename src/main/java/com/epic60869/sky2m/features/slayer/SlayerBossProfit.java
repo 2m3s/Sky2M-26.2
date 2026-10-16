@@ -50,6 +50,9 @@ public final class SlayerBossProfit {
 
     /** Inventory when your boss spawned: item price id -> count. */
     private static Map<String, Integer> baseline;
+    /** Inventory snapshot and cumulative gains observed while the boss is alive. */
+    private static Map<String, Integer> observedInventory;
+    private static final Map<String, Long> observedGains = new LinkedHashMap<>();
     /** The kill still being totted up (drops can still arrive), or null. */
     private static Kill kill;
     /** The latest result, for the HUD, and when its boss died. */
@@ -66,6 +69,8 @@ public final class SlayerBossProfit {
         final String boss;
         final long at;
         final Map<String, Integer> baseline;
+        /** Gains seen during the fight, including drops consumed or moved before the kill message. */
+        final Map<String, Long> observed;
         final Map<String, Long> sacks = new LinkedHashMap<>();
         /** The boss's drops shown on the ground (item id -> amount), and the item entities already read. */
         final Map<String, Long> ground = new LinkedHashMap<>();
@@ -75,10 +80,11 @@ public final class SlayerBossProfit {
         final long cost;
         boolean posted;
 
-        Kill(String boss, long at, Map<String, Integer> baseline, long cost) {
+        Kill(String boss, long at, Map<String, Integer> baseline, Map<String, Long> observed, long cost) {
             this.boss = boss;
             this.at = at;
             this.baseline = baseline;
+            this.observed = observed;
             this.cost = cost;
         }
     }
@@ -308,6 +314,8 @@ public final class SlayerBossProfit {
         Sky2MPriceTooltip.warmup();
         if (!enabled()) return;
         baseline = inventory();
+        observedInventory = new HashMap<>(baseline);
+        observedGains.clear();
         groundAtSpawn.clear();
         for (net.minecraft.world.entity.item.ItemEntity item : groundItems()) groundAtSpawn.add(item.getId());
     }
@@ -320,12 +328,14 @@ public final class SlayerBossProfit {
         if (!enabled() || baseline == null) return;
         if (kill != null) close();
         long cost = cost(boss);
-        kill = new Kill(boss, System.currentTimeMillis(), baseline, cost);
+        kill = new Kill(boss, System.currentTimeMillis(), baseline, new LinkedHashMap<>(observedGains), cost);
         hudUntil = Long.MAX_VALUE;
         // Items that were lying around when the boss spawned aren't its drops (ones dropped since are, even if they
         // landed a moment before Hypixel's kill message).
         kill.seenItems.addAll(groundAtSpawn);
         baseline = null;
+        observedInventory = null;
+        observedGains.clear();
         // The drops may already be on the ground when Hypixel's kill message comes.
         checkGround();
     }
@@ -358,6 +368,9 @@ public final class SlayerBossProfit {
                 questStartedAt = 0;
             }
         }
+        // Sample inventory throughout the fight, not just after the boss dies. This catches drops that are
+        // consumed, moved to sacks, or otherwise disappear before the kill snapshot is taken.
+        if (baseline != null) observeInventory();
         if (kill == null) return;
         long since = System.currentTimeMillis() - kill.at;
         readGround();
@@ -366,6 +379,21 @@ public final class SlayerBossProfit {
         if (kill.groundAt > 0 && now - kill.groundAt >= GROUND_SETTLE_MS) postChat();
         if (since >= CHAT_WAIT_MS) postChat();
         if (since >= TRACK_MS) close();
+    }
+
+    private static void observeInventory() {
+        if (baseline == null || observedInventory == null) return;
+        Map<String, Integer> current = inventory();
+        java.util.Set<String> ids = new java.util.HashSet<>(current.keySet());
+        ids.addAll(observedInventory.keySet());
+        String activeBoss = SlayerTimes.lastBoss();
+        if (activeBoss != null) {
+            for (String id : ids) {
+                int delta = current.getOrDefault(id, 0) - observedInventory.getOrDefault(id, 0);
+                if (delta > 0 && isBossDrop(activeBoss, id)) observedGains.merge(id, (long) delta, Long::sum);
+            }
+        }
+        observedInventory = current;
     }
 
     /** How far from you the boss's drops on the ground are looked for. */
@@ -427,11 +455,15 @@ public final class SlayerBossProfit {
         // same drop shows on the ground and then goes to your sacks, so the two aren't added up).
         Map<String, Long> received = new LinkedHashMap<>();
         Map<String, String> names = new HashMap<>();
+        // Use the larger of the observed in-fight gains and the final snapshot delta. Do not add them: they
+        // can describe the same stack, and the same drop may also appear in sacks or on the ground.
         for (Map.Entry<String, Integer> e : inventory().entrySet()) {
             int gained = e.getValue() - k.baseline.getOrDefault(e.getKey(), 0);
-            // Only the boss's own drops: not mob drops or anything else picked up meanwhile.
-            if (gained > 0 && isBossDrop(k.boss, e.getKey())) received.merge(e.getKey(), (long) gained, Long::sum);
+            if (gained > 0 && isBossDrop(k.boss, e.getKey())) received.merge(e.getKey(), (long) gained, Math::max);
         }
+        k.observed.forEach((id, amount) -> {
+            if (isBossDrop(k.boss, id)) received.merge(id, amount, Math::max);
+        });
         for (Map.Entry<String, Long> e : k.sacks.entrySet()) {
             String id = RepoItems.idByName(e.getKey());
             if (id == null || !isBossDrop(k.boss, id)) continue;
