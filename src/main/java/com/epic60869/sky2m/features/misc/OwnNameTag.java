@@ -61,11 +61,11 @@ public final class OwnNameTag {
         refresh(mc);
         MutableComponent line = Component.empty();
         boolean any = false;
-        if (c.networth && networth >= 0) {
+        if (c.stats && c.networth && networth >= 0) {
             line.append(Component.literal("NW " + CombatFeatures.formatCoins(networth)).withStyle(ChatFormatting.GOLD));
             any = true;
         }
-        if (c.skillAverage && skillAverage >= 0) {
+        if (c.stats && c.skillAverage && skillAverage >= 0) {
             if (any) line.append(Component.literal("   "));
             line.append(Component.literal(String.format(Locale.ROOT, "Skill Avg %.1f", skillAverage)).withStyle(ChatFormatting.GREEN));
             any = true;
