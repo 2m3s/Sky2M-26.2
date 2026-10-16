@@ -17,6 +17,8 @@ All notable changes to Sky2M are listed here, newest first.
 - Refined profit/session tracker presentation and tracking so session data is retained and displayed more consistently.
 
 ### Fixed
+- Hit Colour: corrected the opacity scale so 0 is fully opaque and 100 is fully transparent.
+- Sacks Value: investigating reports of severely inflated totals (for example, around 300B); values are not marked fixed until the calculation is corrected and verified.
 - Improved category filtering in the HUD editor and settings navigation to make enabled HUDs easier to find and manage.
 - Improved command suggestion handling for supported Hypixel commands to avoid replacing or suggesting the wrong argument text.
 
