@@ -57,7 +57,7 @@ public final class OwnNameTag {
         Minecraft mc = Minecraft.getInstance();
         if (entity instanceof Player player && player != mc.player) return SbcNameTags.line(player.getUUID());
         Sky2MConfig.OwnNameTag c = config();
-        if (c == null || !c.stats || entity != mc.player || !Sky2MLocation.onSkyblock()) return null;
+        if (c == null || (!c.stats && !c.showCollectionLeaderboard) || entity != mc.player || !Sky2MLocation.onSkyblock()) return null;
         refresh(mc);
         MutableComponent line = Component.empty();
         boolean any = false;
@@ -70,12 +70,20 @@ public final class OwnNameTag {
             line.append(Component.literal(String.format(Locale.ROOT, "Skill Avg %.1f", skillAverage)).withStyle(ChatFormatting.GREEN));
             any = true;
         }
+        if (!any && c.showCollectionLeaderboard) {
+            line.append(Component.literal("Collection").withStyle(ChatFormatting.AQUA));
+            any = true;
+        }
         if (!any) return null;
         long now = System.currentTimeMillis();
         if (now - lastPublish >= 30_000L) {
             lastPublish = now;
             String board = c.showCollectionLeaderboard ? c.collectionLeaderboard.trim().toUpperCase(Locale.ROOT) : "";
             SbcNameTags.publish(line.getString(), board);
+        }
+        if (c.showCollectionLeaderboard) {
+            Component shared = SbcNameTags.line(mc.player.getUUID());
+            if (shared != null) return shared;
         }
         return line;
     }
