@@ -4,6 +4,7 @@ import com.epic60869.sky2m.Sky2MConfig;
 import com.epic60869.sky2m.custom.util.Compat;
 import com.epic60869.sky2m.features.FeatureConfigs;
 import com.epic60869.sky2m.features.core.Sky2MChat;
+import com.epic60869.sky2m.features.core.Sky2MLocation;
 import com.epic60869.sky2m.features.misc.PartyCommands;
 import com.epic60869.sky2m.features.profileviewer.ProfileApi;
 import com.google.gson.JsonArray;
@@ -279,7 +280,8 @@ public final class PartyFinderStats {
         out.append("§7Floors: ").append(hover("§6Normal", floorHover(s.normal(), "§6§lNormal Floors", "§eF")));
         out.append(" §8| ").append(hover("§cMaster", floorHover(s.master(), "§c§lMaster Floors", "§cM")));
         out.append(" §8| §7MP: " + (s.magicalPower() > 0 ? "§d" + big(s.magicalPower()) : "§8?"));
-        out.append(" §8| §7F7: " + time(s.normal()[7]) + " §7M7: " + time(s.master()[7]) + "\n");
+        int floor = currentFloorNumber();
+        out.append(" §8| §7F" + floor + ": " + time(s.normal()[floor]) + " §7M" + floor + ": " + time(s.master()[floor]) + "\n");
         if (!s.inventoryApi()) out.append("§7Armor: §cInventory API off\n");
         else if (!s.armour().isEmpty()) {
             out.append("§7Armor: ");
@@ -310,6 +312,22 @@ public final class PartyFinderStats {
         }
         out.append("§8§m" + " ".repeat(kickButton ? 12 : 20));
         say(out);
+    }
+
+    /**
+     * Use the floor the player is queued for or currently playing. The location tracker handles in-run floors;
+     * the tab list also labels queued players as "Catacombs (M5 Queue)", which we parse as a fallback.
+     */
+    private static int currentFloorNumber() {
+        String floor = Sky2MLocation.dungeonFloor();
+        if (floor != null && floor.matches("[FM][1-7]")) return floor.charAt(1) - '0';
+
+        Pattern queuedFloor = Pattern.compile("Catacombs\\s*\\(([FM])([1-7])(?:\\s+Queue)?\\)");
+        for (String line : Sky2MLocation.teamLines()) {
+            Matcher matcher = queuedFloor.matcher(Sky2MLocation.strip(line));
+            if (matcher.find()) return Integer.parseInt(matcher.group(2));
+        }
+        return 7;
     }
 
     private static String floorHover(Floor[] floors, String title, String prefix) {
