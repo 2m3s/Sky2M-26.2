@@ -4127,7 +4127,7 @@ public final class FeatureConfigs {
         public ProfitPriceSource priceSource = ProfitPriceSource.INSTANT_SELL;
 
         @Expose
-        @ConfigOption(name = "Breakdown on Launch", desc = "When you join after restarting the game, show your last session's breakdown in chat.")
+        @ConfigOption(name = "Breakdown on Launch", desc = "When you join on a new day, show the previous day's breakdown in chat.")
         @ConfigEditorBoolean
         public boolean summaryOnLaunch = true;
 
