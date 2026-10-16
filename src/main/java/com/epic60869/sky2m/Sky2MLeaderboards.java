@@ -482,7 +482,7 @@ public final class Sky2MLeaderboards {
             MutableComponent row = Component.literal("#" + rank + " ").withStyle(colour)
                 .append(Component.literal(username).withStyle(ChatFormatting.WHITE))
                 .append(Component.literal(" — " + String.format(Locale.ROOT, "%,d", value)
-                    + ("slayer".equals(string(packet, "type")) ? " XP" : "")).withStyle(ChatFormatting.GREEN));
+                    + ("slayer".equals(string(packet, "boardType")) ? " XP" : "")).withStyle(ChatFormatting.GREEN));
             say(row);
         }
         say(Component.literal("Full rankings: shadowisabot.com/leaderboards").withStyle(style -> style.withColor(ChatFormatting.AQUA)
