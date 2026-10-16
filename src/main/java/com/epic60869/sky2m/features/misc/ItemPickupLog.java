@@ -74,7 +74,7 @@ public final class ItemPickupLog {
             FeatureConfigs.ItemPickupLog c = config();
             if (c == null || !c.enabled || !c.sacks) return;
             String display = titleCase(name);
-            add("sack:" + name, "§7[Sack] §f" + display, RepoItems.itemStack(idFromName(name)), idFromName(name), delta);
+            add("sack:" + name, "§f" + display, RepoItems.itemStack(idFromName(name)), idFromName(name), delta);
         });
         Sky2MChat.onChat(message -> {
             FeatureConfigs.ItemPickupLog c = config();
@@ -132,6 +132,13 @@ public final class ItemPickupLog {
             lastLevel = mc.level;
             lastCounts = null;
             lastPurse = -1;
+        }
+        // Menus such as the Experimentation Table can move/replace inventory slots as part of their
+        // own UI interactions. Do not interpret those transient changes as pickups or drops.
+        if (mc.gui.screen() instanceof AbstractContainerScreen<?>) {
+            lastCounts = null;
+            lastPurse = -1;
+            return;
         }
         Map<String, Integer> counts = new HashMap<>();
         Map<String, ItemStack> stacks = new HashMap<>();
@@ -314,8 +321,9 @@ public final class ItemPickupLog {
         return out.toString();
     }
 
-    /** "enchanted diamond" -> ENCHANTED_DIAMOND, good enough for sack items' prices and icons. */
+    /** Resolve sack display names against the actual item repository before falling back to a normalised ID. */
     private static String idFromName(String name) {
-        return name.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]+", "_");
+        String id = RepoItems.idByLooseName(name);
+        return id != null ? id : name.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]+", "_");
     }
 }
