@@ -144,6 +144,14 @@ public final class SessionTracker {
             current.started = System.currentTimeMillis();
             saved.current = current;
         }
+        // If an older version stored multiple sessions for the currently open day, fold them into today's record.
+        if (current != null) {
+            saved.history.removeIf(oldDay -> {
+                if (oldDay.day != current.day) return false;
+                merge(current, oldDay);
+                return true;
+            });
+        }
         trim();
         save();
         ClientTickEvents.END_CLIENT_TICK.register(SessionTracker::tick);
