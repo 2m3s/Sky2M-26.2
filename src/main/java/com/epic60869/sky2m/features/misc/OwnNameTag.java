@@ -48,7 +48,7 @@ public final class OwnNameTag {
     public static boolean showName(Entity entity) {
         Sky2MConfig.OwnNameTag c = config();
         Minecraft mc = Minecraft.getInstance();
-        return c != null && (c.enabled || c.stats) && entity == mc.player && !mc.options.getCameraType().isFirstPerson()
+        return c != null && (c.enabled || c.stats || c.showCollectionLeaderboard) && entity == mc.player && !mc.options.getCameraType().isFirstPerson()
             && !mc.gui.hud.isHidden() && !entity.isInvisible();
     }
 
