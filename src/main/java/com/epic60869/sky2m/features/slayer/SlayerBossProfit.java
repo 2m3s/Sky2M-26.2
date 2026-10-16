@@ -467,7 +467,8 @@ public final class SlayerBossProfit {
         for (Map.Entry<String, Long> e : k.sacks.entrySet()) {
             String id = RepoItems.idByName(e.getKey());
             if (id == null || !isBossDrop(k.boss, id)) continue;
-            received.merge(id, e.getValue(), Long::sum);
+            // Inventory, sacks and ground can all report the same drop; count the strongest signal once.
+            received.merge(id, e.getValue(), Math::max);
             names.put(id, e.getKey());
         }
         Map<String, Long> amounts = new LinkedHashMap<>(received);
