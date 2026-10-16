@@ -257,7 +257,7 @@ public final class CombatFeatures {
     private static void onRareDrop(FeatureConfigs.RareDrops config, String text, String item, int amount,
                                    boolean rng, boolean slayer, boolean garden) {
         Minecraft mc = Minecraft.getInstance();
-        if (config.copy || (config.copyRng && rng) || (config.copySlayer && slayer) || (config.copyGarden && garden)) {
+        if (config.copy || (config.copyRng && rng && !garden) || (config.copySlayer && slayer) || (config.copyGarden && garden)) {
             mc.execute(() -> {
                 mc.keyboardHandler.setClipboard(text);
                 com.epic60869.sky2m.features.misc.CopyChat.showPreview("Drop copied", text);
