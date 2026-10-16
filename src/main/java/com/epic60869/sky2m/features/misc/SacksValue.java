@@ -257,11 +257,11 @@ public final class SacksValue {
         if (cached != null) return cached.isEmpty() ? null : cached;
         String id = RepoItems.idByLooseName(name);
         if (id == null) {
-            // The repo may not have loaded yet: guess the usual id ("Enchanted Carrot" -> ENCHANTED_CARROT) for now.
-            String guess = name.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9 ]", "").trim().replace(' ', '_');
-            // Once the repo is loaded the guess is as good as it gets: remember it instead of searching again.
-            if (!RepoItems.allNames().isEmpty()) IDS.put(name, guess);
-            return guess.isEmpty() ? null : guess;
+            // Do not guess an API ID from a display name. A guessed ID can belong to a different Bazaar product,
+            // assigning its price to this sack item and massively inflating the total. If the repo is not loaded yet,
+            // try again on the next calculation; once loaded, remember unknown names as unknown.
+            if (!RepoItems.allNames().isEmpty()) IDS.put(name, "");
+            return null;
         }
         IDS.put(name, id);
         return id;
