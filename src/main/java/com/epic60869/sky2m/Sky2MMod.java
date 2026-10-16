@@ -250,6 +250,16 @@ public final class Sky2MMod implements ClientModInitializer {
     private com.mojang.brigadier.builder.LiteralArgumentBuilder<net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource> commandTree(String name) {
         var root = ClientCommands.literal(name)
             .executes(context -> openMenu())
+            .then(ClientCommands.literal("settings")
+                .executes(context -> openMenu())
+                .then(ClientCommands.argument("filter", StringArgumentType.greedyString())
+                    .suggests((context, builder) -> net.minecraft.commands.SharedSuggestionProvider.suggest(
+                        java.util.List.of("general", "chat", "combat", "diana", "mayors", "dungeons", "farming",
+                            "fishing", "mining", "foraging", "slayer", "profit trackers", "hunting", "safari",
+                            "skills", "pets", "misc", "storage", "waypoints", "hud", "alerts", "tracker", "enabled"),
+                        builder))
+                    .executes(context -> openFilteredGui(StringArgumentType.getString(context, "filter"))))
+                )
             .then(ClientCommands.literal("notes").executes(context -> openNotes()))
             .then(ClientCommands.literal("search").executes(context -> openStorageSearch()))
             .then(Sky2MRecipeCommand.command())
