@@ -84,8 +84,9 @@ public final class SlayerTimes {
     static void onBoss(String healthLine) {
         long now = System.currentTimeMillis();
         if (healthLine == null) {
+            // A missing nametag can be a Tarantula phase transition, not a kill. Only kill chat
+            // (or an observed 0-health line) confirms the end of the fight.
             killed = false;
-            if (spawnedAt > 0 && diedAt == 0 && lastSeenAt > 0) diedAt = lastSeenAt;
             return;
         }
         if (killed) return;
@@ -94,7 +95,6 @@ public final class SlayerTimes {
             SlayerBossProfit.onSpawn();
         }
         if (healthLine.isEmpty() || ZERO_HEALTH.matcher(healthLine).find()) {
-            if (diedAt == 0 && lastSeenAt > 0) diedAt = healthLine.isEmpty() ? lastSeenAt : now;
             if (zeroAt == 0 && !healthLine.isEmpty()) zeroAt = now;
         } else {
             // Alive: back in range, or Tier 5 Tarantula's second phase after the first one went.
@@ -178,7 +178,7 @@ public final class SlayerTimes {
 
     private static void onKill() {
         if (spawnedAt == 0 || boss == null) return;
-        long time = (diedAt > 0 ? diedAt : System.currentTimeMillis()) - spawnedAt;
+        long time = (zeroAt > 0 ? zeroAt : System.currentTimeMillis()) - spawnedAt;
         String name = boss;
         SlayerBossProfit.onKill(name);
         spawnedAt = 0;
