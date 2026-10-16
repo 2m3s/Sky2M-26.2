@@ -17,7 +17,7 @@ All notable changes to Sky2M are listed here, newest first.
 - Refined profit/session tracker presentation and tracking so session data is retained and displayed more consistently.
 
 ### Fixed
-- Slayer Phase Timer: a missing boss nametag no longer ends the fight; timing ends on Hypixel's confirmed boss-slain/cocoon message. This prevents Tarantula's Conjoined Brood transition from recording a tiny false phase/PB, and phase state resets when a new slayer quest starts or fails.
+- Slayer timers/PBs: a missing boss nametag no longer counts as a kill. Phase summaries finish on Hypixel's confirmed boss-slain/cocoon message, and kill PB timing uses an observed 0-health line or the confirmed kill message. This prevents Tarantula's Conjoined Brood transition from recording a tiny false phase/PB; phase state resets when a new slayer quest starts or fails.
 - Copy RNG Drops: rare crops and other Garden drops are no longer copied by the RNG-only toggle; use Copy Garden Drops for those.
 - Item Pickup Log: sack entries use repository-matched item IDs for better icons and no longer have the `[Sack]` name prefix. Inventory changes are ignored while container menus are open, preventing false pickup/drop entries from menus such as the Experimentation Table.
 - Bazaar Notifications: fully filled (100%) orders are removed from the outbid watcher instead of continuing to trigger outdated alerts.
