@@ -4132,7 +4132,7 @@ public final class FeatureConfigs {
         public boolean summaryOnLaunch = true;
 
         @Expose
-        @ConfigOption(name = "Sessions Kept", desc = "How many past sessions /s2 session keeps.")
+        @ConfigOption(name = "Sessions Kept", desc = "How many past daily sections /s2 session keeps.")
         @ConfigEditorSlider(minValue = 1, maxValue = 100, minStep = 1)
         public int keep = 50;
 
