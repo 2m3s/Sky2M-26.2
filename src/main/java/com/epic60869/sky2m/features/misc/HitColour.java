@@ -78,7 +78,10 @@ public final class HitColour {
             String[] parts = value.split(":");
             if (parts.length >= 4) {
                 try {
-                    alpha = Math.max(0, Math.min(255, Integer.parseInt(parts[parts.length - 4].trim())));
+                    // The colour editor stores transparency: 0 = opaque, 255 = transparent.
+                    // Convert it to texture alpha, where 0 = invisible and 255 = opaque.
+                    int transparency = Math.max(0, Math.min(255, Integer.parseInt(parts[parts.length - 4].trim())));
+                    alpha = 255 - transparency;
                 } catch (NumberFormatException ignored) {}
             }
         }
