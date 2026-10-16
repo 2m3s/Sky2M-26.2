@@ -275,7 +275,7 @@ public final class SessionTracker {
         HoverEvent hover = new HoverEvent.ShowText(Component.literal("Click to open it in /s2 session").withStyle(ChatFormatting.YELLOW));
         ClickEvent click = new ClickEvent.RunCommand("/s2 session last");
         MutableComponent text = Component.literal("[S2M] ").withStyle(ChatFormatting.LIGHT_PURPLE)
-            .append(Component.literal("Last session ").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD))
+            .append(Component.literal("Previous day ").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD))
             .append(Component.literal(date(s.firstActiveAny()) + " " + time(s.firstActiveAny()) + ", " + duration(s.playtime()) + ": ").withStyle(ChatFormatting.GRAY))
             .append(signed(profit(s)));
         for (ProfitTracker.Preset preset : ACTIVITIES) {
