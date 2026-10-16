@@ -55,6 +55,8 @@ public abstract class Sky2MChatScreenMixin {
     @Inject(method = "extractRenderState", at = @At("HEAD"))
     private void sky2m$currentChatDisplay(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta, CallbackInfo ci) {
         com.epic60869.sky2m.Sky2MCurrentChat.render(graphics, ((ChatScreen) (Object) this).height);
+        // Draw tabs at the same stage as Current Chat Display, before Minecraft renders command suggestions.
+        com.epic60869.sky2m.features.misc.ChatTabs.render(graphics, ((ChatScreen) (Object) this).height, input, mouseX, mouseY);
     }
 
     @Inject(method = "extractRenderState", at = @At("TAIL"))
@@ -64,7 +66,6 @@ public abstract class Sky2MChatScreenMixin {
         mc.gui.hud.getChat().captureClickableText(finder, mc.getWindow().getGuiScaledHeight(), mc.gui.hud.getGuiTicks(), displayMode);
         com.epic60869.sky2m.Sky2MImagePreview.render(graphics, finder.result(), mouseX, mouseY);
         com.epic60869.sky2m.features.sbc.SbcChatOverlay.render(graphics, ((ChatScreen) (Object) this).height, mouseX, mouseY);
-        com.epic60869.sky2m.features.misc.ChatTabs.render(graphics, ((ChatScreen) (Object) this).height, input, mouseX, mouseY);
     }
 
     /** Chat Tabs: clicking a tab, Ctrl+F, and Enter while searching. */
