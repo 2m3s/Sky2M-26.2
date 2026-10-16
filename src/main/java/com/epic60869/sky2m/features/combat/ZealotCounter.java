@@ -71,8 +71,10 @@ public final class ZealotCounter {
     private static final Pattern SPECIAL_ZEALOTS_TAB = Pattern.compile("special\\s+zealots\\s*:\\s*([\\d,]+)\\s*/\\s*400", Pattern.CASE_INSENSITIVE);
     /** True while Hypixel's authoritative tab-list pity counter is available. */
     private static boolean tabPityDetected;
-    /** Last observed Hypixel Special Zealots counter, used to add only newly observed kills to totals. */
+    /** Last observed Hypixel Special Zealots counter, used to reconcile TAB updates with local detections. */
     private static int lastObservedTabPity = -1;
+    /** Locally counted kills that TAB has not caught up with yet. Prevents delayed TAB updates double-counting them. */
+    private static int localUnconfirmedKills;
     private static final long UPTIME_IDLE_MS = 10_000L;
     private static long uptimeAccumulated;
     private static long uptimeSegmentStart;
@@ -113,6 +115,7 @@ public final class ZealotCounter {
             COUNTED.clear();
             HIT_BY_YOU.clear();
             lastObservedTabPity = -1;
+            localUnconfirmedKills = 0;
             tabPityDetected = false;
         });
         Sky2MChat.onChat(message -> {
@@ -379,20 +382,26 @@ public final class ZealotCounter {
             sinceEye = pity;
             tabPityDetected = true;
 
-            // The TAB counter is authoritative. Add only the increase since the last sample,
-            // so kills missed by entity tracking are recovered without double-counting locally detected kills.
+            // TAB is authoritative for "since last eye", while local detection keeps the total responsive.
+            // When TAB advances, first use its increase to confirm locally counted kills that it had not shown yet.
+            // Only any increase beyond those local estimates is added as recovered/missed kills.
             if (lastObservedTabPity < 0) {
                 lastObservedTabPity = pity;
             } else if (pity >= lastObservedTabPity) {
                 int gained = pity - lastObservedTabPity;
                 if (gained > 0) {
-                    totalKills += gained;
-                    sessionKills += gained;
-                    if (totalKills % 25 < gained) save();
+                    int confirmedLocal = Math.min(gained, localUnconfirmedKills);
+                    localUnconfirmedKills -= confirmedLocal;
+                    int missedLocally = gained - confirmedLocal;
+                    if (missedLocally > 0) {
+                        totalKills += missedLocally;
+                        sessionKills += missedLocally;
+                        if (totalKills % 25 < missedLocally) save();
+                    }
                 }
                 lastObservedTabPity = pity;
             } else {
-                // Counter reset after an eye (or a new counter cycle): the previous value was already counted.
+                // TAB reset after an eye. Previously counted kills remain in totals; start a new pity baseline.
                 lastObservedTabPity = pity;
             }
         }
@@ -407,14 +416,13 @@ public final class ZealotCounter {
     }
 
     private static void count(boolean beforeEye, long killedAt) {
-        // When TAB pity is available, updateTabPity() adds only counter increases to the totals.
-        // Avoid incrementing again here, as entity detection can overlap with TAB updates.
-        if (!tabPityDetected) {
-            totalKills++;
-            sessionKills++;
-            if (!beforeEye) sinceEye++;
-            if (totalKills % 25 == 0) save();
-        }
+        // Keep the main-branch detector responsive: count confirmed local kills immediately.
+        // TAB later reconciles these estimates and only adds kills that local detection missed.
+        totalKills++;
+        sessionKills++;
+        localUnconfirmedKills++;
+        if (!tabPityDetected && !beforeEye) sinceEye++;
+        if (totalKills % 25 == 0) save();
         recordKillTime(killedAt);
     }
 
