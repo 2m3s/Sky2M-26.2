@@ -56,7 +56,7 @@ public final class CommandAutofill {
         if (space < 0) return null;
         String command = uptoCursor.substring(1, space).toLowerCase(Locale.ROOT);
         List<Entry> source = switch (command) {
-            case "bz", "bazaar" -> config.bazaar ? bazaarEntries() : null;
+            case "bz", "bzs", "bazaar" -> config.bazaar ? bazaarEntries() : null;
             case "ahs", "ahsearch" -> config.auctionHouse ? itemNameEntries() : null;
             case "viewrecipe", "recipe" -> config.recipes ? itemIdEntries() : null;
             default -> null;
@@ -114,8 +114,8 @@ public final class CommandAutofill {
             ids.addAll(snapshot.sell().keySet());
             List<Entry> next = new ArrayList<>(ids.size());
             for (String id : ids) {
-                String text = id.toLowerCase(Locale.ROOT);
-                next.add(new Entry(text, normalise(text)));
+                // Keep the exact API product ID for insertion; normalize only the search key.
+                next.add(new Entry(id, normalise(id)));
             }
             bazaar = next;
             bazaarSource = snapshot;
@@ -178,12 +178,12 @@ public final class CommandAutofill {
         public boolean enabled = true;
 
         @Expose
-        @ConfigOption(name = "Bazaar (/bz)", desc = "Suggest Bazaar products for /bz and /bazaar. Search matches spaces, underscores and hyphens interchangeably; Tab inserts the actual Bazaar product ID.")
+        @ConfigOption(name = "Bazaar (/bz)", desc = "Suggest Bazaar products for /bz, /bzs and /bazaar. Search matches spaces, underscores and hyphens interchangeably; Tab inserts the actual Bazaar product ID.")
         @ConfigEditorBoolean
         public boolean bazaar = true;
 
         @Expose
-        @ConfigOption(name = "Auction House (/ahs)", desc = "Suggest matching item names for /ahs and /ahsearch, including partial searches such as grand. /ah itself takes a player name, so it is left alone.")
+        @ConfigOption(name = "Auction House (/ahs)", desc = "Suggest matching item names for /ahs and /ahsearch, including partial searches such as grand. Item names retain their original spaces and hyphens. /ah itself takes a player name, so it is left alone.")
         @ConfigEditorBoolean
         public boolean auctionHouse = true;
 
