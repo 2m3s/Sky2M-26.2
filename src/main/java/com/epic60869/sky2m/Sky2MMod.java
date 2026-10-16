@@ -281,7 +281,7 @@ public final class Sky2MMod implements ClientModInitializer {
                             "fishing", "mining", "foraging", "slayer", "profit trackers", "hunting", "safari",
                             "skills", "pets", "misc", "storage", "waypoints", "hud", "alerts", "tracker", "enabled"),
                         builder))
-                    .executes(context -> openFilteredGui(StringArgumentType.getString(context, "filter"))))
+                    .executes(context -> openFilteredGui(StringArgumentType.getString(context, "filter")))))
             .then(ClientCommands.literal("debug").executes(context -> Sky2MDebug.run())
                 .then(ClientCommands.literal("starred").executes(context -> {
                     Minecraft mc = Minecraft.getInstance();
