@@ -2,6 +2,24 @@
 
 All notable changes to Sky2M are listed here, newest first.
 
+## 1.0.2 — 2026-10-16
+
+### Added
+- Settings search and category filters: use `/s2 settings [filter]` or `/s2 gui <filter>` to find settings quickly. The HUD editor now has All, Mining, Dungeons, Combat, Pets, Trackers and Other filters, so you can focus on the HUDs you want to arrange.
+- Session Tracker (`/s2 session`): review profit for this game session and previous sessions, split into Total, Farming, Mining and Diana tabs. Daily history records the built-in profit trackers in the background, keeps sessions across game restarts, and recalculates values using the latest prices.
+- Slayer Boss Profit: see the profit or loss after a slayer boss, with a breakdown of drops, their values, quest cost and net result, plus a HUD summary.
+- Command Autofill improvements: more helpful in-game suggestions for supported Bazaar and auction/item commands, with normalized matching for spaces, underscores and hyphens.
+
+### Changed
+- Zealot Tracker now prefers Hypixel's TAB-list pity counter for “Since last eye” when it is available, keeping the counter aligned with Hypixel's value even when local entity tracking misses kills.
+- Updated Zealot Tracker's eye-drop kill count handling so a Summoning Eye drop does not incorrectly reset the cumulative total-kills counter.
+- Improved Party Finder Stats and related party commands, including the player-stat display and kick-list handling.
+- Refined profit/session tracker presentation and tracking so session data is retained and displayed more consistently.
+
+### Fixed
+- Improved category filtering in the HUD editor and settings navigation to make enabled HUDs easier to find and manage.
+- Improved command suggestion handling for supported Hypixel commands to avoid replacing or suggesting the wrong argument text.
+
 ## 1.0.1 — 2026-10-12
 
 ### Added
