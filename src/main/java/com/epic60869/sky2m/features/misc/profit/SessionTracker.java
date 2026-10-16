@@ -356,6 +356,17 @@ public final class SessionTracker {
             if (loaded.history == null) loaded.history = new ArrayList<>();
             loaded.history.removeIf(s -> s == null || s.activities == null);
             for (Session s : loaded.history) fix(s);
+            // Migrate older versions' multiple game sessions into one record per local calendar day.
+            Map<Long, Session> byDay = new LinkedHashMap<>();
+            for (Session oldSession : loaded.history) {
+                Session daySession = byDay.get(oldSession.day);
+                if (daySession == null) {
+                    byDay.put(oldSession.day, oldSession);
+                } else {
+                    merge(daySession, oldSession);
+                }
+            }
+            loaded.history = new ArrayList<>(byDay.values());
             if (loaded.current != null) {
                 if (loaded.current.activities == null) loaded.current = null;
                 else {
@@ -379,6 +390,28 @@ public final class SessionTracker {
             if (stats.pestKills == null) stats.pestKills = new LinkedHashMap<>();
         }
         s.activities.values().removeIf(java.util.Objects::isNull);
+    }
+
+    private static void merge(Session into, Session from) {
+        into.started = into.started <= 0 ? from.started : from.started <= 0 ? into.started : Math.min(into.started, from.started);
+        into.ended = Math.max(into.ended, from.ended);
+        if (into.firstActive == null) into.firstActive = new LinkedHashMap<>();
+        if (from.firstActive != null) from.firstActive.forEach((key, value) -> into.firstActive.merge(key, value, Math::min));
+        if (into.activities == null) into.activities = new LinkedHashMap<>();
+        if (from.activities == null) return;
+        from.activities.forEach((key, source) -> {
+            if (source == null) return;
+            ProfitTracker.Stats target = into.activities.computeIfAbsent(key, ignored -> new ProfitTracker.Stats());
+            if (target.items == null) target.items = new LinkedHashMap<>();
+            if (source.items != null) source.items.forEach((id, amount) -> target.items.merge(id, amount, Long::sum));
+            if (target.pestKills == null) target.pestKills = new LinkedHashMap<>();
+            if (source.pestKills != null) source.pestKills.forEach((name, amount) -> target.pestKills.merge(name, amount, Long::sum));
+            target.coins += source.coins;
+            target.kernels += source.kernels;
+            target.actions += source.actions;
+            target.activeMs += source.activeMs;
+            target.costs += source.costs;
+        });
     }
 
     private static void save() {
