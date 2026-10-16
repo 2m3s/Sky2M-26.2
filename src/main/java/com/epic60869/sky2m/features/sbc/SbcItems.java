@@ -274,12 +274,15 @@ public final class SbcItems {
         return any && onlyFollowups && sharingEnabled();
     }
 
-    /** "Party > [MVP+] Name: " -> "Name". */
+    /** Extracts the actual Minecraft username from vanilla party/guild/private chat prefixes. */
     private static String sender(String before) {
+        // Do not infer the sender from the final word: prefixes can contain rank labels and channel
+        // formatting, and some chat layouts include additional text before the message body.
         int colon = before.lastIndexOf(':');
         if (colon < 0) return "";
-        String[] words = before.substring(0, colon).trim().split(" ");
-        return words.length == 0 ? "" : words[words.length - 1].replaceAll("[^A-Za-z0-9_]", "");
+        String prefix = before.substring(0, colon);
+        Matcher username = Pattern.compile("([A-Za-z0-9_]{1,16})\\s*$").matcher(prefix);
+        return username.find() ? username.group(1) : "";
     }
 
     /** The clickable "[Inventory]" a shared inventory shows as. */
