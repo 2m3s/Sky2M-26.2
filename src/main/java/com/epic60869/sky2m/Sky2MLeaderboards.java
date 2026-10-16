@@ -303,8 +303,16 @@ public final class Sky2MLeaderboards {
             }
             say(text);
         }
-        say(Component.literal("Always on: ").withStyle(ChatFormatting.GRAY)
-            .append(Component.literal("Slayer PBs").withStyle(style -> style.withColor(ChatFormatting.RED)
+        say(Component.literal("Permanent stats: ").withStyle(ChatFormatting.GRAY)
+            .append(Component.literal("Collections").withStyle(style -> style.withColor(ChatFormatting.GREEN)
+                .withClickEvent(new net.minecraft.network.chat.ClickEvent.RunCommand("/s2 leaderboard collection"))
+                .withHoverEvent(new net.minecraft.network.chat.HoverEvent.ShowText(Component.literal("Browse every collection leaderboard")))))
+            .append(Component.literal(" · ").withStyle(ChatFormatting.DARK_GRAY))
+            .append(Component.literal("Slayer XP").withStyle(style -> style.withColor(ChatFormatting.RED)
+                .withClickEvent(new net.minecraft.network.chat.ClickEvent.RunCommand("/s2 leaderboard slayer xp"))
+                .withHoverEvent(new net.minecraft.network.chat.HoverEvent.ShowText(Component.literal("Browse slayer XP leaderboards"))))));
+        say(Component.literal("Personal bests: ").withStyle(ChatFormatting.GRAY)
+            .append(Component.literal("Slayer kill times").withStyle(style -> style.withColor(ChatFormatting.YELLOW)
                 .withClickEvent(new net.minecraft.network.chat.ClickEvent.RunCommand("/s2 leaderboard slayer"))
                 .withHoverEvent(new net.minecraft.network.chat.HoverEvent.ShowText(Component.literal("Everyone's fastest slayer kill for each boss and tier"))))));
         return 1;
