@@ -18,7 +18,7 @@ All notable changes to Sky2M are listed here, newest first.
 
 ### Fixed
 - Hit Colour: corrected the opacity scale so 0 is fully opaque and 100 is fully transparent.
-- Sacks Value: investigating reports of severely inflated totals (for example, around 300B); values are not marked fixed until the calculation is corrected and verified.
+- Sacks Value: stopped guessing Bazaar item IDs from unmatched sack names. A guessed ID could point to a different product and apply its price to the wrong item, inflating the total. Unknown items are now skipped rather than assigned a potentially unrelated price.
 - Improved category filtering in the HUD editor and settings navigation to make enabled HUDs easier to find and manage.
 - Improved command suggestion handling for supported Hypixel commands to avoid replacing or suggesting the wrong argument text.
 
