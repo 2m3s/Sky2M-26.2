@@ -163,7 +163,7 @@ public final class CommandAutofill {
 
     /** Lower case, with spaces as underscores. */
     private static String normalise(String text) {
-        return text.toLowerCase(Locale.ROOT).replace(' ', '_');
+        return text.toLowerCase(Locale.ROOT).replace(' ', '_').replace('-', '_');
     }
 
     private static @Nullable Config config() {
@@ -178,12 +178,12 @@ public final class CommandAutofill {
         public boolean enabled = true;
 
         @Expose
-        @ConfigOption(name = "Bazaar (/bz)", desc = "Suggest Bazaar products for /bz and /bazaar, like enchanted_diamond and enchanted_diamond_block. Spaces and underscores both match.")
+        @ConfigOption(name = "Bazaar (/bz)", desc = "Suggest Bazaar products for /bz and /bazaar. Search matches spaces, underscores and hyphens interchangeably; Tab inserts the actual Bazaar product ID.")
         @ConfigEditorBoolean
         public boolean bazaar = true;
 
         @Expose
-        @ConfigOption(name = "Auction House (/ahs)", desc = "Suggest item names for /ahs and /ahsearch (/ah itself takes a player name, so it is left alone).")
+        @ConfigOption(name = "Auction House (/ahs)", desc = "Suggest matching item names for /ahs and /ahsearch, including partial searches such as grand. /ah itself takes a player name, so it is left alone.")
         @ConfigEditorBoolean
         public boolean auctionHouse = true;
 
