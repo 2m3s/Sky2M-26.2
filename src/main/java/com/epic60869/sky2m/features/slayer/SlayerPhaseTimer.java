@@ -23,12 +23,11 @@ import java.util.regex.Pattern;
 public final class SlayerPhaseTimer {
     private static final Pattern HITS = Pattern.compile("\\b\\d+ Hits?\\b");
     private static final long KEEP_MS = 10_000;
-    private static final long MISSING_GRACE_MS = 5_000;
 
     private record Phase(boolean hits, long millis) {}
 
     private static final List<Phase> phases = new ArrayList<>();
-    private static boolean active, currentHits;
+    private static boolean active, currentHits, killed;
     private static long fightStart, phaseStart, endedAt, missingSince;
 
     private SlayerPhaseTimer() {}
@@ -53,7 +52,10 @@ public final class SlayerPhaseTimer {
             if (text.equals("SLAYER QUEST STARTED!")) {
                 reset();
             } else if (text.equals("NICE! SLAYER BOSS SLAIN!") || text.startsWith("YOU COCOONED YOUR SLAYER BOSS")) {
-                if (active) finish(System.currentTimeMillis());
+                if (active) {
+                    finish(System.currentTimeMillis());
+                    killed = true;
+                }
             } else if (text.equals("SLAYER QUEST FAILED!")) {
                 reset();
             }
@@ -64,11 +66,13 @@ public final class SlayerPhaseTimer {
     static void onBoss(String text) {
         long now = System.currentTimeMillis();
         if (text == null) {
-            // Tarantula nametags disappear during the Conjoined Brood transition; do not finish immediately.
-            if (active && missingSince == 0) missingSince = now;
-            if (active && now - missingSince >= MISSING_GRACE_MS) finish(now);
+            // The health nametag can disappear during Tarantula's Conjoined Brood transition.
+            // A missing tag alone never ends a fight; wait for Hypixel's boss-slain/cocoon message.
+            missingSince = 0;
+            if (killed) killed = false;
             return;
         }
+        if (killed) return;
         missingSince = 0;
         boolean hits = HITS.matcher(text).find();
         if (!active) {
@@ -119,6 +123,7 @@ public final class SlayerPhaseTimer {
         endedAt = 0;
         missingSince = 0;
         currentHits = false;
+        killed = false;
     }
 
     private static String seconds(long millis) {
