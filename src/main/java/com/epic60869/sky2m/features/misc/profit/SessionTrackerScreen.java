@@ -139,9 +139,8 @@ public final class SessionTrackerScreen extends Screen {
         int last = SessionTracker.pastSessions() - 1;
         if (index < last) button(g, left + W - 24, top + 4, 20, 14, "▶", false, mouseX, mouseY, () -> go(index + 1));
         if (index > -1) button(g, left + 4, top + 4, 20, 14, "◀", false, mouseX, mouseY, () -> go(index - 1));
-        String which = live() ? "This session (since " + SessionTracker.time(s.started) + ")"
-            : "Past session " + (index + 1) + "/" + (last + 1) + ": " + SessionTracker.date(s.firstActiveAny()) + " " + SessionTracker.time(s.firstActiveAny())
-                + " - " + SessionTracker.time(s.ended);
+        String which = live() ? "Today · " + SessionTracker.date(s.started)
+            : SessionTracker.date(s.started) + " · Day " + (index + 1) + "/" + (last + 1);
         g.centeredText(font, which, width / 2, top + 7, TEXT);
 
         // The profit, big and green, kept up to date with the prices.
@@ -156,18 +155,17 @@ public final class SessionTrackerScreen extends Screen {
         long ago = (System.currentTimeMillis() - pricedAt) / 1000;
         g.centeredText(font, (anyUnknown ? "Known profit" : "Profit") + " · prices updated " + ago + "s ago", width / 2, top + 50, TEXT);
 
-        // Tabs.
-        int tabsY = top + 64, bw = (W - 8) / (TOTAL + 1);
-        // Total first, then Farming, Mining and Diana.
+        // Two compact rows keep all 11 profit presets accessible without tiny one-line tabs.
+        int tabsY = top + 64, columns = 6, bw = (W - 8) / columns;
         for (int pos = 0; pos <= TOTAL; pos++) {
             int t = pos == 0 ? TOTAL : pos - 1;
             String label = t < TOTAL ? SessionTracker.name(SessionTracker.ACTIVITIES[t]) : "Total";
-            button(g, left + 4 + pos * bw, tabsY, bw - 2, 16, label, tab == t, mouseX, mouseY, () -> {
+            button(g, left + 4 + (pos % columns) * bw, tabsY + (pos / columns) * 18, bw - 2, 16, label, tab == t, mouseX, mouseY, () -> {
                 tab = t;
                 scroll = 0;
             });
         }
-        int y = tabsY + 24;
+        int y = tabsY + 40;
         if (!s.hasAny()) {
             boolean on = SessionTracker.on();
             g.centeredText(font, on ? "Nothing yet this session. Go mining, farming or do some Diana!"
