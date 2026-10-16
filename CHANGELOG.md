@@ -9,6 +9,7 @@ All notable changes to Sky2M are listed here, newest first.
 - Session Tracker (`/s2 session`): review profit for this game session and previous sessions, split into Total, Farming, Mining and Diana tabs. Daily history records the built-in profit trackers in the background, keeps sessions across game restarts, and recalculates values using the latest prices.
 - Slayer Boss Profit: see the profit or loss after a slayer boss, with a breakdown of drops, their values, quest cost and net result, plus a HUD summary.
 - Command Autofill improvements: more helpful in-game suggestions for supported Bazaar and auction/item commands, with normalized matching for spaces, underscores and hyphens.
+- Permanent stat leaderboards: `/s2 leaderboard collection` browses collection rankings, `/s2 leaderboard collection <item>` shows a collection's top players, and `/s2 leaderboard slayer xp <boss>` shows slayer XP standings. Existing event leaderboards and slayer kill-time PB boards remain available.
 
 ### Changed
 - Zealot Tracker now prefers Hypixel's TAB-list pity counter for “Since last eye” when it is available, keeping the counter aligned with Hypixel's value even when local entity tracking misses kills.
