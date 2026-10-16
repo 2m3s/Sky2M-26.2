@@ -39,6 +39,7 @@ public final class SessionTrackerScreen extends Screen {
     private final double[] profits = new double[TOTAL];
     private final boolean[] unknown = new boolean[TOTAL];
     private final List<List<Item>> items = new ArrayList<>();
+    private final Map<Integer, Double> dayProfits = new java.util.HashMap<>();
 
     private record Item(String id, String name, long amount, double value) {}
 
@@ -79,6 +80,7 @@ public final class SessionTrackerScreen extends Screen {
         long now = System.currentTimeMillis();
         if (!force && now - pricedAt < every && items.size() == TOTAL) return;
         pricedAt = now;
+        dayProfits.clear();
         FeatureConfigs.ProfitPriceSource source = c == null || c.priceSource == null ? FeatureConfigs.ProfitPriceSource.INSTANT_SELL : c.priceSource;
         items.clear();
         SessionTracker.Session s = session();
@@ -107,12 +109,14 @@ public final class SessionTrackerScreen extends Screen {
         return total;
     }
 
-    private static double dayProfit(SessionTracker.Session session) {
-        double total = 0;
-        for (ProfitTracker.Preset preset : SessionTracker.ACTIVITIES) {
-            total += SessionTracker.profit(preset, session.get(preset), null);
-        }
-        return total;
+    private double dayProfit(int dayIndex, SessionTracker.Session session) {
+        return dayProfits.computeIfAbsent(dayIndex, ignored -> {
+            double total = 0;
+            for (ProfitTracker.Preset preset : SessionTracker.ACTIVITIES) {
+                total += SessionTracker.profit(preset, session.get(preset), null);
+            }
+            return total;
+        });
     }
 
     private void button(GuiGraphicsExtractor g, int x, int y, int w, int h, String label, boolean selected, int mouseX, int mouseY, Runnable action) {
@@ -160,7 +164,7 @@ public final class SessionTrackerScreen extends Screen {
                 int ry = rowY + visible * 22;
                 boolean over = mouseX >= left + 6 && mouseX < left + W - 6 && mouseY >= ry && mouseY < ry + 19;
                 g.fill(left + 6, ry, left + W - 6, ry + 19, over ? 0xFF33405A : BUTTON);
-                double value = dayProfit(daySession);
+                double value = dayProfit(dayIndex, daySession);
                 String label = (dayIndex < 0 ? "Today" : SessionTracker.date(daySession.started)) + "  ·  " + signed(value);
                 g.text(font, font.plainSubstrByWidth(label, W - 32), left + 12, ry + 5, value >= 0 ? GREEN : RED, true);
                 buttons.add(new int[]{left + 6, ry, W - 12, 19});
