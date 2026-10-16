@@ -337,6 +337,13 @@ public final class SbcItems {
      * "[Heroic Hyperion](sb:HYPERION)" ("(sb:ENCHANTED_DIAMOND*12)" for a stack): readable for players without
      * Sky2M, and a hoverable item for players with it.
      */
+    private static final char HIDDEN_START = '\u2063';
+    private static final char HIDDEN_ZERO = '\u200B';
+    private static final char HIDDEN_ONE = '\u200C';
+    private static final char HIDDEN_END = '\u200D';
+    private static final Pattern HIDDEN_ITEM = Pattern.compile("\\[([^\\]\\n]{1,60})]" + HIDDEN_START + "([\\u200B\\u200C]+)" + HIDDEN_END);
+
+    /** Encodes metadata using zero-width characters so non-mod clients see only the item name. */
     private static String publicMarker(ItemStack stack, boolean includeName) {
         if (stack == null || stack.isEmpty()) return null;
         String id = Compat.neuName(stack);
@@ -344,7 +351,49 @@ public final class SbcItems {
         String name = includeName ? Compat.realName(stack).getString().replaceAll("[\\[\\]()]", "").trim() : "";
         if (name.isEmpty() || name.length() > 60) name = id.replace('_', ' ');
         int count = Math.clamp(stack.getCount(), 1, 99);
-        return "[" + name + "](sb:" + id + (count > 1 ? "*" + count : "") + ")";
+        String payload = id + "|" + count;
+        StringBuilder hidden = new StringBuilder(payload.length() * 8 + 2).append(HIDDEN_START);
+        for (byte b : payload.getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
+            for (int bit = 7; bit >= 0; bit--) hidden.append(((b >> bit) & 1) == 0 ? HIDDEN_ZERO : HIDDEN_ONE);
+        }
+        hidden.append(HIDDEN_END);
+        return "[" + name + "]" + hidden;
+    }
+
+    /** Converts zero-width item metadata back into a parser-only marker while retaining the readable name. */
+    private static String restoreHiddenItemMarkers(String text) {
+        Matcher matcher = HIDDEN_ITEM.matcher(text);
+        StringBuilder out = new StringBuilder();
+        int cursor = 0;
+        while (matcher.find()) {
+            out.append(text, cursor, matcher.start());
+            String bits = matcher.group(2);
+            try {
+                if (bits.length() % 8 != 0 || bits.length() > 4096) {
+                    out.append(matcher.group());
+                } else {
+                    byte[] bytes = new byte[bits.length() / 8];
+                    for (int i = 0; i < bytes.length; i++) {
+                        int value = 0;
+                        for (int bit = 0; bit < 8; bit++) value = (value << 1) | (bits.charAt(i * 8 + bit) == HIDDEN_ONE ? 1 : 0);
+                        bytes[i] = (byte) value;
+                    }
+                    String payload = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+                    int separator = payload.lastIndexOf('|');
+                    if (separator <= 0) out.append(matcher.group());
+                    else {
+                        String id = payload.substring(0, separator);
+                        int count = Integer.parseInt(payload.substring(separator + 1));
+                        if (!id.matches("[A-Za-z0-9_:;.\\-]+") || count < 1 || count > 99) out.append(matcher.group());
+                        else out.append("[[").append("SBITEM|").append(id).append('|').append(count).append("]]");
+                    }
+                }
+            } catch (RuntimeException ignored) {
+                out.append(matcher.group());
+            }
+            cursor = matcher.end();
+        }
+        return cursor == 0 ? text : out.append(text, cursor, text.length()).toString();
     }
 
     /** Replaces compact public-chat item references with the same clickable preview used by Sky2M chat. */
@@ -355,11 +404,12 @@ public final class SbcItems {
             if (recordInventoryParts(message)) return message;
             message = replaceInventoryMarkers(message);
         }
-        String plain = message.getString();
+        String plain = restoreHiddenItemMarkers(message.getString());
         if (!plain.contains("[[SBITEM|") && !plain.contains("](sb:")) return message;
         MutableComponent result = Component.empty();
         boolean[] replaced = {false};
-        message.visit((style, value) -> {
+        Component source = Component.literal(plain);
+        source.visit((style, value) -> {
             Matcher matcher = PUBLIC_ITEM.matcher(value);
             int cursor = 0;
             while (matcher.find()) {
