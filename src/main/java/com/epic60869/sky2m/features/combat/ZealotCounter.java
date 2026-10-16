@@ -66,6 +66,11 @@ public final class ZealotCounter {
     private static long lastCombatXp;
     private static final long XP_WINDOW_MS = 1500;
     private static final java.util.regex.Pattern COMBAT_XP = java.util.regex.Pattern.compile("\\+[\\d,.]+ Combat \\(");
+    /** Hypixel Wither Impact feedback, e.g. "Your Implosion hit 3 enemies for 1,023,504.2 damage." */
+    private static final Pattern IMPLOSION_HITS = Pattern.compile("Your\\s+Implosion\\s+hit\\s+(\\d+)\\s+enemies?\\s+for\\s+[\\d,.]+(?:\\s+damage)?\\.? ", Pattern.CASE_INSENSITIVE);
+    private static final long IMPLOSION_CONFIRM_MS = 1800;
+    private static int pendingImplosionHits;
+    private static long pendingImplosionAt;
     private static final Pattern TAB_COUNTER_VALUE = Pattern.compile("([\\d,]+)\\s*/\\s*([\\d,]+)");
     /** Hypixel TAB row: "Special Zealots: 123 / 400"; the first number is kills since the last eye. */
     private static final Pattern SPECIAL_ZEALOTS_TAB = Pattern.compile("special\\s+zealots\\s*:\\s*([\\d,]+)\\s*/\\s*400", Pattern.CASE_INSENSITIVE);
@@ -117,6 +122,8 @@ public final class ZealotCounter {
             lastObservedTabPity = -1;
             localUnconfirmedKills = 0;
             tabPityDetected = false;
+            pendingImplosionHits = 0;
+            pendingImplosionAt = 0;
         });
         Sky2MChat.onChat(message -> {
             String text = message.text().trim();
@@ -162,6 +169,21 @@ public final class ZealotCounter {
         ClientTickEvents.END_CLIENT_TICK.register(ZealotCounter::tick);
         Sky2MChat.onActionBar(message -> {
             if (COMBAT_XP.matcher(message.text()).find()) lastCombatXp = System.currentTimeMillis();
+        });
+        // Implosion reports how many enemies the blast actually hit. In the End's Zealot
+        // areas, keep that count as a fallback for Zealots that die/despawn before the entity
+        // tracker can observe their death. Combat XP confirms the kills before applying it.
+        Sky2MChat.onChat(message -> {
+            if (!enabled()) return;
+            String text = Sky2MLocation.strip(message.text()).trim();
+            Matcher implosion = IMPLOSION_HITS.matcher(text);
+            if (!implosion.find()) return;
+            int hits;
+            try { hits = Math.min(20, Math.max(0, Integer.parseInt(implosion.group(1)))); }
+            catch (NumberFormatException ignored) { return; }
+            if (hits == 0) return;
+            pendingImplosionHits = Math.max(pendingImplosionHits, hits);
+            pendingImplosionAt = System.currentTimeMillis();
         });
 
         com.epic60869.sky2m.features.core.Sky2MHuds.setting("zealots", () -> Sky2MConfig.current() != null && Sky2MConfig.current().combat.zealotCounter);
@@ -276,6 +298,25 @@ public final class ZealotCounter {
             return;
         }
         long now = System.currentTimeMillis();
+
+        // A matching Combat XP tick confirms the recent Implosion hit count. Count it only
+        // in the configured End/Zealot areas (enabled() already checks this) and consume nearby
+        // entity-based pending detections first to avoid double-counting the same blast.
+        if (pendingImplosionHits > 0) {
+            if (lastCombatXp >= pendingImplosionAt - 250 && lastCombatXp <= pendingImplosionAt + IMPLOSION_CONFIRM_MS) {
+                int inferred = pendingImplosionHits;
+                int alreadyPending = Math.min(inferred, PENDING.size());
+                inferred -= alreadyPending;
+                if (inferred > 0) {
+                    for (int i = 0; i < inferred; i++) count(false, pendingImplosionAt);
+                }
+                pendingImplosionHits = 0;
+                pendingImplosionAt = 0;
+            } else if (now - pendingImplosionAt > IMPLOSION_CONFIRM_MS) {
+                pendingImplosionHits = 0;
+                pendingImplosionAt = 0;
+            }
+        }
 
         if (witherImpactTicks > 0) {
             witherImpactTicks--;
