@@ -30,6 +30,7 @@ public final class SessionTrackerScreen extends Screen {
     private int tab = TOTAL;
     private int scroll;
     private boolean confirmDelete;
+    private boolean showDays;
     private final List<int[]> buttons = new ArrayList<>();
     private final List<Runnable> actions = new ArrayList<>();
 
@@ -106,6 +107,14 @@ public final class SessionTrackerScreen extends Screen {
         return total;
     }
 
+    private static double dayProfit(SessionTracker.Session session) {
+        double total = 0;
+        for (ProfitTracker.Preset preset : SessionTracker.ACTIVITIES) {
+            total += SessionTracker.profit(preset, session.get(preset), null);
+        }
+        return total;
+    }
+
     private void button(GuiGraphicsExtractor g, int x, int y, int w, int h, String label, boolean selected, int mouseX, int mouseY, Runnable action) {
         boolean over = mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
         g.fill(x, y, x + w, y + h, selected ? BUTTON_SELECTED : over ? 0xFF33405A : BUTTON);
@@ -134,6 +143,37 @@ public final class SessionTrackerScreen extends Screen {
         g.centeredText(font, "Session Tracker", width / 2, 8, GOLD);
         g.fill(left, top, left + W, bottom, BG);
         g.outline(left, top, W, bottom - top, EDGE);
+        button(g, left + W - 58, top + 4, 54, 14, showDays ? "Back" : "Days", false, mouseX, mouseY, () -> {
+            showDays = !showDays;
+            scroll = 0;
+        });
+        if (showDays) {
+            g.centeredText(font, "Daily Profit History", width / 2, top + 28, GOLD);
+            g.text(font, "Click a day to open its total and tracker breakdown.", left + 10, top + 44, TEXT, true);
+            int rowY = top + 64;
+            int maxRows = Math.max(1, (bottom - rowY - 8) / 22);
+            int count = SessionTracker.pastSessions() + 1;
+            scroll = Math.clamp(scroll, 0, Math.max(0, count - maxRows));
+            for (int visible = 0; visible < maxRows && visible + scroll < count; visible++) {
+                int dayIndex = visible + scroll == 0 ? -1 : visible + scroll - 1;
+                SessionTracker.Session daySession = SessionTracker.session(dayIndex);
+                int ry = rowY + visible * 22;
+                boolean over = mouseX >= left + 6 && mouseX < left + W - 6 && mouseY >= ry && mouseY < ry + 19;
+                g.fill(left + 6, ry, left + W - 6, ry + 19, over ? 0xFF33405A : BUTTON);
+                double value = dayProfit(daySession);
+                String label = (dayIndex < 0 ? "Today" : SessionTracker.date(daySession.started)) + "  ·  " + signed(value);
+                g.text(font, font.plainSubstrByWidth(label, W - 32), left + 12, ry + 5, value >= 0 ? GREEN : RED, true);
+                buttons.add(new int[]{left + 6, ry, W - 12, 19});
+                actions.add(() -> {
+                    index = dayIndex;
+                    showDays = false;
+                    scroll = 0;
+                    tab = TOTAL;
+                    reprice(true);
+                });
+            }
+            return;
+        }
 
         // Which session: this one, or a past one with the arrows (older to the right).
         int last = SessionTracker.pastSessions() - 1;
