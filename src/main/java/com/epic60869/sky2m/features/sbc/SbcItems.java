@@ -385,7 +385,7 @@ public final class SbcItems {
                         String id = payload.substring(0, separator);
                         int count = Integer.parseInt(payload.substring(separator + 1));
                         if (!id.matches("[A-Za-z0-9_:;.\\-]+") || count < 1 || count > 99) out.append(matcher.group());
-                        else out.append("[[").append("SBITEM|").append(id).append('|').append(count).append("]]");
+                        else out.append('[').append(matcher.group(1)).append("](sb:").append(id).append(count > 1 ? "*" + count : "").append(')');
                     }
                 }
             } catch (RuntimeException ignored) {
