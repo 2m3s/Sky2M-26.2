@@ -4107,7 +4107,7 @@ public final class FeatureConfigs {
 
     public static final class SessionTrackerSettings {
         @Expose
-        @ConfigOption(name = "Enabled", desc = "Track your Diana, Mining and Farming this game session: playtime, drops and profit. Open it with /s2 session. When you restart the game the session ends and its breakdown shows in chat; past sessions stay in /s2 session.")
+        @ConfigOption(name = "Enabled", desc = "Track all built-in profit presets into one daily record, including when individual tracker HUDs are disabled. Open /s2 session to click a day and see total profit plus each tracker's drops and breakdown. Game restarts do not split a day; history is kept by calendar day.")
         @ConfigEditorBoolean
         public boolean enabled = true;
 
