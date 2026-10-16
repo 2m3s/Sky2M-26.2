@@ -459,7 +459,7 @@ public final class Sky2MGlobalChat {
                     return;
                 }
 
-                if (type.startsWith("leaderboard")) {
+                if (type.startsWith("leaderboard") || type.startsWith("statLeaderboard")) {
                     Minecraft.getInstance().execute(() -> Sky2MLeaderboards.handle(type, packet));
                     return;
                 }
