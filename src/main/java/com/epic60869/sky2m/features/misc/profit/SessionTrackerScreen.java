@@ -144,7 +144,7 @@ public final class SessionTrackerScreen extends Screen {
         actions.clear();
         int left = (width - W) / 2, top = 24, bottom = height - 16;
         SessionTracker.Session s = session();
-        g.centeredText(font, "Session Tracker", width / 2, 8, GOLD);
+        g.centeredText(font, "Daily Profit History", width / 2, 8, GOLD);
         g.fill(left, top, left + W, bottom, BG);
         g.outline(left, top, W, bottom - top, EDGE);
         button(g, left + W - 58, top + 4, 54, 14, showDays ? "Back" : "Days", false, mouseX, mouseY, () -> {
