@@ -1,5 +1,8 @@
 name: Build Testing JAR
 
+# Every push to testing (or Run workflow) builds the mod and publishes the JAR itself, not a zipped artifact, on the
+# "testing" pre-release: https://github.com/2m3s/Sky2M-26.2/releases/tag/testing
+# It's replaced by each new build. Pre-releases are never "latest", so the mod's update checker ignores them.
 on:
   workflow_dispatch:
   push:
@@ -7,7 +10,12 @@ on:
       - testing
 
 permissions:
-  contents: read
+  contents: write
+
+# A newer push replaces a build still running, so the pre-release always ends up with the newest JAR.
+concurrency:
+  group: testing-jar
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -34,12 +42,29 @@ jobs:
       - name: Build mod
         run: gradle build --no-daemon
 
-      - name: Upload test JAR
-        uses: actions/upload-artifact@v4
-        with:
-          name: Sky2M-testing-${{ github.sha }}
-          path: |
-            build/libs/*.jar
-            !build/libs/*-sources.jar
-          if-no-files-found: error
-          retention-days: 14
+      - name: Name the JAR after the build
+        id: jar
+        run: |
+          JAR=$(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' | head -n 1)
+          if [ -z "$JAR" ]; then
+            echo "No mod JAR was found in build/libs"
+            exit 1
+          fi
+          SHORT=$(git rev-parse --short HEAD)
+          NAME="$(basename "$JAR" .jar)-testing-$SHORT.jar"
+          cp "$JAR" "build/$NAME"
+          echo "path=build/$NAME" >> "$GITHUB_OUTPUT"
+          echo "short=$SHORT" >> "$GITHUB_OUTPUT"
+
+      - name: Publish on the testing pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Replace last build's pre-release (and its tag) with this one.
+          gh release delete testing --yes --cleanup-tag || true
+          gh release create testing "${{ steps.jar.outputs.path }}" \
+            --prerelease \
+            --latest=false \
+            --target "$GITHUB_SHA" \
+            --title "Testing build (${{ steps.jar.outputs.short }})" \
+            --notes "Automatic test build of the testing branch at ${{ steps.jar.outputs.short }} ($(date -u '+%Y-%m-%d %H:%M UTC')). Not a release: download the .jar below. The mod's update checker ignores pre-releases."
