@@ -43,9 +43,6 @@ public final class SlayerTimes {
 
     private static long questStartedAt;
     private static long spawnedAt;
-    /** The last scan your boss was seen alive, and when it died (0 while alive): see {@link #onBoss}. */
-    private static long lastSeenAt;
-    private static long diedAt;
     /** When its health showed 0: certainly dead, unlike a nametag that went (Tier 5 Tarantula between phases). */
     private static long zeroAt;
     /** "☠ Revenant Horror V 0❤": the boss is dead even if its nametag lingers. */
@@ -98,8 +95,6 @@ public final class SlayerTimes {
             if (zeroAt == 0 && !healthLine.isEmpty()) zeroAt = now;
         } else {
             // Alive: back in range, or Tier 5 Tarantula's second phase after the first one went.
-            lastSeenAt = now;
-            diedAt = 0;
             zeroAt = 0;
         }
         Matcher m = BOSS.matcher(healthLine);
@@ -174,8 +169,6 @@ public final class SlayerTimes {
     private static void reset() {
         questStartedAt = 0;
         spawnedAt = 0;
-        lastSeenAt = 0;
-        diedAt = 0;
         zeroAt = 0;
         boss = null;
     }
@@ -186,8 +179,6 @@ public final class SlayerTimes {
         String name = boss;
         SlayerBossProfit.onKill(name);
         spawnedAt = 0;
-        lastSeenAt = 0;
-        diedAt = 0;
         zeroAt = 0;
         boss = null;
         killed = true;

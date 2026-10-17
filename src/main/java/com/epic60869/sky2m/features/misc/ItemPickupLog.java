@@ -59,6 +59,17 @@ public final class ItemPickupLog {
     private static Map<String, ItemStack> lastStacks = Map.of();
     private static Object lastLevel;
     private static double lastPurse = -1;
+    /** Features that want to know when you pick something up, e.g. the Shopping List ticking items off. */
+    private static final List<PickupListener> PICKUP_LISTENERS = new ArrayList<>();
+
+    /** One for each feature that reacts to pickups: the item's key/(price) id, its display name and how many came in. */
+    public interface PickupListener {
+        void onPickup(String key, @org.jspecify.annotations.Nullable String priceId, String name, long delta);
+    }
+
+    public static void addPickupListener(PickupListener listener) {
+        PICKUP_LISTENERS.add(listener);
+    }
 
     private ItemPickupLog() {}
 
@@ -195,8 +206,16 @@ public final class ItemPickupLog {
         e.name = name;
         e.icon = icon;
         e.priceId = priceId;
-        if (delta > 0) e.added += delta;
-        else e.removed -= delta;
+        if (delta > 0) {
+            e.added += delta;
+            for (PickupListener listener : PICKUP_LISTENERS) {
+                try {
+                    listener.onPickup(key, priceId, name, delta);
+                } catch (Exception ignored) {}
+            }
+        } else {
+            e.removed -= delta;
+        }
         e.changedAt = System.currentTimeMillis();
     }
 

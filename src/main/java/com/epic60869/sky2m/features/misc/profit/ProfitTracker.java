@@ -10,6 +10,7 @@ import com.epic60869.sky2m.features.core.Sky2MChat;
 import com.epic60869.sky2m.features.core.Sky2MHuds;
 import com.epic60869.sky2m.features.core.Sky2MLocation;
 import com.epic60869.sky2m.features.fishing.FishingData;
+import com.epic60869.sky2m.features.slayer.SlayerArea;
 import com.epic60869.sky2m.features.slayer.SlayerBossProfit;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -55,7 +56,12 @@ import java.util.regex.Pattern;
  * Profit Trackers, ported from Skysoft's Profit Tracker (https://github.com/Akinsoft/Skysoft, features/profit/,
  * config/ProfitTrackerConfig.kt and data/profit_tracker_presets.json, LGPL-3.0). One tracker per activity: Farming,
  * Fishing, Foraging, Mining, the Mythological Ritual and the six slayers, each shown while you're doing it (where the
- * preset's islands and areas say, with a slayer quest of its type, a fishing rod cast or a spade in your hotbar).
+ * preset's islands and areas say, with a fishing rod cast or a spade in your hotbar).
+ * The six slayer trackers follow SkyHanni's SlayerProfitTracker (https://github.com/hannibal002/SkyHanni, LGPL-2.1)
+ * instead: they count and show only while you have that slayer's quest and are in one of its areas (SkyHanni's
+ * island graph areas, {@link SlayerArea}), count only that slayer's drops (SkyHanni's SlayerProfitTrackerItems),
+ * mob kill coins (purse gains with no menu open for 2 seconds), the spawn cost actually paid (or taken from the bank
+ * by auto-slayer) and a boss for each "SLAYER QUEST COMPLETE!".
  * Items count when they come into your inventory (not from a chest or menu) or your sacks, if the preset tracks them;
  * crops Replenish takes back and items a compactor turns into enchanted ones are taken off again. Coins (Bountiful,
  * mob kills), quest costs, Kernels, the activity's actions (pests vacuumed, catches, burrows dug, bosses killed),
@@ -105,6 +111,19 @@ public final class ProfitTracker {
 
         boolean slayer() {
             return ordinal() <= VAMPIRE.ordinal();
+        }
+
+        /** The slayer's name in SkyHanni's drop lists and areas ("Revenant Horror"...), or null. */
+        String slayerName() {
+            return switch (this) {
+                case ZOMBIE -> "Revenant Horror";
+                case SPIDER -> "Tarantula Broodfather";
+                case WOLF -> "Sven Packmaster";
+                case ENDERMAN -> "Voidgloom Seraph";
+                case BLAZE -> "Inferno Demonlord";
+                case VAMPIRE -> "Riftstalker Bloodfiend";
+                default -> null;
+            };
         }
     }
 
@@ -161,6 +180,10 @@ public final class ProfitTracker {
     private static Map<String, Integer> beforeScreen;
     /** When a crafting menu ("Craft Item" or an item's recipe, where you supercraft) was last open. */
     private static long lastCraftingAt;
+    /** When a menu was last open, and a Sack menu: SkyHanni ignores purse gains for 2s after a menu, sack changes for 10s after a Sack. */
+    private static long lastScreenAt, lastSackMenuAt;
+    /** SkyHanni's slayer.autoslayer.bank pattern: auto-slayer takes the spawn cost from your bank, not your purse. */
+    private static final Pattern AUTO_SLAYER_BANK = Pattern.compile("^Took (.+) coins from your bank for auto-slayer\\.\\.\\.$");
     private static double lastPurse = -1;
     private static long lastFarmed;
     private static Preset shownPreset;
@@ -211,6 +234,7 @@ public final class ProfitTracker {
     public static void init(Path configDir) {
         file = configDir.resolve("sky2m").resolve("profit-trackers.json");
         loadPresets();
+        SlayerArea.init();
         for (Preset preset : Preset.values()) {
             SAVED.put(preset, new Saved());
             SESSION.put(preset, new Stats());
@@ -267,35 +291,79 @@ public final class ProfitTracker {
             Preset type = e.getKey();
             PresetData data = e.getValue();
             if (type == Preset.FISHING && island.equals("Garden")) continue;
+            // Slayers count by SkyHanni's rule instead ({@link #slayerInCorrectArea}), never by location alone.
+            if (type.slayer()) continue;
             if (type.requiresPreference && preferred != type) continue;
             if (!data.anyIsland() && !data.islands().contains(island)) continue;
-            // Your slayer quest's tracker counts anywhere on its island, like SkyHanni's: bosses are fought all over.
-            if (type.slayer() && preferred == type) {
-                matches.add(type);
-                continue;
-            }
             if (!data.areas().isEmpty() && !data.areas().contains(area)) continue;
             Set<String> islandAreas = data.islandAreas().get(island);
             if (islandAreas != null && !islandAreas.contains(area)) continue;
             matches.add(type);
         }
         if (preferred != null && matches.contains(preferred)) return preferred;
-        List<Preset> nonSlayer = matches.stream().filter(p -> !p.slayer()).toList();
-        if (nonSlayer.size() == 1) return nonSlayer.getFirst();
         return matches.size() == 1 ? matches.getFirst() : null;
     }
 
-    /** The slayer quest on the scoreboard, as a preset. */
+    /**
+     * The slayer quest, as a preset (SkyHanni's SlayerType names): from the sidebar, else its team lines (a scoreboard
+     * mod such as SkyHanni's custom scoreboard can take the sidebar objective away), else the tab list (its Slayer widget),
+     * as SkyHanni falls back to. Letters only: Hypixel's padding symbols (some, like ⚽, survive the scoreboard cleanup)
+     * can land inside the boss's name.
+     */
     private static Preset slayerQuest() {
-        for (String line : Sky2MLocation.scoreboard()) {
-            if (line.contains("Revenant Horror") || line.contains("Atoned Horror")) return Preset.ZOMBIE;
-            if (line.contains("Tarantula Broodfather") || line.contains("Conjoined Brood")) return Preset.SPIDER;
-            if (line.contains("Sven Packmaster")) return Preset.WOLF;
-            if (line.contains("Voidgloom Seraph")) return Preset.ENDERMAN;
-            if (line.contains("Inferno Demonlord")) return Preset.BLAZE;
-            if (line.contains("Riftstalker Bloodfiend")) return Preset.VAMPIRE;
+        Preset quest = slayerQuestIn(Sky2MLocation.scoreboard());
+        if (quest == null) quest = slayerQuestIn(Sky2MLocation.teamLines());
+        if (quest == null) quest = slayerQuestIn(tabSlayerLines());
+        return quest;
+    }
+
+    /** Every tab list line (its entries aren't in display order, and no player name holds a slayer boss's name). */
+    private static List<String> tabSlayerLines() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getConnection() == null) return List.of();
+        List<String> out = new ArrayList<>();
+        for (net.minecraft.client.multiplayer.PlayerInfo info : mc.getConnection().getListedOnlinePlayers()) {
+            String text = com.epic60869.sky2m.sim.util.TabText.plain(info);
+            if (text != null && !text.isBlank()) out.add(text);
+        }
+        return out;
+    }
+
+    private static Preset slayerQuestIn(List<String> lines) {
+        for (String raw : lines) {
+            String line = LETTERS_ONLY.matcher(raw).replaceAll("");
+            if (line.contains("RevenantHorror") || line.contains("AtonedHorror")) return Preset.ZOMBIE;
+            if (line.contains("TarantulaBroodfather") || line.contains("ConjoinedBrood")) return Preset.SPIDER;
+            if (line.contains("SvenPackmaster")) return Preset.WOLF;
+            if (line.contains("VoidgloomSeraph")) return Preset.ENDERMAN;
+            if (line.contains("InfernoDemonlord")) return Preset.BLAZE;
+            if (line.contains("Bloodfiend")) return Preset.VAMPIRE;
         }
         return null;
+    }
+
+    private static final Pattern LETTERS_ONLY = Pattern.compile("[^A-Za-z]");
+
+    /** What decided the slayer tracker last, logged when it changes, so a test's log shows why it did or didn't count. */
+    private static String slayerState = "";
+
+    private static void logSlayerState() {
+        Preset quest = slayerQuest();
+        String state = quest == null ? "no slayer quest"
+            : "quest " + quest + ", island '" + Sky2MLocation.area() + "', area '" + SlayerArea.debugArea() + "' -> "
+                + (quest.slayerName().equals(SlayerArea.slayerHere()) ? (counting(quest) ? "counting" : "tracker off") : "not this slayer's area");
+        if (state.equals(slayerState)) return;
+        slayerState = state;
+        System.out.println("[Sky2M] Slayer profit tracker: " + state);
+    }
+
+    /**
+     * SkyHanni's SlayerApi.isInCorrectArea: your slayer quest, while you're in an area for that slayer
+     * ({@link SlayerArea}). Only then does a slayer tracker count drops and coins, and show.
+     */
+    private static Preset slayerInCorrectArea() {
+        Preset quest = slayerQuest();
+        return quest != null && quest.slayerName().equals(SlayerArea.slayerHere()) ? quest : null;
     }
 
     private static boolean spadeInHotbar(Minecraft mc) {
@@ -308,9 +376,10 @@ public final class ProfitTracker {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || !Sky2MLocation.onSkyblock()) return null;
         String island = Sky2MLocation.area(), area = Sky2MLocation.location();
+        Preset slayer = slayerInCorrectArea();
+        if (slayer != null && counting(slayer)) return slayer;
         Preset preferred = null;
         if (counting(Preset.MYTHOLOGICAL_RITUAL) && island.equals("Hub") && spadeInHotbar(mc)) preferred = Preset.MYTHOLOGICAL_RITUAL;
-        if (preferred == null) preferred = slayerQuest();
         if (preferred == null && counting(Preset.FISHING) && (mc.player.fishing != null || !paused(Preset.FISHING, System.currentTimeMillis()) && lastActivity.containsKey(Preset.FISHING))) {
             preferred = Preset.FISHING;
         }
@@ -358,8 +427,8 @@ public final class ProfitTracker {
 
     private static boolean tracked(Preset preset, String id) {
         if (id == null || isBait(id)) return false;
-        // Slayer trackers also count the bosses' own drops (SkyHanni's drop lists), not only the mobs' items.
-        if (preset.slayer() && SlayerBossProfit.isDropId(id)) return true;
+        // SkyHanni's SlayerProfitTracker.isAllowedItem: only that slayer's own drop list counts.
+        if (preset.slayer()) return SlayerBossProfit.isDropOf(preset.slayerName(), id);
         return trackedItems(preset).contains(id) || conversions.containsKey(id) && trackedItems(preset).contains(conversions.get(id).input());
     }
 
@@ -556,15 +625,28 @@ public final class ProfitTracker {
             return;
         }
         if (text.equals("SLAYER QUEST COMPLETE!")) {
+            // SkyHanni counts the boss for your quest's tracker wherever you are when it completes.
             Preset slayer = slayerQuest();
-            if (slayer != null && inPresetArea(slayer)) {
+            if (slayer != null && counting(slayer)) {
                 for (Stats stats : targets(slayer)) stats.actions++;
                 activity(slayer);
                 dirty = true;
             }
             return;
         }
+        Matcher autoSlayer = AUTO_SLAYER_BANK.matcher(text);
+        if (autoSlayer.matches()) {
+            Preset slayer = slayerQuest();
+            long cost = Math.round(parseCoins(autoSlayer.group(1)));
+            if (slayer != null && counting(slayer) && cost > 0 && cost <= 350_000) {
+                for (Stats stats : targets(slayer)) stats.costs += cost;
+                dirty = true;
+            }
+            return;
+        }
         if (text.startsWith("[Sacks]")) {
+            // SkyHanni's ItemAddManager: what changes while (or just after) a Sack menu is open is you moving items.
+            if (System.currentTimeMillis() - lastSackMenuAt < 10_000L) return;
             Preset target = current != null ? current
                 : previousPreset != null && System.currentTimeMillis() - previousPresetLeftAt < SACK_WINDOW_MS && counting(previousPreset) ? previousPreset : null;
             if (target == null) return;
@@ -605,6 +687,7 @@ public final class ProfitTracker {
             conversionsRequested = true;
             RepoItems.runAsync(ProfitTracker::loadConversions);
         }
+        logSlayerState();
         Preset current = currentPreset();
         // A cast line keeps the fishing time going (Skysoft refreshes Fishing's activity while the hook is out).
         if (current == Preset.FISHING && mc.player.fishing != null) activity(Preset.FISHING);
@@ -624,6 +707,8 @@ public final class ProfitTracker {
         if (mc.gui.screen() != null) {
             String title = mc.gui.screen().getTitle().getString();
             if (title.equals("Craft Item") || title.endsWith(" Recipe")) lastCraftingAt = now;
+            if (title.contains("Sack")) lastSackMenuAt = now;
+            lastScreenAt = now;
         }
         if (mc.gui.screen() != null || current == null) {
             if (current == null) beforeScreen = null;
@@ -693,6 +778,8 @@ public final class ProfitTracker {
         if (preset == null || purse < 0 || previous < 0 || mc.gui.screen() != null) return;
         double gained = purse - previous;
         if (gained <= 1 || gained >= 100_000) return;
+        // SkyHanni's PurseApi: a gain within 2 seconds of closing a menu is a sale or similar, not a mob kill.
+        if (preset.slayer() && now - lastScreenAt < 2_000L) return;
         boolean counts = preset.slayer() || preset == Preset.FISHING || preset == Preset.MYTHOLOGICAL_RITUAL;
         if (preset == Preset.FARMING) {
             String modifier = Compat.getCustomData(mc.player.getMainHandItem()).getStringOr("modifier", "");
@@ -705,8 +792,9 @@ public final class ProfitTracker {
     }
 
     /**
-     * The quest's cost (Skysoft's SlayerQuestCostCapture): what the purse went down by around "SLAYER QUEST STARTED!"
-     * if that's the quest's price (or half, with Aatrox's Slashed Pricing), else the price.
+     * The quest's cost, as SkyHanni's slayer tracker: what the purse actually went down by around "SLAYER QUEST
+     * STARTED!" (up to 350k; Aatrox's discount and the Rift's motes come out right that way). With auto-slayer the
+     * fee comes from the bank instead ({@link #AUTO_SLAYER_BANK}).
      */
     private static void trackQuestCost(long now) {
         if (questStartedAt == 0) return;
@@ -715,42 +803,26 @@ public final class ProfitTracker {
         Preset preset = questPreset;
         long started = questStartedAt;
         questStartedAt = 0;
-        if (preset == null || !enabled(preset) || preset == Preset.VAMPIRE) return;
-        long standard = standardCost(preset);
+        if (preset == null || !counting(preset)) return;
         double highest = -1;
         for (double[] entry : purseHistory) if (entry[0] >= started - 10_000L) highest = Math.max(highest, entry[1]);
-        long paid = highest > 0 && lastPurse >= 0 ? Math.round(highest - lastPurse) : -1;
-        long cost = standard;
-        for (long price : new long[]{standard, standard / 2}) {
-            if (paid > 0 && price > 0 && Math.abs(paid - price) <= price * 0.05) {
-                cost = price;
-                break;
-            }
-        }
-        if (cost <= 0) return;
+        long cost = highest > 0 && lastPurse >= 0 ? Math.round(highest - lastPurse) : -1;
+        if (cost <= 0 || cost > 350_000) return;
         for (Stats stats : targets(preset)) stats.costs += cost;
         activity(preset);
         dirty = true;
     }
 
-    private static final Pattern SLAYER_TIER = Pattern.compile("(?:Horror|Broodfather|Brood|Packmaster|Seraph|Demonlord) (I{1,3}|IV|V)\\b");
-
-    private static long standardCost(Preset preset) {
-        String tier = "";
-        for (String line : Sky2MLocation.scoreboard()) {
-            Matcher m = SLAYER_TIER.matcher(line);
-            if (m.find()) tier = m.group(1);
-            if (line.contains("Atoned Horror")) tier = "V";
+    /** "1.9k", "250,000", "1.2M" -> coins (SkyHanni's formatDouble). */
+    private static double parseCoins(String text) {
+        String t = text.trim().replace(",", "").toLowerCase(java.util.Locale.ROOT);
+        double scale = t.endsWith("k") ? 1e3 : t.endsWith("m") ? 1e6 : t.endsWith("b") ? 1e9 : 1;
+        if (scale != 1) t = t.substring(0, t.length() - 1);
+        try {
+            return Double.parseDouble(t) * scale;
+        } catch (NumberFormatException e) {
+            return -1;
         }
-        boolean blaze = preset == Preset.BLAZE;
-        return switch (tier) {
-            case "I" -> blaze ? 10_000 : 2_000;
-            case "II" -> blaze ? 25_000 : 7_500;
-            case "III" -> blaze ? 60_000 : 20_000;
-            case "IV" -> blaze ? 150_000 : 50_000;
-            case "V" -> 100_000;
-            default -> 0;
-        };
     }
 
     private static double purse() {

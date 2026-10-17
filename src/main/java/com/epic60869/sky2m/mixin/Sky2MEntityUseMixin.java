@@ -27,7 +27,7 @@ public abstract class Sky2MEntityUseMixin {
 
     @Inject(method = "startAttack", at = @At("HEAD"), cancellable = true)
     private void sky2m$leftClickLeap(CallbackInfoReturnable<Boolean> cir) {
-        Minecraft mc = (Minecraft) (Object) this;
+        Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || !Sky2MLocation.inDungeon()) return;
         Sky2MConfig config = Sky2MConfig.current();
         if (config == null || !config.dungeons.leapMenu.enabled) return;

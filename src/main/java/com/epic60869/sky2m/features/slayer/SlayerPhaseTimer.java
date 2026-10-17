@@ -28,7 +28,7 @@ public final class SlayerPhaseTimer {
 
     private static final List<Phase> phases = new ArrayList<>();
     private static boolean active, currentHits, killed;
-    private static long fightStart, phaseStart, endedAt, missingSince;
+    private static long fightStart, phaseStart, endedAt;
 
     private SlayerPhaseTimer() {}
 
@@ -68,12 +68,10 @@ public final class SlayerPhaseTimer {
         if (text == null) {
             // The health nametag can disappear during Tarantula's Conjoined Brood transition.
             // A missing tag alone never ends a fight; wait for Hypixel's boss-slain/cocoon message.
-            missingSince = 0;
             if (killed) killed = false;
             return;
         }
         if (killed) return;
-        missingSince = 0;
         boolean hits = HITS.matcher(text).find();
         if (!active) {
             active = true;
@@ -98,7 +96,6 @@ public final class SlayerPhaseTimer {
     private static void finish(long now) {
         if (!active) return;
         active = false;
-        missingSince = 0;
         phases.add(new Phase(currentHits, now - phaseStart));
         endedAt = now;
         FeatureConfigs.SlayerPhaseTimer c = config();
@@ -121,7 +118,6 @@ public final class SlayerPhaseTimer {
         fightStart = 0;
         phaseStart = 0;
         endedAt = 0;
-        missingSince = 0;
         currentHits = false;
         killed = false;
     }

@@ -210,6 +210,8 @@ public final class Sky2MMod implements ClientModInitializer {
         com.epic60869.sky2m.features.misc.ChatNameLinks.init();
         com.epic60869.sky2m.features.misc.Sky2MAchievements.init(configDir);
         com.epic60869.sky2m.features.misc.waypoints.AreaWaypoints.init(configDir);
+        com.epic60869.sky2m.features.misc.waypoints.FairySoulsFinder.init(configDir);
+        com.epic60869.sky2m.features.misc.ShoppingList.init(configDir);
         ClientTickEvents.END_CLIENT_TICK.register(this::tick);
         registerCommands();
 

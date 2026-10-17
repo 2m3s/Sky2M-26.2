@@ -442,7 +442,8 @@ public final class Sky2MLeaderboardScreen extends Screen {
                 nameX += ICON + 4;
             }
             int hintWidth = b.hint() == null ? 0 : font.width(b.hint()) + 6;
-            g.text(font, font.plainSubstrByWidth(b.name(), x + w - nameX - hintWidth), nameX, ry + 4, isSelected ? ACCENT : 0xFFFFFFFF, false);
+            g.text(font, font.plainSubstrByWidth(b.name(), x + w - nameX - hintWidth), nameX, ry + 4,
+                isSelected ? ACCENT : Sky2MRivals.hasOwnRivalsOn(b.key()) ? 0xFFFFAA00 : 0xFFFFFFFF, false);
             if (b.hint() != null) g.text(font, b.hint(), x + w - font.width(b.hint()), ry + 4, GREY, false);
         }
         g.disableScissor();
@@ -487,7 +488,7 @@ public final class Sky2MLeaderboardScreen extends Screen {
         // Your rivals on this board: how far ahead or behind you they are.
         StringBuilder rivalText = new StringBuilder();
         for (Standing s : rows) {
-            if (s.self() || !Sky2MRivals.isRival(s.player())) continue;
+            if (s.self() || !Sky2MRivals.isRival(s.player(), selected.key())) continue;
             if (!rivalText.isEmpty()) rivalText.append("   ");
             rivalText.append("⚔ ").append(s.player()).append(' ').append(s.rank());
             if (you != null) {
@@ -513,7 +514,7 @@ public final class Sky2MLeaderboardScreen extends Screen {
         for (int i = tableScroll; i < rows.size() && i < tableScroll + visible; i++) {
             Standing s = rows.get(i);
             int ry = top + (i - tableScroll) * TABLE_ROW;
-            boolean rival = !s.self() && Sky2MRivals.isRival(s.player());
+            boolean rival = !s.self() && Sky2MRivals.isRival(s.player(), selected.key());
             boolean over = mouseX >= x - 2 && mouseX < right + 2 && mouseY >= ry - 2 && mouseY < ry + TABLE_ROW - 2;
             if (s.self()) g.fill(x - 2, ry - 2, right + 2, ry + TABLE_ROW - 2, 0xFF1F3324);
             else if (rival) g.fill(x - 2, ry - 2, right + 2, ry + TABLE_ROW - 2, 0xFF3A2A12);
@@ -523,9 +524,37 @@ public final class Sky2MLeaderboardScreen extends Screen {
             g.text(font, font.plainSubstrByWidth((rival ? "⚔ " : "") + s.player(), right - c[1] - font.width(s.value()) - 10), c[1], ry,
                 s.self() ? 0xFF55FF55 : rival ? 0xFFFFAA00 : 0xFFFFFFFF, false);
             g.text(font, s.value(), right - font.width(s.value()), ry, s.self() ? 0xFF55FF55 : 0xFFB8C0CC, false);
-            if (over && !s.self()) g.setTooltipForNextFrame(font, Component.literal(rival ? "Click: no longer your rival" : "Click: make " + s.player() + " your rival"), mouseX, mouseY);
+            if (over && !s.self()) g.setTooltipForNextFrame(font, rivalTooltip(s.player(), rival), java.util.Optional.empty(), mouseX, mouseY);
         }
         scrollbar(g, right + 4, top, contentBottom(), tableScroll, visible, rows.size());
+    }
+
+    /** The board's name for rivals ("Wheat", "Slayer XP Zombie", "Kill Times Revenant Horror V"). */
+    private String rivalBoardName() {
+        return switch (tab) {
+            case COLLECTIONS, EVENTS -> selected.name();
+            case SLAYER_XP -> "Slayer XP " + selected.name();
+            case KILL_TIMES -> "Kill Times " + selected.id();
+        };
+    }
+
+    /** What clicking a player does to their rival status, and which boards they're your rival on. */
+    private List<Component> rivalTooltip(String player, boolean rival) {
+        List<Component> lines = new ArrayList<>();
+        if (!rival) {
+            lines.add(Component.literal("Click: make " + player + " your rival on " + rivalBoardName()));
+            List<String> others = Sky2MRivals.boardNamesOf(player);
+            if (!others.isEmpty()) lines.add(Component.literal("Rival on: " + String.join(", ", others)).withStyle(ChatFormatting.GOLD));
+        } else if (Sky2MRivals.isRivalEverywhere(player)) {
+            lines.add(Component.literal("Your rival on all boards").withStyle(ChatFormatting.GOLD));
+            lines.add(Component.literal("Click: rival only on " + rivalBoardName()));
+            lines.add(Component.literal("Right-click: no longer your rival").withStyle(ChatFormatting.GRAY));
+        } else {
+            lines.add(Component.literal("Rival on: " + String.join(", ", Sky2MRivals.boardNamesOf(player))).withStyle(ChatFormatting.GOLD));
+            lines.add(Component.literal("Click: no longer your rival on " + rivalBoardName()));
+            lines.add(Component.literal("Right-click: no longer your rival on any board").withStyle(ChatFormatting.GRAY));
+        }
+        return lines;
     }
 
     private static void scrollbar(GuiGraphicsExtractor g, int x, int top, int bottom, int scroll, int visible, int total) {
@@ -542,18 +571,20 @@ public final class Sky2MLeaderboardScreen extends Screen {
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (super.mouseClicked(event, doubleClick)) return true;
-        if (event.button() != 0) return false;
-        // A player in the standings: make them your rival, or stop.
+        if (event.button() != 0 && event.button() != 1) return false;
+        // A player in the standings: make them your rival on this board, or stop (right-click: on every board).
         List<Standing> rows = standings();
         int tableTop = contentTop() + 22 + 14;
-        if (rows != null && event.x() >= tableLeft() - 2 && event.x() < tableRight() + 2 && event.y() >= tableTop - 2 && event.y() < contentBottom()) {
+        if (rows != null && selected != null && event.x() >= tableLeft() - 2 && event.x() < tableRight() + 2 && event.y() >= tableTop - 2 && event.y() < contentBottom()) {
             int row = tableScroll + (int) ((event.y() - tableTop + 2) / TABLE_ROW);
             if (row >= 0 && row < rows.size() && !rows.get(row).self()) {
                 String name = rows.get(row).player();
-                Sky2MRivals.set(name, !Sky2MRivals.isRival(name));
+                if (event.button() == 0) Sky2MRivals.toggle(name, selected.key(), rivalBoardName());
+                else if (Sky2MRivals.isRival(name, selected.key())) Sky2MRivals.remove(name, null);
                 return true;
             }
         }
+        if (event.button() != 0) return false;
         int x = listLeft(), w = listWidth(), y = contentTop();
         if (event.x() < x - 2 || event.x() >= x + w + 2 || event.y() < y || event.y() >= contentBottom()) return false;
         int index = listScroll + (int) ((event.y() - y) / LIST_ROW);

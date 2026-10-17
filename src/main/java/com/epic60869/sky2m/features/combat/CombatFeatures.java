@@ -41,9 +41,11 @@ public final class CombatFeatures {
     private static final Pattern RARE_DROP = Pattern.compile(
         "^\\s*(?<type>(?:(?:VERY |CRAZY |INSANE |INCREDIBLY )?RARE|PRAY TO RNGESUS|INSANE|PET|RNG METER|LEGENDARY) (?:DROP|CROP|REWARD)!|OUTSTANDING CATCH!)"
             // The "(+241% ✯ Magic Find)" or "(+100 ☘ Farming Fortune)" after the item isn't part of its name.
-            + "\\s+\\(?(?<item>.+?)\\)?(?:\\s+x(?<amount>[\\d,]+))?(?:\\s+\\(\\+[\\d,.]+%? ?[^)]*\\))?\\s*$");
+            + "\\s+(?:\\((?<wrapped>[^()]+)\\)|(?<item>.+?))(?:\\s+x(?<amount>[\\d,]+))?(?:\\s+\\(\\+[\\d,.]+%? ?[^)]*\\))?\\s*$");
     /** "You dug out a Minos Relic!", "You found a Recombobulator 3000!": just the item. */
     private static final Pattern DROP_WORDS = Pattern.compile("^(?:You (?:dug out|found|caught|got)(?: an?)? )?(?<item>.+?)!?$");
+    /** "WOW! You found a Mythological Dye #123!" or "WOW! [MVP+] Name found a Pure Black Dye #4!". */
+    private static final Pattern DYE_DROP = Pattern.compile("^\\s*WOW! (?:\\[[^]]+] )?(?<name>\\w+) found an? (?<item>.+? Dye)(?: #[\\d,]+)?!?\\s*$");
     private static final double LEGION_RANGE = 30;
 
     private static String arrowType;
@@ -187,8 +189,9 @@ public final class CombatFeatures {
         }
 
         if ((m = RARE_DROP.matcher(text)).find() && !someoneElsesDrop(text)) {
-            Matcher words = DROP_WORDS.matcher(m.group("item").trim());
-            String item = words.matches() ? words.group("item").trim() : m.group("item").trim();
+            String raw = m.group("wrapped") != null ? m.group("wrapped") : m.group("item");
+            Matcher words = DROP_WORDS.matcher(raw.trim());
+            String item = words.matches() ? words.group("item").trim() : raw.trim();
             int amount = m.group("amount") == null ? 1 : Integer.parseInt(m.group("amount").replace(",", ""));
             // "2x Item" as well as "Item x2".
             Matcher prefixed = AMOUNT_FIRST.matcher(item);
@@ -216,6 +219,14 @@ public final class CombatFeatures {
                 onRareDrop(config.rareDrops, dropText, dropItem, dropAmount, rng, slayer, garden);
                 RareDropTotem.onDrop(dropType, dropItem);
             });
+        }
+
+        if ((m = DYE_DROP.matcher(text)).find()) {
+            String name = m.group("name");
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.player != null && ("You".equalsIgnoreCase(name) || name.equalsIgnoreCase(mc.player.getGameProfile().name()))) {
+                RareDropTotem.onDrop("RNG DYE DROP!", m.group("item"));
+            }
         }
     }
 
@@ -299,7 +310,7 @@ public final class CombatFeatures {
         if (config.animation) {
             int count = Math.max(1, amount);
             ItemPriceResolver.valueByNameAsync(item).thenAccept(value -> {
-                if (value != null && value * count >= config.thresholdMillions * 1_000_000d) {
+                if (value != null && value > 0 && value * count >= config.thresholdMillions * 1_000_000d) {
                     Sky2MAlerts.dropAnimation(Component.literal(item + "!").withStyle(ChatFormatting.BOLD), 0xFFAA00);
                     Sky2MAlerts.chat(Component.literal(item + " is worth " + formatCoins(value * count) + " coins!").withStyle(ChatFormatting.GOLD));
                 }

@@ -76,6 +76,16 @@ Sky2M's /s2 gui position editor is an adaptation of the SkyHanni GUI position ed
 
 Sky2M's implementation is independently adapted to Sky2M's own Java/Fabric 26.x HUD system and does not add SkyHanni as a runtime dependency.
 
+## SkyHanni Slayer Profit Tracker
+
+Sky2M's six slayer profit trackers follow SkyHanni's Slayer Profit Tracker: when they count (your quest's slayer, in that slayer's areas from SkyHanni's island graphs), which drops count (SkyHanni's SlayerProfitTrackerItems list), mob kill coins, the spawn cost paid (including auto-slayer's bank charge) and bosses killed.
+
+- https://github.com/hannibal002/SkyHanni
+- Relevant source: src/main/java/at/hannibal2/skyhanni/features/slayer/SlayerProfitTracker.kt, data/SlayerApi.kt, data/PurseApi.kt and data/ItemAddManager.kt
+- License: GNU Lesser General Public License v2.1 (LGPL-2.1)
+
+Sky2M's implementation is rewritten in Java for Sky2M's own profit tracker and does not add SkyHanni as a runtime dependency.
+
 ## SkyHanni Current Chat Display
 
 Sky2M's current chat display (`Sky2MCurrentChat.java`) follows SkyHanni's CurrentChatDisplay (src/main/java/at/hannibal2/skyhanni/features/chat/CurrentChatDisplay.kt): the channel-change message patterns and the channel names and colours. SkyHanni is licensed under the GNU Lesser General Public License v2.1 (LGPL-2.1).

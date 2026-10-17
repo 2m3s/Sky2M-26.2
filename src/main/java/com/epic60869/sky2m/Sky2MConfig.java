@@ -718,7 +718,7 @@ public final class Sky2MConfig extends Config {
         @ConfigAccordionId(id = 2303)
         public com.epic60869.sky2m.features.FeatureConfigs.ItemPickupLog itemPickupLog = new com.epic60869.sky2m.features.FeatureConfigs.ItemPickupLog();
 
-        @ConfigOption(name = "Collections", desc = "The collection tracker HUD and the collection portfolio.")
+        @ConfigOption(name = "Collections", desc = "The collection tracker HUD, the collection portfolio and the Rival HUD.")
         @ConfigEditorAccordion(id = 2305)
         public boolean collectionsGroup = false;
 
@@ -733,6 +733,12 @@ public final class Sky2MConfig extends Config {
         @ConfigEditorBoolean
         @ConfigAccordionId(id = 2305)
         public boolean collectionPortfolio = true;
+
+        @Expose
+        @ConfigOption(name = "Rival HUD", desc = "While you farm or gather a collection, show the Sky2M leaderboard for it against your rival there (/s2 rival add <name> <board>, or click them in /s2 leaderboard): both amounts and who's ahead by how much. Hidden when you have no rival on that board. Move it in /s2 gui.")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 2305)
+        public boolean rivalHud = false;
 
         @ConfigOption(name = "Visual", desc = "Fire, explosions, player size, held item, etherwarp overlay and render tweaks.")
         @ConfigEditorAccordion(id = 2306)
@@ -875,6 +881,18 @@ public final class Sky2MConfig extends Config {
         @ConfigOption(name = "Area Waypoints", desc = "Odin's waypoints for one dungeon boss phase, Kuudra tier or island, that can run commands (/s2w).")
         @ConfigAccordionId(id = 2309)
         public com.epic60869.sky2m.features.FeatureConfigs.AreaWaypoints areaWaypoints = new com.epic60869.sky2m.features.FeatureConfigs.AreaWaypoints();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "Fairy Souls", desc = "A Fairy Soul finder over NEU's coordinates: outlines the ones you haven't collected (SkyHanni style), counts them on a HUD (/s2 souls).")
+        @ConfigAccordionId(id = 2309)
+        public com.epic60869.sky2m.features.FeatureConfigs.FairySouls fairySouls = new com.epic60869.sky2m.features.FeatureConfigs.FairySouls();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "Shopping List", desc = "What you still want to get, ticked off by what you pick up (/s2 shopping).")
+        @ConfigAccordionId(id = 2309)
+        public com.epic60869.sky2m.features.FeatureConfigs.ShoppingList shoppingList = new com.epic60869.sky2m.features.FeatureConfigs.ShoppingList();
 
         @Expose
         @Accordion
@@ -1608,7 +1626,7 @@ public final class Sky2MConfig extends Config {
         public boolean mobs = true;
 
         @Expose
-        @ConfigOption(name = "Only Entities You Hit", desc = "Only recolour entities you attacked in the last 2 seconds (and yourself); other hurt entities keep the red flash.")
+        @ConfigOption(name = "Only Entities You Hit", desc = "Only recolour entities you hit in the last 2 seconds (and yourself): ones you attacked, and ones hurt in front of you just after you used a right-click weapon like Soul Whip or Flaming Flay. Other hurt entities keep the red flash.")
         @ConfigEditorBoolean
         public boolean onlyYourHits = false;
     }
@@ -1934,6 +1952,26 @@ public final class Sky2MConfig extends Config {
         io.github.notenoughupdates.moulconfig.common.IMinecraft.INSTANCE.openWrappedScreen(editor);
     }
 
+    /**
+     * Opens the settings over {@code parent} (the title screen's S2 button). MoulConfig's own wrapper closes to no
+     * screen, so Esc goes back to {@code parent} here instead, keeping the title screen's state (and its buttons).
+     */
+    public static void openGuiOver(net.minecraft.client.gui.screens.Screen parent) {
+        if (managed == null) return;
+        if (editor == null) editor = managed.getEditor();
+        var context = new io.github.notenoughupdates.moulconfig.gui.GuiContext(
+            new io.github.notenoughupdates.moulconfig.gui.GuiElementComponent(editor));
+        Minecraft.getInstance().gui.setScreen(new io.github.notenoughupdates.moulconfig.platform.MoulConfigScreenComponent(
+            net.minecraft.network.chat.Component.empty(), context, parent) {
+            @Override
+            public void onClose() {
+                if (getGuiContext().onBeforeClose() == io.github.notenoughupdates.moulconfig.gui.CloseEventListener.CloseAction.NO_OBJECTIONS_TO_CLOSE) {
+                    Minecraft.getInstance().gui.setScreen(parent);
+                }
+            }
+        });
+    }
+
     public static void saveCurrent(Sky2MConfig config) {
         if (managed != null && managed.getInstance() == config) {
             managed.saveToFile();
@@ -1966,7 +2004,6 @@ public final class Sky2MConfig extends Config {
         if (old == null || old.has("general")) return;
 
         Sky2MConfig migrated = new Sky2MConfig();
-        if (old.has("enabled")) 
         if (old.has("firstBootAcknowledged")) migrated.general.firstBootAcknowledged = old.get("firstBootAcknowledged").getAsBoolean();
 
         if (old.has("farmingRngEnabled")) migrated.farming.rng.enabled = old.get("farmingRngEnabled").getAsBoolean();
@@ -1974,7 +2011,6 @@ public final class Sky2MConfig extends Config {
         if (old.has("farmingRngScale")) migrated.farming.rng.scale = old.get("farmingRngScale").getAsFloat();
         if (old.has("farmingRngX")) migrated.farming.rng.x = old.get("farmingRngX").getAsInt();
         if (old.has("farmingRngY")) migrated.farming.rng.y = old.get("farmingRngY").getAsInt();
-        if (old.has("farmingRngX")) 
         if (old.has("mouseLockEnabled")) migrated.farming.mouseLock.enabled = old.get("mouseLockEnabled").getAsBoolean();
         if (old.has("mouseLockGroundOnly")) migrated.farming.mouseLock.groundOnly = old.get("mouseLockGroundOnly").getAsBoolean();
 

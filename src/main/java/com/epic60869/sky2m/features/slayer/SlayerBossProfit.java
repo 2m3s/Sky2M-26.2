@@ -208,6 +208,18 @@ public final class SlayerBossProfit {
         return false;
     }
 
+    /**
+     * Whether an item price id (or a pet's LVL_n_TIER_TYPE) is on {@code slayer}'s own drop list ("Revenant Horror"...),
+     * as SkyHanni's slayer profit tracker allows. False until the lists have loaded.
+     */
+    public static boolean isDropOf(String slayer, String id) {
+        java.util.Set<String> keys = drops.get(slayer);
+        if (keys == null || id == null) return false;
+        if (keys.contains(id)) return true;
+        Matcher pet = PET_ID.matcher(id);
+        return pet.matches() && keys.contains("PET:" + pet.group(1));
+    }
+
     private static boolean isSlayerDropName(String itemName) {
         Map<String, java.util.Set<String>> lists = drops;
         if (lists.isEmpty()) return SlayerFeatures.onSlayerQuest();

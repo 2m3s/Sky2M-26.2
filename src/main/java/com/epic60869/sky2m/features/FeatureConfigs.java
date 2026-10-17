@@ -931,17 +931,17 @@ public final class FeatureConfigs {
         public boolean copyGarden = false;
 
         @Expose
-        @ConfigOption(name = "Big Drop Animation", desc = "Play an animation when a rare drop is worth more than the threshold.")
+        @ConfigOption(name = "Big Drop Animation", desc = "Play an animation and a chat message when any rare drop is worth at least the Animation Threshold. Separate from the RNG Drop Totem Animation below.")
         @ConfigEditorBoolean
         public boolean animation = false;
 
         @Expose
-        @ConfigOption(name = "Animation Threshold (millions)", desc = "Minimum drop value, in millions of coins, for the animation.")
+        @ConfigOption(name = "Animation Threshold (millions)", desc = "Minimum drop value, in millions of coins, for the Big Drop Animation. Does not affect the RNG Drop Totem Animation.")
         @ConfigEditorSlider(minValue = 1, maxValue = 500, minStep = 1)
         public float thresholdMillions = 10;
 
         @Expose
-        @ConfigOption(name = "RNG Drop Totem Animation", desc = "Skyblocker's special effect: big RNG drops (slayer, Diana and fishing RNG items, and any PRAY TO RNGESUS or RNG METER drop) pop up like a Totem of Undying, with particles and a sound.")
+        @ConfigOption(name = "RNG Drop Totem Animation", desc = "Skyblocker's special effect: RNG drops pop up like a Totem of Undying, with particles and a sound, whatever they are worth (no threshold). Plays for slayer, Diana and fishing RNG items, dyes, and every PRAY TO RNGESUS DROP! or RNG METER DROP! chat message (the item you were filling the RNG Meter for), not for every item listed in the RNG Meter menu.")
         @ConfigEditorBoolean
         public boolean totemAnimation = false;
     }
@@ -6227,6 +6227,60 @@ public final class FeatureConfigs {
         @ConfigOption(name = "Open Waypoint Manager", desc = "Add, edit, import and export waypoints. Also /s2w.")
         @ConfigEditorButton(buttonText = "Open")
         public Runnable open = com.epic60869.sky2m.features.misc.waypoints.AreaWaypoints::open;
+    }
+    /** Fairy Soul finder (SkyHanni's Fast Fairy Soul Finder / NEU-Souls Pathfinder style, /s2 souls). */
+    public static final class FairySouls {
+        @Expose
+        @ConfigOption(name = "Enabled", desc = "Draw every Fairy Soul you haven't collected on this island as a box with a label, with the nearest ones you still need highlighted, using NEU's soul coordinates. One saved for all profiles. Commands: /s2 souls.")
+        @ConfigEditorBoolean
+        public boolean enabled = false;
+
+        @Expose
+        @ConfigOption(name = "Nearby Souls", desc = "How many of the nearest uncollected Fairy Souls to draw.")
+        @ConfigEditorSlider(minValue = 1, maxValue = 10, minStep = 1)
+        public int nearbySouls = 4;
+
+        @Expose
+        @ConfigOption(name = "Faded Colour", desc = "Colour of the boxes that aren't the nearest one.")
+        @ConfigEditorColour
+        public String faded = "0:255:119:41:145";
+
+        @Expose
+        @ConfigOption(name = "Show Through Walls", desc = "Draw the boxes and labels through walls.")
+        @ConfigEditorBoolean
+        public boolean throughWalls = true;
+
+        @Expose
+        @ConfigOption(name = "Labels", desc = "Write \"Fairy Soul\" above each box.")
+        @ConfigEditorBoolean
+        public boolean labels = true;
+
+        @Expose
+        @ConfigOption(name = "Distances", desc = "Add how far away each nearest Fairy Soul is, in metres.")
+        @ConfigEditorBoolean
+        public boolean distances = true;
+
+        @Expose
+        @ConfigOption(name = "HUD", desc = "A HUD with how many Fairy Souls you've found on this island, out of all of them (\"Fairy Souls 45/81 — Hub\"). Move it in /s2 gui.")
+        @ConfigEditorBoolean
+        public boolean hud = false;
+
+        @Expose
+        @ConfigOption(name = "Progress on Island Join", desc = "Say the island's Fairy Souls count in chat each time you arrive.")
+        @ConfigEditorBoolean
+        public boolean progress = true;
+    }
+    /** A shopping list of what to get and how many (/s2 shopping), ticked off by what you pick up. */
+    public static final class ShoppingList {
+        @Expose
+        @ConfigOption(name = "HUD", desc = "Show what's still on your shopping list. Move it in /s2 gui.")
+        @ConfigEditorBoolean
+        public boolean hud = false;
+
+        @Expose
+        @ConfigOption(name = "Auto Pickups", desc = "Count what you pick up towards the list: an entry whose name matches an item that lands in your inventory goes up on its own, and says in chat when it's done.")
+        @ConfigEditorBoolean
+        public boolean autoPickups = true;
     }
     public static final class TerminalProgress {
         @Expose

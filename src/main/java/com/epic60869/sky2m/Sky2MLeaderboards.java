@@ -322,6 +322,10 @@ public final class Sky2MLeaderboards {
     private static volatile EventStandings lastEventStandings;
     /** "boardType|id" of the standing the screen last asked for; the result keeps it, late answers for others don't. */
     private static volatile String pendingStatKey = "";
+    /** When {@link #pendingStatKey} was asked for: the server's answer doesn't say which request it answers. */
+    private static volatile long pendingStatAt;
+    /** Every stat board answered this game, by "boardType|id", for the Rival HUD (the screen keeps its own). */
+    private static final java.util.Map<String, StatResult> STAT_RESULTS = new java.util.concurrent.ConcurrentHashMap<>();
     /** One-shot quiet flags: while the screen is up, the one answer it asked for is not printed to chat as well. */
     private static volatile boolean quietList, quietStat, quietEvent;
     private static volatile String quietEventName = "";
@@ -350,6 +354,17 @@ public final class Sky2MLeaderboards {
 
     public static StatResult statResult() { return lastStatResult; }
 
+    /** The last standings of one stat board ("collection|WHEAT") this game, or null. */
+    public static StatResult cachedStat(String key) { return key == null ? null : STAT_RESULTS.get(key); }
+
+    /**
+     * Whether a stat board request is still waiting for its answer (up to 8 seconds). The answer only matches its
+     * request by order, so the Rival HUD doesn't ask while another one is out.
+     */
+    public static boolean statBusy() {
+        return !pendingStatKey.isEmpty() && System.currentTimeMillis() - pendingStatAt < 8_000L;
+    }
+
     public static EventStandings eventStandings() { return lastEventStandings; }
 
     /** Asks for the whole stat list (every collection and slayer XP board name); false when the socket is down. */
@@ -370,6 +385,7 @@ public final class Sky2MLeaderboards {
         packet.addProperty("key", key);
         if (!Sky2MGlobalChat.send(packet)) return false;
         pendingStatKey = boardType + "|" + key;
+        pendingStatAt = System.currentTimeMillis();
         quietStat = true;
         return true;
     }
@@ -408,36 +424,6 @@ public final class Sky2MLeaderboards {
     }
 
     // ---------------------------------------------------------------- commands
-
-    private static int list() {
-        List<Board> running = boards;
-        if (running.isEmpty()) {
-            say(Component.literal("No event leaderboards are running right now.").withStyle(ChatFormatting.GRAY));
-        } else {
-            MutableComponent text = Component.literal("Running leaderboards: ").withStyle(ChatFormatting.GRAY);
-            for (int i = 0; i < running.size(); i++) {
-                Board board = running.get(i);
-                if (i > 0) text.append(Component.literal(", ").withStyle(ChatFormatting.GRAY));
-                text.append(Component.literal(board.name()).withStyle(style -> style.withColor(ChatFormatting.YELLOW)
-                    .withClickEvent(new net.minecraft.network.chat.ClickEvent.RunCommand("/s2 leaderboard " + board.name()))
-                    .withHoverEvent(new net.minecraft.network.chat.HoverEvent.ShowText(Component.literal("Show the standings")))));
-            }
-            say(text);
-        }
-        say(Component.literal("Permanent stats: ").withStyle(ChatFormatting.GRAY)
-            .append(Component.literal("Collections").withStyle(style -> style.withColor(ChatFormatting.GREEN)
-                .withClickEvent(new net.minecraft.network.chat.ClickEvent.RunCommand("/s2 leaderboard collection"))
-                .withHoverEvent(new net.minecraft.network.chat.HoverEvent.ShowText(Component.literal("Browse every collection leaderboard")))))
-            .append(Component.literal(" · ").withStyle(ChatFormatting.DARK_GRAY))
-            .append(Component.literal("Slayer XP").withStyle(style -> style.withColor(ChatFormatting.RED)
-                .withClickEvent(new net.minecraft.network.chat.ClickEvent.RunCommand("/s2 leaderboard slayer xp"))
-                .withHoverEvent(new net.minecraft.network.chat.HoverEvent.ShowText(Component.literal("Browse slayer XP leaderboards"))))));
-        say(Component.literal("Personal bests: ").withStyle(ChatFormatting.GRAY)
-            .append(Component.literal("Slayer kill times").withStyle(style -> style.withColor(ChatFormatting.YELLOW)
-                .withClickEvent(new net.minecraft.network.chat.ClickEvent.RunCommand("/s2 leaderboard slayer"))
-                .withHoverEvent(new net.minecraft.network.chat.HoverEvent.ShowText(Component.literal("Everyone's fastest slayer kill for each boss and tier"))))));
-        return 1;
-    }
 
     /** Tab completion: running event boards, then "slayer" and "slayer &lt;boss&gt;" for your and the known boss keys. */
     private static List<String> nameSuggestions() {
@@ -542,6 +528,10 @@ public final class Sky2MLeaderboards {
         packet.addProperty("key", key);
         if (!Sky2MGlobalChat.send(packet)) {
             say(Component.literal("Connecting to the Sky2M server; try again in a moment.").withStyle(ChatFormatting.YELLOW));
+        } else {
+            // Keyed like the screen's requests, so rivals on this board hear when they pass you from a chat lookup too.
+            pendingStatKey = type + "|" + key;
+            pendingStatAt = System.currentTimeMillis();
         }
         return 1;
     }
@@ -610,11 +600,15 @@ public final class Sky2MLeaderboards {
                 entries.add(new StatEntry(rank, string(entry, "username"), value));
             }
         }
-        // key stays "|" when this answers a chat lookup (the screen's own requests set it before sending).
+        // key stays "|" when it can't be matched (the screen's requests and chat board lookups set it before sending).
         lastStatResult = new StatResult(string(packet, "boardType"), pendingStatKey, string(packet, "name"),
             List.copyOf(entries), ok ? "" : string(packet, "message"), System.currentTimeMillis());
-        // Rivals: a board's key is "type|id" (the screen's own requests), or the board's name for chat lookups.
-        if (ok) Sky2MRivals.onStandings(pendingStatKey.isEmpty() || pendingStatKey.equals("|") ? string(packet, "name") : pendingStatKey,
+        // The board this answers, from the answer itself when the server says (a second request can be out by then).
+        String answered = !string(packet, "boardType").isEmpty() && !string(packet, "key").isEmpty()
+            ? string(packet, "boardType") + "|" + string(packet, "key") : pendingStatKey;
+        if (ok && !answered.isEmpty() && !answered.equals("|")) STAT_RESULTS.put(answered, lastStatResult);
+        // Rivals: a board's key is "type|id", or the board's name when it can't be told.
+        if (ok) Sky2MRivals.onStandings(answered.isEmpty() || answered.equals("|") ? string(packet, "name") : answered,
             string(packet, "name"), lastStatResult.entries());
         pendingStatKey = "";
         refreshed();
