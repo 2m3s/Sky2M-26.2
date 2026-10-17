@@ -143,6 +143,13 @@ public final class Sky2MMod implements ClientModInitializer {
         com.epic60869.sky2m.features.dungeons.ChestHistory.init();
         Sky2MChangelog.init();
         Sky2MWhatsNew.init();
+        Sky2MSetup.init();
+        Sky2MRivals.init();
+        Sky2MPlayerNotes.init();
+        Sky2MAliases.init();
+        com.epic60869.sky2m.features.misc.KeybindSheetScreen.register();
+        com.epic60869.sky2m.features.misc.ScreenshotGallery.register();
+        com.epic60869.sky2m.features.core.Sky2MPerfScreen.register();
         Sky2MNopoFeatures.init(configDir);
         Sky2MNick.init(config);
         Sky2MMouseLock.init(config);
@@ -250,6 +257,16 @@ public final class Sky2MMod implements ClientModInitializer {
     private com.mojang.brigadier.builder.LiteralArgumentBuilder<net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource> commandTree(String name) {
         var root = ClientCommands.literal(name)
             .executes(context -> openMenu())
+            .then(ClientCommands.literal("settings")
+                .executes(context -> openMenu())
+                .then(ClientCommands.argument("filter", StringArgumentType.greedyString())
+                    .suggests((context, builder) -> net.minecraft.commands.SharedSuggestionProvider.suggest(
+                        java.util.List.of("general", "chat", "combat", "diana", "mayors", "dungeons", "farming",
+                            "fishing", "mining", "foraging", "slayer", "profit trackers", "hunting", "safari",
+                            "skills", "pets", "misc", "storage", "waypoints", "hud", "alerts", "tracker", "enabled"),
+                        builder))
+                    .executes(context -> openFilteredGui(StringArgumentType.getString(context, "filter"))))
+                )
             .then(ClientCommands.literal("notes").executes(context -> openNotes()))
             .then(ClientCommands.literal("search").executes(context -> openStorageSearch()))
             .then(Sky2MRecipeCommand.command())
@@ -263,7 +280,15 @@ public final class Sky2MMod implements ClientModInitializer {
                     .executes(context -> sendGlobalChat(StringArgumentType.getString(context, "message")))))
             .then(Sky2MNickCommand.node())
             .then(ClientCommands.literal("discord").executes(context -> discord()))
-            .then(ClientCommands.literal("gui").executes(context -> openHudEditor()))
+            .then(ClientCommands.literal("gui")
+                .executes(context -> openHudEditor())
+                .then(ClientCommands.argument("filter", StringArgumentType.greedyString())
+                    .suggests((context, builder) -> net.minecraft.commands.SharedSuggestionProvider.suggest(
+                        java.util.List.of("general", "chat", "combat", "diana", "mayors", "dungeons", "farming",
+                            "fishing", "mining", "foraging", "slayer", "profit trackers", "hunting", "safari",
+                            "skills", "pets", "misc", "storage", "waypoints", "hud", "alerts", "tracker", "enabled"),
+                        builder))
+                    .executes(context -> openFilteredGui(StringArgumentType.getString(context, "filter")))))
             .then(ClientCommands.literal("debug").executes(context -> Sky2MDebug.run())
                 .then(ClientCommands.literal("starred").executes(context -> {
                     Minecraft mc = Minecraft.getInstance();
@@ -283,6 +308,17 @@ public final class Sky2MMod implements ClientModInitializer {
             mc.gui.hud.getChat().addClientSystemMessage(Component.literal("The Sky2M Discord Is: ").withStyle(ChatFormatting.GRAY)
                 .append(Component.literal(link).withStyle(style -> style.withColor(ChatFormatting.AQUA).withUnderlined(true)
                     .withClickEvent(new net.minecraft.network.chat.ClickEvent.OpenUrl(java.net.URI.create(link))))));
+        });
+        return 1;
+    }
+
+    private int openFilteredGui(String filter) {
+        String query = filter == null ? "" : filter.trim();
+        if (query.isEmpty() || query.equalsIgnoreCase("all")) return openMenu();
+        Minecraft mc = Minecraft.getInstance();
+        mc.execute(() -> {
+            // Use MoulConfig's built-in search, preserving the existing settings and save behaviour.
+            Sky2MConfig.openGui(query);
         });
         return 1;
     }

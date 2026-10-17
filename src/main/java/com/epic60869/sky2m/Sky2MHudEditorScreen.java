@@ -17,6 +17,7 @@ public final class Sky2MHudEditorScreen extends Screen {
     private final Screen parent;
     private final List<EditableHud> elements = new ArrayList<>();
     private EditableHud selected;
+    private String categoryFilter = "All";
     private int dragOffsetX;
     private int dragOffsetY;
 
@@ -30,6 +31,17 @@ public final class Sky2MHudEditorScreen extends Screen {
         clearWidgets();
         addRenderableWidget(Button.builder(Component.literal("Done"), b -> onClose())
             .bounds(width - 90, 16, 70, 24).build());
+        String[] categories = {"All", "Mining", "Dungeons", "Combat", "Pets", "Trackers", "Other"};
+        int buttonX = 18;
+        for (String category : categories) {
+            int buttonWidth = category.equals("Dungeons") || category.equals("Trackers") ? 76 : 62;
+            addRenderableWidget(Button.builder(Component.literal((category.equals(categoryFilter) ? "• " : "") + category), b -> {
+                categoryFilter = category;
+                selected = null;
+                init();
+            }).bounds(buttonX, 54, buttonWidth, 20).build());
+            buttonX += buttonWidth + 4;
+        }
         rebuildElements();
     }
 
@@ -94,11 +106,14 @@ public final class Sky2MHudEditorScreen extends Screen {
         g.text(font, Component.literal("Drag to move • Scroll to resize • Right-click opens its settings • Middle-click toggles background • Arrow keys move"), 18, 36, 0xFFB8BEC9, false);
         if (elements.isEmpty()) {
             g.centeredText(font, Component.literal("No HUDs are turned on. Turn one on in /s2 to place it here."), width / 2, height / 2 - 20, 0xFFB8BEC9);
+        } else if (visibleElements().isEmpty()) {
+            g.centeredText(font, Component.literal("No enabled HUDs in " + categoryFilter + ". Choose All or enable a feature."), width / 2, height / 2 - 20, 0xFFB8BEC9);
         }
 
         EditableHud hovered = null;
-        for (int i = elements.size() - 1; i >= 0; i--) {
-            EditableHud e = elements.get(i);
+        List<EditableHud> visibleElements = visibleElements();
+        for (int i = visibleElements.size() - 1; i >= 0; i--) {
+            EditableHud e = visibleElements.get(i);
             int x = e.x(), y = e.y(), w = Math.max(1, e.width()), h = Math.max(1, e.height());
             boolean hover = inside(mouseX, mouseY, x, y, w, h);
             if (hover && hovered == null) hovered = e;
@@ -215,9 +230,32 @@ public final class Sky2MHudEditorScreen extends Screen {
         return true;
     }
 
+    private List<EditableHud> visibleElements() {
+        if ("All".equals(categoryFilter)) return elements;
+        return elements.stream().filter(e -> {
+            String n = e.name().toLowerCase(java.util.Locale.ROOT);
+            return switch (categoryFilter) {
+                case "Mining" -> containsAny(n, "mining", "commission", "pristine", "gemstone", "scatha", "drill", "pickaxe", "powder");
+                case "Dungeons" -> containsAny(n, "dungeon", "terminal", "storm", "spirit", "bonzo", "necron", "secret", "rag", "mage");
+                case "Combat" -> containsAny(n, "slayer", "combat", "boss", "damage", "zealot", "diana", "mob", "rng");
+                case "Pets" -> containsAny(n, "pet");
+                case "Trackers" -> containsAny(n, "tracker", "profit", "session", "counter", "history", "rng");
+                default -> !containsAny(n, "mining", "commission", "pristine", "gemstone", "scatha", "drill", "pickaxe", "powder",
+                    "dungeon", "terminal", "storm", "spirit", "bonzo", "necron", "secret", "rag", "mage",
+                    "slayer", "combat", "boss", "damage", "zealot", "diana", "mob", "pet", "tracker", "profit", "session", "counter", "history", "rng");
+            };
+        }).toList();
+    }
+
+    private static boolean containsAny(String value, String... terms) {
+        for (String term : terms) if (value.contains(term)) return true;
+        return false;
+    }
+
     private EditableHud findHovered(int mx, int my) {
-        for (int i = elements.size() - 1; i >= 0; i--) {
-            EditableHud e = elements.get(i);
+        List<EditableHud> visibleElements = visibleElements();
+        for (int i = visibleElements.size() - 1; i >= 0; i--) {
+            EditableHud e = visibleElements.get(i);
             if (inside(mx, my, e.x(), e.y(), e.width(), e.height())) return e;
         }
         return null;

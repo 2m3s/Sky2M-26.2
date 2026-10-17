@@ -1633,6 +1633,21 @@ public final class Sky2MConfig extends Config {
         @ConfigOption(name = "Show Skill Average", desc = "\"Skill Avg 52.4\" in the line above your head.")
         @ConfigEditorBoolean
         public boolean skillAverage = true;
+
+        @Expose
+        @ConfigOption(name = "Custom Text", desc = "Your own text at the start of the line above your head (up to 40 characters), like a title or your guild. Other Sky2M users see it too. Leave it empty for none.")
+        @ConfigEditorText
+        public String customText = "";
+
+        @Expose
+        @ConfigOption(name = "Show Collection Leaderboard", desc = "Show your selected collection's amount and placement on the shared name tag. Other Sky2M users can see it too.")
+        @ConfigEditorBoolean
+        public boolean showCollectionLeaderboard = false;
+
+        @Expose
+        @ConfigOption(name = "Collection ID", desc = "Hypixel collection ID for the leaderboard, e.g. WHEAT, CARROT, SUGAR_CANE or ENDER_PEARL.")
+        @ConfigEditorText
+        public String collectionLeaderboard = "WHEAT";
     }
 
     public static final class SpeedDisplay {

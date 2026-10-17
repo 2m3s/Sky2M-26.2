@@ -78,7 +78,10 @@ public final class HitColour {
             String[] parts = value.split(":");
             if (parts.length >= 4) {
                 try {
-                    alpha = Math.max(0, Math.min(255, Integer.parseInt(parts[parts.length - 4].trim())));
+                    // MoulConfig's colour editor treats this component as transparency (0 = opaque,
+                    // 255 = fully transparent), while the overlay texture needs alpha (0 = invisible).
+                    int transparency = Math.max(0, Math.min(255, Integer.parseInt(parts[parts.length - 4].trim())));
+                    alpha = 255 - transparency;
                 } catch (NumberFormatException ignored) {}
             }
         }

@@ -12,6 +12,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
+import com.epic60869.sky2m.features.sbc.SbcNameTags;
 
 import java.util.Locale;
 import java.util.UUID;
@@ -33,6 +35,7 @@ public final class OwnNameTag {
     private static volatile long networth = -1, lastTry;
     private static volatile double skillAverage = -1;
     private static volatile UUID owner;
+    private static volatile long lastPublish;
 
     private OwnNameTag() {}
 
@@ -45,28 +48,57 @@ public final class OwnNameTag {
     public static boolean showName(Entity entity) {
         Sky2MConfig.OwnNameTag c = config();
         Minecraft mc = Minecraft.getInstance();
-        return c != null && (c.enabled || c.stats) && entity == mc.player && !mc.options.getCameraType().isFirstPerson()
+        return c != null && (c.enabled || c.stats || c.showCollectionLeaderboard || !customText(c).isEmpty()) && entity == mc.player && !mc.options.getCameraType().isFirstPerson()
             && !mc.gui.hud.isHidden() && !entity.isInvisible();
     }
 
     /** The stats line above {@code entity}'s name tag, or null. */
     public static Component line(Entity entity) {
-        Sky2MConfig.OwnNameTag c = config();
         Minecraft mc = Minecraft.getInstance();
-        if (c == null || !c.stats || entity != mc.player || !Sky2MLocation.onSkyblock()) return null;
-        refresh(mc);
+        if (entity instanceof Player player && player != mc.player) return SbcNameTags.line(player.getUUID());
+        Sky2MConfig.OwnNameTag c = config();
+        String custom = c == null ? "" : customText(c);
+        if (c == null || (!c.stats && !c.showCollectionLeaderboard && custom.isEmpty()) || entity != mc.player || !Sky2MLocation.onSkyblock()) return null;
+        if (c.stats) refresh(mc);
         MutableComponent line = Component.empty();
         boolean any = false;
-        if (c.networth && networth >= 0) {
+        if (!custom.isEmpty()) {
+            line.append(Component.literal(custom).withStyle(ChatFormatting.LIGHT_PURPLE));
+            any = true;
+        }
+        if (c.stats && c.networth && networth >= 0) {
+            if (any) line.append(Component.literal("   "));
             line.append(Component.literal("NW " + CombatFeatures.formatCoins(networth)).withStyle(ChatFormatting.GOLD));
             any = true;
         }
-        if (c.skillAverage && skillAverage >= 0) {
+        if (c.stats && c.skillAverage && skillAverage >= 0) {
             if (any) line.append(Component.literal("   "));
             line.append(Component.literal(String.format(Locale.ROOT, "Skill Avg %.1f", skillAverage)).withStyle(ChatFormatting.GREEN));
             any = true;
         }
-        return any ? line : null;
+        if (!any && c.showCollectionLeaderboard) {
+            line.append(Component.literal("Collection").withStyle(ChatFormatting.AQUA));
+            any = true;
+        }
+        if (!any) return null;
+        long now = System.currentTimeMillis();
+        if (now - lastPublish >= 30_000L) {
+            lastPublish = now;
+            String board = c.showCollectionLeaderboard ? c.collectionLeaderboard.trim().toUpperCase(Locale.ROOT) : "";
+            SbcNameTags.publish(line.getString(), board);
+        }
+        if (c.showCollectionLeaderboard) {
+            Component shared = SbcNameTags.line(mc.player.getUUID());
+            if (shared != null) return shared;
+        }
+        return line;
+    }
+
+    /** The player's own name tag text: one line, no colour codes, at most 40 characters. */
+    private static String customText(Sky2MConfig.OwnNameTag c) {
+        String text = c.customText == null ? "" : ChatFormatting.stripFormatting(c.customText);
+        text = text == null ? "" : text.replaceAll("[\\r\\n]+", " ").trim();
+        return text.length() > 40 ? text.substring(0, 40) : text;
     }
 
     /** Loads your profile in the background when the cached stats are old (or someone else's, after an account switch). */

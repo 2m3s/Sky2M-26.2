@@ -269,6 +269,11 @@ public final class ProfitTracker {
             if (type == Preset.FISHING && island.equals("Garden")) continue;
             if (type.requiresPreference && preferred != type) continue;
             if (!data.anyIsland() && !data.islands().contains(island)) continue;
+            // Your slayer quest's tracker counts anywhere on its island, like SkyHanni's: bosses are fought all over.
+            if (type.slayer() && preferred == type) {
+                matches.add(type);
+                continue;
+            }
             if (!data.areas().isEmpty() && !data.areas().contains(area)) continue;
             Set<String> islandAreas = data.islandAreas().get(island);
             if (islandAreas != null && !islandAreas.contains(area)) continue;
@@ -306,7 +311,7 @@ public final class ProfitTracker {
         Preset preferred = null;
         if (counting(Preset.MYTHOLOGICAL_RITUAL) && island.equals("Hub") && spadeInHotbar(mc)) preferred = Preset.MYTHOLOGICAL_RITUAL;
         if (preferred == null) preferred = slayerQuest();
-        if (preferred == null && enabled(Preset.FISHING) && (mc.player.fishing != null || !paused(Preset.FISHING, System.currentTimeMillis()) && lastActivity.containsKey(Preset.FISHING))) {
+        if (preferred == null && counting(Preset.FISHING) && (mc.player.fishing != null || !paused(Preset.FISHING, System.currentTimeMillis()) && lastActivity.containsKey(Preset.FISHING))) {
             preferred = Preset.FISHING;
         }
         Preset preset = forLocation(island, area, preferred);
@@ -343,8 +348,19 @@ public final class ProfitTracker {
         return data == null ? Set.of() : data.items();
     }
 
+    /**
+     * Fishing bait (Spooky Bait, Glowy Chum Bait...) is something you use, not profit: taking it out of your sacks
+     * or bait bag isn't a drop, so no tracker counts it.
+     */
+    static boolean isBait(String id) {
+        return id != null && id.endsWith("_BAIT");
+    }
+
     private static boolean tracked(Preset preset, String id) {
-        return id != null && (trackedItems(preset).contains(id) || conversions.containsKey(id) && trackedItems(preset).contains(conversions.get(id).input()));
+        if (id == null || isBait(id)) return false;
+        // Slayer trackers also count the bosses' own drops (SkyHanni's drop lists), not only the mobs' items.
+        if (preset.slayer() && SlayerBossProfit.isDropId(id)) return true;
+        return trackedItems(preset).contains(id) || conversions.containsKey(id) && trackedItems(preset).contains(conversions.get(id).input());
     }
 
     // ------------------------------------------------------------------------------------------------ stats
@@ -840,6 +856,8 @@ public final class ProfitTracker {
         for (Stats stats : List.of(saved.total, saved.today)) {
             if (stats.items == null) stats.items = new LinkedHashMap<>();
             if (stats.pestKills == null) stats.pestKills = new LinkedHashMap<>();
+            // Bait counted by older versions comes out of the totals.
+            if (stats.items.keySet().removeIf(ProfitTracker::isBait)) dirty = true;
         }
         SAVED.put(preset, saved);
     }

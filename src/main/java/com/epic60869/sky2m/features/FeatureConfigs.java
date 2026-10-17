@@ -911,7 +911,7 @@ public final class FeatureConfigs {
 
     public static final class RareDrops {
         @Expose
-        @ConfigOption(name = "Copy Rare Drops", desc = "Copy rare drop messages to your clipboard (RARE, VERY RARE, CRAZY RARE, INSANE, PRAY TO RNGESUS, PET and RNG METER drops, rare crops, rare rewards and outstanding catches). What was copied shows in chat, using Copy Chat's preview settings.")
+        @ConfigOption(name = "Copy Rare Drops", desc = "Copy rare drop messages to your clipboard (RARE, VERY RARE, CRAZY RARE, INSANE, PRAY TO RNGESUS, PET and RNG METER drops, rare rewards and outstanding catches). Garden drops (rare crops, pest drops) are copied only with Copy Garden Drops. Only your own drops are copied, not other players' drops announced in the lobby. What was copied shows in chat, using Copy Chat's preview settings.")
         @ConfigEditorBoolean
         public boolean copy = false;
 
@@ -926,7 +926,7 @@ public final class FeatureConfigs {
         public boolean copySlayer = false;
 
         @Expose
-        @ConfigOption(name = "Copy Garden Drops", desc = "Copy only Garden drops to your clipboard: RARE CROP drops and anything else that drops in the Garden, like pest drops. Not needed with Copy Rare Drops on.")
+        @ConfigOption(name = "Copy Garden Drops", desc = "Copy only Garden drops to your clipboard: RARE CROP drops and anything else that drops in the Garden, like pest drops. The other copy options never copy Garden drops, so with this off none are copied.")
         @ConfigEditorBoolean
         public boolean copyGarden = false;
 
@@ -3967,6 +3967,11 @@ public final class FeatureConfigs {
         public boolean enabled = false;
 
         @Expose
+        @ConfigOption(name = "Played Before", desc = "When someone you've seen before joins your group, say so: dungeon runs you played together (from Run History), how many finished, your best together, when you last played, how often they joined your groups and how often you kicked them. /s2 pfhistory lists recent players.")
+        @ConfigEditorBoolean
+        public boolean history = true;
+
+        @Expose
         @ConfigOption(name = "Kick Button", desc = "Adds a [KICK] button under the stats that kicks them from the party.")
         @ConfigEditorBoolean
         public boolean kickButton = true;
@@ -3975,6 +3980,11 @@ public final class FeatureConfigs {
         @ConfigOption(name = "Auto Kick", desc = "While you lead, kick players who don't meet the requirements below (0 turns a requirement off).")
         @ConfigEditorBoolean
         public boolean autoKick = false;
+
+        @Expose
+        @ConfigOption(name = "Per-Floor Requirements", desc = "Use different requirements for each floor (F1-F7 and M1-M7), set with /s2 pfreq: the ones for the floor you're queued for or playing. Floors without their own fall back to the requirements below.")
+        @ConfigEditorBoolean
+        public boolean perFloor = false;
 
         @Expose
         @ConfigOption(name = "Floor", desc = "The floor whose S+ time is checked.")
@@ -4107,7 +4117,7 @@ public final class FeatureConfigs {
 
     public static final class SessionTrackerSettings {
         @Expose
-        @ConfigOption(name = "Enabled", desc = "Track your Diana, Mining and Farming this game session: playtime, drops and profit. Open it with /s2 session. When you restart the game the session ends and its breakdown shows in chat; past sessions stay in /s2 session.")
+        @ConfigOption(name = "Enabled", desc = "Track all built-in profit presets into one daily record, including when individual tracker HUDs are disabled. Open /s2 session to click a day and see total profit plus each tracker's drops and breakdown. Game restarts do not split a day; history is kept by calendar day.")
         @ConfigEditorBoolean
         public boolean enabled = true;
 
@@ -4127,12 +4137,12 @@ public final class FeatureConfigs {
         public ProfitPriceSource priceSource = ProfitPriceSource.INSTANT_SELL;
 
         @Expose
-        @ConfigOption(name = "Breakdown on Launch", desc = "When you join after restarting the game, show your last session's breakdown in chat.")
+        @ConfigOption(name = "Breakdown on Launch", desc = "When you join on a new day, show the previous day's breakdown in chat.")
         @ConfigEditorBoolean
         public boolean summaryOnLaunch = true;
 
         @Expose
-        @ConfigOption(name = "Sessions Kept", desc = "How many past sessions /s2 session keeps.")
+        @ConfigOption(name = "Sessions Kept", desc = "How many past daily sections /s2 session keeps.")
         @ConfigEditorSlider(minValue = 1, maxValue = 100, minStep = 1)
         public int keep = 50;
 
@@ -4190,6 +4200,11 @@ public final class FeatureConfigs {
         @ConfigOption(name = "Maximum Items", desc = "Most tracked item rows shown at once.")
         @ConfigEditorSlider(minValue = 1, maxValue = 15, minStep = 1)
         public int maximumItems = 8;
+
+        @Expose
+        @ConfigOption(name = "Profit Goal", desc = "A profit goal for the period the tracker shows (Session, Today or Total), in millions of coins: a Goal line with your progress, and a message when you reach it. 0 turns it off.")
+        @ConfigEditorSlider(minValue = 0, maxValue = 2000, minStep = 5)
+        public int goalMillions = 0;
     }
 
     public static final class ProfitTrackerDetails {

@@ -96,7 +96,7 @@ public final class Sky2MWhatsNew {
         general.lastSeenVersion = installed;
         general.whatsNewSince = previous;
         Sky2MConfig.saveCurrent(Sky2MConfig.current());
-        if (!general.whatsNewMessage || features(previous).isEmpty()) return;
+        if (!general.whatsNewMessage || (features(previous).isEmpty() && changes(previous).isEmpty())) return;
 
         Component button = Component.literal("[What's New]").withStyle(style -> style.withColor(ChatFormatting.GREEN).withBold(true)
             .withClickEvent(new ClickEvent.RunCommand("s2 whatsnew"))
@@ -116,7 +116,7 @@ public final class Sky2MWhatsNew {
     }
 
     static void open(String since) {
-        Compat.queueOpenScreen(new Sky2MWhatsNewScreen(features(since), Sky2MChangelog.installedVersion()));
+        Compat.queueOpenScreen(new Sky2MWhatsNewScreen(features(since), changes(since), Sky2MChangelog.installedVersion()));
     }
 
     /**
@@ -124,10 +124,36 @@ public final class Sky2MWhatsNew {
      * {@code since} is unknown, the installed version's (and anything listed above it, like "Unreleased").
      */
     static List<Feature> features(String sinceVersion) {
-        List<Sky2MChangelog.Version> versions = Sky2MChangelog.versions();
-        String installed = Sky2MChangelog.installedVersion();
         List<Option> options = options();
         List<Feature> out = new ArrayList<>();
+        forEachSection(sinceVersion, (version, section) -> {
+            if (!section.title().equalsIgnoreCase("Added")) return;
+            for (String entry : section.entries()) out.add(feature(entry, version.name(), options));
+        });
+        return out;
+    }
+
+    /** A change or fix since your last version: "Changed", "Fixed" or "Removed", and the changelog line. */
+    record Change(String kind, String text, String version) {}
+
+    /** The Changed, Fixed and Removed entries for the same versions as {@link #features}, so fixes are seen too. */
+    static List<Change> changes(String sinceVersion) {
+        List<Change> out = new ArrayList<>();
+        forEachSection(sinceVersion, (version, section) -> {
+            String kind = section.title().trim();
+            if (!kind.equalsIgnoreCase("Changed") && !kind.equalsIgnoreCase("Fixed") && !kind.equalsIgnoreCase("Removed")) return;
+            for (String entry : section.entries()) out.add(new Change(kind, entry.replace("`", ""), version.name()));
+        });
+        return out;
+    }
+
+    /**
+     * Every section of every version newer than {@code since}, newest first, down to the installed version. When
+     * {@code since} is unknown, the installed version's (and anything listed above it, like "Unreleased").
+     */
+    private static void forEachSection(String sinceVersion, java.util.function.BiConsumer<Sky2MChangelog.Version, Sky2MChangelog.Section> each) {
+        List<Sky2MChangelog.Version> versions = Sky2MChangelog.versions();
+        String installed = Sky2MChangelog.installedVersion();
         // A version that isn't in the changelog (a test build): only show what's new in this one.
         String since = versions.stream().anyMatch(v -> v.name().equalsIgnoreCase(sinceVersion)) ? sinceVersion : "";
         boolean reachedInstalled = false;
@@ -135,12 +161,8 @@ public final class Sky2MWhatsNew {
             if (!since.isEmpty() && version.name().equalsIgnoreCase(since)) break;
             if (reachedInstalled) break;
             if (version.name().equalsIgnoreCase(installed)) reachedInstalled = since.isEmpty();
-            for (Sky2MChangelog.Section section : version.sections()) {
-                if (!section.title().equalsIgnoreCase("Added")) continue;
-                for (String entry : section.entries()) out.add(feature(entry, version.name(), options));
-            }
+            for (Sky2MChangelog.Section section : version.sections()) each.accept(version, section);
         }
-        return out;
     }
 
     private static Feature feature(String entry, String version, List<Option> all) {
