@@ -115,10 +115,14 @@ public final class SlayerTimes {
     /**
      * The boss key a nametag name is saved under. A Tier 5 Tarantula is one boss in two phases, "Tarantula
      * Broodfather V" and then "Conjoined Brood" (no tier in its nametag), so both count as "Tarantula Broodfather V",
-     * as in SkyHanni. Otherwise the key would change mid-fight and the PB HUD would switch boards.
+     * as in SkyHanni. Otherwise the key would change mid-fight and the PB HUD would switch boards. Tier 5 Revenant's
+     * nametag is "Atoned Horror", so it counts as "Revenant Horror V" (older saves are merged into it on load).
      */
     static String key(String name) {
-        return name.equalsIgnoreCase("Conjoined Brood") ? "Tarantula Broodfather V" : name;
+        String base = name.trim().replaceFirst("(?i)\\s+[IVX]+$", "");
+        if (base.equalsIgnoreCase("Conjoined Brood")) return "Tarantula Broodfather V";
+        if (base.equalsIgnoreCase("Atoned Horror")) return "Revenant Horror V";
+        return name;
     }
 
     /** Your current boss key, or if none is alive, the last one you fought; null if you haven't fought one yet. */
@@ -283,6 +287,27 @@ public final class SlayerTimes {
             }
         } catch (Exception e) {
             System.err.println("[Sky2M] Could not read slayer-personal-bests.json: " + e.getMessage());
+        }
+        resetTarantulaOnce();
+    }
+
+    /**
+     * Tarantula PBs saved before the phase fix could be a single phase (a "3.1s" kill), so they are cleared once and
+     * set again by real kills.
+     */
+    private static void resetTarantulaOnce() {
+        Path marker = file.resolveSibling("slayer-tarantula-reset-1.txt");
+        if (Files.exists(marker)) return;
+        boolean removed = false;
+        for (Map<String, Long> bests : BESTS.values()) {
+            removed |= bests.keySet().removeIf(boss -> boss.startsWith("Tarantula Broodfather") || boss.startsWith("Conjoined Brood"));
+        }
+        if (removed) save();
+        try {
+            Files.createDirectories(marker.getParent());
+            Files.writeString(marker, "Tarantula personal bests were reset once after the phase timing fix.", StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            System.err.println("[Sky2M] Could not save the Tarantula reset marker: " + e.getMessage());
         }
     }
 

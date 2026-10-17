@@ -27,18 +27,22 @@ public final class Sky2MWhatsNewScreen extends Screen {
     private static final int TOGGLE_W = 34;
     private static final int SETTINGS_W = 50;
 
-    private record Card(Sky2MWhatsNew.Feature feature, List<FormattedCharSequence> lines, int height) {}
+    /** A feature card, a change card ({@code change} set), or the "Changes & fixes" heading (both null). */
+    private record Card(Sky2MWhatsNew.Feature feature, Sky2MWhatsNew.Change change, List<FormattedCharSequence> lines, int height) {}
+    private static final int HEADING_H = 16;
 
     private final List<Sky2MWhatsNew.Feature> features;
+    private final List<Sky2MWhatsNew.Change> changes;
     private final String installed;
     private final List<Card> cards = new ArrayList<>();
     private int contentHeight;
     private double scroll;
     private int panelX, panelY, panelW, panelH;
 
-    public Sky2MWhatsNewScreen(List<Sky2MWhatsNew.Feature> features, String installed) {
+    public Sky2MWhatsNewScreen(List<Sky2MWhatsNew.Feature> features, List<Sky2MWhatsNew.Change> changes, String installed) {
         super(Component.literal("What's New in Sky2M"));
         this.features = features;
+        this.changes = changes;
         this.installed = installed;
     }
 
@@ -74,8 +78,19 @@ public final class Sky2MWhatsNewScreen extends Screen {
             if (colon > 0 && colon < 160) text = text.substring(colon + 2);
             List<FormattedCharSequence> lines = font.split(FormattedText.of(text), textW);
             int h = PAD + LINE + 2 + lines.size() * LINE + PAD;
-            cards.add(new Card(feature, lines, h));
+            cards.add(new Card(feature, null, lines, h));
             total += h + 4;
+        }
+        if (!changes.isEmpty()) {
+            cards.add(new Card(null, null, List.of(), HEADING_H));
+            total += HEADING_H + 4;
+            int changeW = panelW - PAD * 4 - 60;
+            for (Sky2MWhatsNew.Change change : changes) {
+                List<FormattedCharSequence> lines = font.split(FormattedText.of(change.text()), changeW);
+                int h = PAD / 2 + lines.size() * LINE + PAD / 2;
+                cards.add(new Card(null, change, lines, h));
+                total += h + 2;
+            }
         }
         contentHeight = total;
     }
@@ -101,13 +116,14 @@ public final class Sky2MWhatsNewScreen extends Screen {
     public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
         g.centeredText(font, Component.literal("What's New in Sky2M " + installed).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD),
             width / 2, 15, 0xFFFFFFFF);
-        g.centeredText(font, Component.literal(features.size() + " new feature" + (features.size() == 1 ? "" : "s")).withStyle(ChatFormatting.GRAY),
+        g.centeredText(font, Component.literal(features.size() + " new feature" + (features.size() == 1 ? "" : "s")
+                + (changes.isEmpty() ? "" : "  ·  " + changes.size() + " change" + (changes.size() == 1 ? "" : "s") + " and fixes")).withStyle(ChatFormatting.GRAY),
             width / 2, 27, 0xFFAAAAAA);
         g.fill(panelX, panelY, panelX + panelW, panelY + panelH, PANEL);
         g.outline(panelX, panelY, panelW, panelH, PANEL_BORDER);
 
         if (cards.isEmpty()) {
-            g.centeredText(font, Component.literal("No new features since your last version.").withStyle(ChatFormatting.GRAY),
+            g.centeredText(font, Component.literal("Nothing new since your last version.").withStyle(ChatFormatting.GRAY),
                 width / 2, panelY + panelH / 2 - 4, 0xFFFFFFFF);
         } else {
             scroll = Mth.clamp(scroll, 0, maxScroll());
@@ -115,8 +131,11 @@ public final class Sky2MWhatsNewScreen extends Screen {
             int y = viewTop() - (int) scroll;
             boolean insideView = mouseY >= viewTop() && mouseY < viewBottom();
             for (Card card : cards) {
-                if (y + card.height() >= viewTop() && y <= viewBottom()) drawCard(g, card, y, insideView ? mouseX : -1, mouseY);
-                y += card.height() + 4;
+                if (y + card.height() >= viewTop() && y <= viewBottom()) {
+                    if (card.feature() != null) drawCard(g, card, y, insideView ? mouseX : -1, mouseY);
+                    else drawChange(g, card, y);
+                }
+                y += card.height() + (card.change() != null ? 2 : 4);
             }
             g.disableScissor();
             if (maxScroll() > 0) {
@@ -164,6 +183,23 @@ public final class Sky2MWhatsNewScreen extends Screen {
         }
     }
 
+    /** The "Changes & fixes" heading, or one change: its kind in colour, then the text. */
+    private void drawChange(GuiGraphicsExtractor g, Card card, int y) {
+        int x = panelX + PAD;
+        if (card.change() == null) {
+            g.text(font, Component.literal("Changes & fixes").withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD), x, y + 4, 0xFFFFFFFF, true);
+            return;
+        }
+        String kind = card.change().kind();
+        ChatFormatting colour = kind.equalsIgnoreCase("Fixed") ? ChatFormatting.GREEN : kind.equalsIgnoreCase("Removed") ? ChatFormatting.RED : ChatFormatting.YELLOW;
+        g.text(font, Component.literal(kind).withStyle(colour), x + PAD, y + PAD / 2, 0xFFFFFFFF, false);
+        int ty = y + PAD / 2;
+        for (FormattedCharSequence line : card.lines()) {
+            g.text(font, line, x + PAD + 52, ty, 0xFFC8C8C8, false);
+            ty += LINE;
+        }
+    }
+
     private static boolean over(double mouseX, double mouseY, int x, int y, int w) {
         return mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + BUTTON_H;
     }
@@ -179,6 +215,10 @@ public final class Sky2MWhatsNewScreen extends Screen {
                 int settingsX = x + w - PAD - SETTINGS_W;
                 int toggleX = settingsX - 4 - TOGGLE_W;
                 Sky2MWhatsNew.Feature feature = card.feature();
+                if (feature == null) {
+                    y += card.height() + (card.change() != null ? 2 : 4);
+                    continue;
+                }
                 if (feature.toggle() != null && over(click.x(), click.y(), toggleX, by, TOGGLE_W)) {
                     feature.toggle().set(!feature.toggle().get());
                     Sky2MConfig.saveCurrent(Sky2MConfig.current());

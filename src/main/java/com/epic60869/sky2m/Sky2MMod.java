@@ -143,6 +143,13 @@ public final class Sky2MMod implements ClientModInitializer {
         com.epic60869.sky2m.features.dungeons.ChestHistory.init();
         Sky2MChangelog.init();
         Sky2MWhatsNew.init();
+        Sky2MSetup.init();
+        Sky2MRivals.init();
+        Sky2MPlayerNotes.init();
+        Sky2MAliases.init();
+        com.epic60869.sky2m.features.misc.KeybindSheetScreen.register();
+        com.epic60869.sky2m.features.misc.ScreenshotGallery.register();
+        com.epic60869.sky2m.features.core.Sky2MPerfScreen.register();
         Sky2MNopoFeatures.init(configDir);
         Sky2MNick.init(config);
         Sky2MMouseLock.init(config);

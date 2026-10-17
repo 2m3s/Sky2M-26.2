@@ -62,7 +62,9 @@ public final class Sky2MLeaderboards {
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, context) -> {
             for (String root : com.epic60869.sky2m.custom.util.Compat.COMMAND_ROOTS) {
                 dispatcher.register(ClientCommands.literal(root).then(ClientCommands.literal("leaderboard")
-                    .executes(c -> list())
+                    // Bare /s2 leaderboard opens the GUI (queued one tick so the command handoff doesn't clash
+                    // with the closing chat screen, like /s2 who). /s2 leaderboard <name> still answers in chat.
+                    .executes(c -> com.epic60869.sky2m.custom.util.Compat.queueOpenScreen(new Sky2MLeaderboardScreen()))
                     .then(ClientCommands.argument("name", StringArgumentType.greedyString())
                         .suggests((c, b) -> SharedSuggestionProvider.suggest(nameSuggestions(), b))
                         .executes(c -> standings(StringArgumentType.getString(c, "name"))))));
@@ -286,6 +288,125 @@ public final class Sky2MLeaderboards {
         }
     }
 
+    // ---------------------------------------------------------------- screen support (from /s2 leaderboard)
+
+    /** One running event board, as the {@link Sky2MLeaderboardScreen} shows it. */
+    public record EventBoard(String id, String name, long endsAt) {}
+
+    /** One permanent stat board: a collection ("collection") or a slayer XP board ("slayer").
+     *  {@code category} is the server's grouping ("Farming".."Other", empty when the server didn't send one). */
+    public record StatBoard(String type, String id, String name, String category) {}
+
+    /** The last statLeaderboardList: every collection and slayer XP board, plus whether stats are refreshing. */
+    public record StatListData(List<StatBoard> collections, List<StatBoard> slayers, boolean refreshing, long at) {}
+
+    /** One row of a stat leaderboard. */
+    public record StatEntry(int rank, String username, long value) {}
+
+    /**
+     * The last statLeaderboardResult. {@code key} is "boardType|id" of the request it answered, so a late answer for
+     * a different request is not shown until the screen asks for that one again ("|" when it can't be matched).
+     */
+    public record StatResult(String type, String key, String name, List<StatEntry> entries, String error, long at) {}
+
+    /** One row of an event standing. */
+    public record EventEntry(String username, long amount) {}
+
+    /** The last leaderboardStandings. */
+    public record EventStandings(String boardName, List<EventEntry> entries, long youRank, long youAmount, long at) {}
+
+    /** The GUI's callback, if one is open; every cached packet update calls it (already on the game thread). */
+    private static volatile Runnable screenListener;
+    private static volatile StatListData lastStatList;
+    private static volatile StatResult lastStatResult;
+    private static volatile EventStandings lastEventStandings;
+    /** "boardType|id" of the standing the screen last asked for; the result keeps it, late answers for others don't. */
+    private static volatile String pendingStatKey = "";
+    /** One-shot quiet flags: while the screen is up, the one answer it asked for is not printed to chat as well. */
+    private static volatile boolean quietList, quietStat, quietEvent;
+    private static volatile String quietEventName = "";
+
+    /** Registers (or, with null, unregisters) the open screen's refresh callback. */
+    public static void setScreenListener(Runnable listener) {
+        screenListener = listener;
+        if (listener == null) clearQuiet();
+    }
+
+    private static void clearQuiet() {
+        quietList = quietStat = quietEvent = false;
+        quietEventName = "";
+    }
+
+    private static void refreshed() {
+        Runnable listener = screenListener;
+        if (listener != null) listener.run();
+    }
+
+    public static List<EventBoard> eventBoards() {
+        return boards.stream().map(b -> new EventBoard(b.id(), b.name(), b.endsAt())).toList();
+    }
+
+    public static StatListData statList() { return lastStatList; }
+
+    public static StatResult statResult() { return lastStatResult; }
+
+    public static EventStandings eventStandings() { return lastEventStandings; }
+
+    /** Asks for the whole stat list (every collection and slayer XP board name); false when the socket is down. */
+    public static boolean requestStatList() {
+        JsonObject packet = new JsonObject();
+        packet.addProperty("type", "statLeaderboardGet");
+        packet.addProperty("boardType", "list");
+        if (!Sky2MGlobalChat.send(packet)) return false;
+        quietList = true;
+        return true;
+    }
+
+    /** Asks for one collection's or slayer XP board's standings; false when the socket is down. */
+    public static boolean requestStat(String boardType, String key) {
+        JsonObject packet = new JsonObject();
+        packet.addProperty("type", "statLeaderboardGet");
+        packet.addProperty("boardType", boardType);
+        packet.addProperty("key", key);
+        if (!Sky2MGlobalChat.send(packet)) return false;
+        pendingStatKey = boardType + "|" + key;
+        quietStat = true;
+        return true;
+    }
+
+    /** Asks for one event board's standings; false when the socket is down. */
+    public static boolean requestEvent(String boardId, String boardName) {
+        JsonObject packet = new JsonObject();
+        packet.addProperty("type", "leaderboardGet");
+        packet.addProperty("boardId", boardId);
+        if (!Sky2MGlobalChat.send(packet)) return false;
+        quietEventName = boardName == null ? "" : boardName.trim().toLowerCase(Locale.ROOT);
+        quietEvent = true;
+        return true;
+    }
+
+    /** Caches statLeaderboardList for the screen (always done, whatever chat does with it). */
+    private static void cacheStatList(JsonObject packet) {
+        List<StatBoard> collections = new ArrayList<>();
+        if (packet.has("collections") && packet.get("collections").isJsonArray()) {
+            for (JsonElement element : packet.getAsJsonArray("collections")) {
+                if (!element.isJsonObject()) continue;
+                JsonObject board = element.getAsJsonObject();
+                collections.add(new StatBoard("collection", string(board, "id"), string(board, "name"), string(board, "category")));
+            }
+        }
+        List<StatBoard> slayers = new ArrayList<>();
+        if (packet.has("slayers") && packet.get("slayers").isJsonArray()) {
+            for (JsonElement element : packet.getAsJsonArray("slayers")) {
+                if (!element.isJsonObject()) continue;
+                JsonObject board = element.getAsJsonObject();
+                slayers.add(new StatBoard("slayer", string(board, "id"), string(board, "name"), string(board, "category")));
+            }
+        }
+        boolean refreshing = packet.has("refreshing") && packet.get("refreshing").getAsBoolean();
+        lastStatList = new StatListData(List.copyOf(collections), List.copyOf(slayers), refreshing, System.currentTimeMillis());
+    }
+
     // ---------------------------------------------------------------- commands
 
     private static int list() {
@@ -426,6 +547,13 @@ public final class Sky2MLeaderboards {
     }
 
     private static void showStatList(JsonObject packet) {
+        cacheStatList(packet);
+        refreshed();
+        if (quietList) {
+            // The /s2 leaderboard screen asked for this; it shows the lists instead of the chat summary.
+            quietList = false;
+            return;
+        }
         say(Component.literal("Permanent Stat Leaderboards").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
         if (packet.has("refreshing") && packet.get("refreshing").getAsBoolean()) {
             say(Component.literal("Hypixel profile stats are refreshing in the background; standings may take a moment to appear.")
@@ -469,7 +597,33 @@ public final class Sky2MLeaderboards {
     }
 
     private static void showStatStandings(JsonObject packet) {
-        if (!packet.has("ok") || !packet.get("ok").getAsBoolean()) {
+        boolean ok = packet.has("ok") && packet.get("ok").getAsBoolean();
+        List<StatEntry> entries = new ArrayList<>();
+        if (ok && packet.has("entries") && packet.get("entries").isJsonArray()) {
+            int index = 0;
+            for (JsonElement element : packet.getAsJsonArray("entries")) {
+                if (!element.isJsonObject()) continue;
+                JsonObject entry = element.getAsJsonObject();
+                index++;
+                int rank = entry.has("rank") ? entry.get("rank").getAsInt() : index;
+                long value = entry.has("value") ? entry.get("value").getAsLong() : 0L;
+                entries.add(new StatEntry(rank, string(entry, "username"), value));
+            }
+        }
+        // key stays "|" when this answers a chat lookup (the screen's own requests set it before sending).
+        lastStatResult = new StatResult(string(packet, "boardType"), pendingStatKey, string(packet, "name"),
+            List.copyOf(entries), ok ? "" : string(packet, "message"), System.currentTimeMillis());
+        // Rivals: a board's key is "type|id" (the screen's own requests), or the board's name for chat lookups.
+        if (ok) Sky2MRivals.onStandings(pendingStatKey.isEmpty() || pendingStatKey.equals("|") ? string(packet, "name") : pendingStatKey,
+            string(packet, "name"), lastStatResult.entries());
+        pendingStatKey = "";
+        refreshed();
+        if (quietStat) {
+            // The /s2 leaderboard screen asked for this; it shows the standings instead of the chat list.
+            quietStat = false;
+            return;
+        }
+        if (!ok) {
             say(Component.literal(string(packet, "message").isBlank()
                 ? "That leaderboard isn't ready yet. Try again in a moment." : string(packet, "message")).withStyle(ChatFormatting.YELLOW));
             return;
@@ -479,10 +633,10 @@ public final class Sky2MLeaderboards {
             say(Component.literal("No scores are available yet.").withStyle(ChatFormatting.GRAY));
             return;
         }
-        JsonArray entries = packet.getAsJsonArray("entries");
-        int limit = Math.min(10, entries.size());
+        JsonArray rows = packet.getAsJsonArray("entries");
+        int limit = Math.min(10, rows.size());
         for (int i = 0; i < limit; i++) {
-            JsonObject entry = entries.get(i).getAsJsonObject();
+            JsonObject entry = rows.get(i).getAsJsonObject();
             int rank = entry.has("rank") ? entry.get("rank").getAsInt() : i + 1;
             String username = string(entry, "username");
             long value = entry.has("value") ? entry.get("value").getAsLong() : 0L;
@@ -532,8 +686,32 @@ public final class Sky2MLeaderboards {
 
     private static void showStandings(JsonObject packet) {
         String name = string(packet, "name");
-        say(Component.literal(name + " leaderboard").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
+        List<EventEntry> list = new ArrayList<>();
         JsonArray entries = packet.has("entries") && packet.get("entries").isJsonArray() ? packet.getAsJsonArray("entries") : new JsonArray();
+        for (int i = 0; i < entries.size(); i++) {
+            if (!entries.get(i).isJsonObject()) continue;
+            JsonObject entry = entries.get(i).getAsJsonObject();
+            list.add(new EventEntry(string(entry, "username"), entry.has("amount") ? entry.get("amount").getAsLong() : 0L));
+        }
+        long youRank = 0, youAmount = 0;
+        if (packet.has("you") && packet.get("you").isJsonObject()) {
+            JsonObject you = packet.getAsJsonObject("you");
+            youRank = you.has("rank") ? you.get("rank").getAsLong() : 0;
+            youAmount = you.has("amount") ? you.get("amount").getAsLong() : 0;
+        }
+        lastEventStandings = new EventStandings(name, List.copyOf(list), youRank, youAmount, System.currentTimeMillis());
+        boolean quiet = quietEvent && quietEventName.equalsIgnoreCase(name.trim());
+        if (quietEvent) {
+            // Consumed once regardless of the name, so a different board's answer can't suppress a later chat view.
+            quietEvent = false;
+            quietEventName = "";
+        }
+        refreshed();
+        if (quiet) {
+            // The /s2 leaderboard screen asked for this board; it shows the standings instead of chat.
+            return;
+        }
+        say(Component.literal(name + " leaderboard").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
         if (entries.isEmpty()) {
             say(Component.literal("Nobody has anything counted yet.").withStyle(ChatFormatting.GRAY));
         }
@@ -616,7 +794,29 @@ public final class Sky2MLeaderboards {
                 say(Component.literal("  " + t.kind() + ": " + what).withStyle(ChatFormatting.GRAY));
             }
         }
+        sayGuiCaches(now);
         return 1;
+    }
+
+    /** The /s2 leaderboard GUI's cached packets, for finding out what the server has actually sent us. */
+    private static void sayGuiCaches(long now) {
+        say(Component.literal("Leaderboard GUI caches:").withStyle(ChatFormatting.GOLD));
+        StatListData list = statList();
+        say(Component.literal("stat list: " + (list == null ? "none yet"
+            : list.collections().size() + " collections, " + list.slayers().size() + " slayer boards"
+                + (list.refreshing() ? ", refreshing" : "") + " (" + age(list.at(), now) + ")")).withStyle(ChatFormatting.GRAY));
+        StatResult result = statResult();
+        say(Component.literal("stat result: " + (result == null ? "none yet"
+            : "key \"" + result.key() + "\", " + (result.error().isEmpty()
+                ? result.entries().size() + " entries" : "error: " + result.error()) + " (" + age(result.at(), now) + ")")).withStyle(ChatFormatting.GRAY));
+        EventStandings event = eventStandings();
+        say(Component.literal("event standings: " + (event == null ? "none yet"
+            : "\"" + event.boardName() + "\", " + event.entries().size() + " entries (" + age(event.at(), now) + ")")).withStyle(ChatFormatting.GRAY));
+    }
+
+    private static String age(long at, long now) {
+        long seconds = Math.max(0, (now - at) / 1000L);
+        return seconds < 60 ? seconds + "s ago" : seconds / 60 + "m ago";
     }
 
     private static int debugLine(String line, boolean send) {

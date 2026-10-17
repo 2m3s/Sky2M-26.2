@@ -198,6 +198,17 @@ public final class SlayerBossProfit {
      * lists have loaded, anything that drops during a slayer quest.
      */
     public static boolean isSlayerDrop(String itemName) {
+        return isSlayerDropName(itemName);
+    }
+
+    /** Whether an item price id is on any slayer boss's drop list (SkyHanni's), for the slayer profit trackers. */
+    public static boolean isDropId(String id) {
+        if (id == null) return false;
+        for (java.util.Set<String> keys : drops.values()) if (keys.contains(id)) return true;
+        return false;
+    }
+
+    private static boolean isSlayerDropName(String itemName) {
         Map<String, java.util.Set<String>> lists = drops;
         if (lists.isEmpty()) return SlayerFeatures.onSlayerQuest();
         String id = com.epic60869.sky2m.custom.RepoItems.idByName(itemName);

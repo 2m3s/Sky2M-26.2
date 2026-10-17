@@ -168,20 +168,25 @@ public final class Sky2MHuds {
         if (!Sky2MLocation.skyblockOnlyAllows()) return;
         // Positions saved before the reference size existed were placed on this screen size.
         if (refWidth <= 0 || refHeight <= 0) setReferenceToScreen();
+        Sky2MPerf.frame();
         for (Element element : ELEMENTS.values()) {
             if (!safe(element.enabled())) continue;
+            long started = Sky2MPerf.start();
             if (element.custom() != null) {
                 try {
                     if (customVisible(element)) renderCustom(graphics, element, false);
                 } catch (Exception e) {
                     com.epic60869.sky2m.features.sbc.SbcCrashReports.report(e, "HUD " + element.id());
                 }
+                Sky2MPerf.end(Sky2MPerf.Kind.HUD, element.name(), started);
                 continue;
             }
             List<Component> lines = tickLines(element);
-            if (lines.isEmpty()) continue;
-            Placement p = placement(element.id());
-            render(graphics, lines, mapX(p.x, width(lines, p.scale)), mapY(p.y, height(lines, p.scale)), p.scale, p.background);
+            if (!lines.isEmpty()) {
+                Placement p = placement(element.id());
+                render(graphics, lines, mapX(p.x, width(lines, p.scale)), mapY(p.y, height(lines, p.scale)), p.scale, p.background);
+            }
+            Sky2MPerf.end(Sky2MPerf.Kind.HUD, element.name(), started);
         }
     }
 

@@ -150,6 +150,11 @@ public final class SbcConfig {
         public LocationSharing location = LocationSharing.EVERYONE;
 
         @Expose
+        @ConfigOption(name = "Lobby Finder HUD", desc = "A HUD with the Sky2M players in your lobby, and how many are elsewhere on your island (only players who share their location with you). /s2 lobby lists them in chat any time. Move it in /s2 gui.")
+        @ConfigEditorBoolean
+        public boolean lobbyHud = false;
+
+        @Expose
         @ConfigOption(name = "Allow Friend Requests", desc = "Let other Sky2M players send you friend requests.")
         @ConfigEditorBoolean
         public boolean friendRequests = true;

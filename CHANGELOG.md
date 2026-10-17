@@ -2,11 +2,62 @@
 
 All notable changes to Sky2M are listed here, newest first.
 
+## Unreleased
+
+### Added
+- Leaderboard GUI: bare `/s2 leaderboard` opens a full-screen leaderboard laid out like `/s2 collections`. Collections, Slayer XP, Kill Times and Events tabs along the top, a search box, and category filters (Farming, Mining, Combat, Foraging, Fishing, Rift, Other) for collections. The boards are listed on the left with their item icons, and the picked board's standings are a Rank / Player / Value table on the right with your own row highlighted and your rank shown above it. Boards you've looked at open instantly the next time. `/s2 leaderboard <name>` and the other chat lookups still answer in chat as before.
+- Profit trackers: click an item in the tracker (shown over your inventory or any menu) to change how many you have or remove it. The change applies to Session, Today and Total together and to today's `/s2 session`. In `/s2 session`, click a drop to edit or remove it for that day.
+- Setup (`/s2 setup`): pick what you play (Dungeons, Slayers, Farming & Garden, Mining, Fishing, Foraging, Hunting, Diana & Mayors) and the areas you don't are switched off as a whole. Their settings are kept and come back when you turn the area on again, and each area has a Reset to Sky2M's defaults. The first time you join, a [Set up Sky2M] button is offered in chat.
+- Performance (`/s2 perf`): which Sky2M HUDs, in-world renderers and chat listeners take the most time each frame, as time per frame and share of the frame, with calls per second and the slowest call. Updates every 5 seconds; click a HUD to find its settings.
+- Weekly leaderboards: an All Time / This Week switch on `/s2 leaderboard`'s Collections and Slayer XP tabs shows what everyone gained since Monday (00:00 UTC), so newer players can compete too.
+- Command aliases (`/s2 alias add <name> <command>`, `/s2 alias remove <name>`, `/s2 alias list`): your own shortcut commands, with anything typed after them added on (or put where `{args}` is). Built in: `/f1`-`/f7` and `/m1`-`/m7` join that Catacombs floor, `/e` the Entrance, and `/k1`-`/k5` that Kuudra tier (Basic, Hot, Burning, Fiery, Infernal); your own alias with the same name replaces them.
+- Player notes (`/s2 note <player> <text>`, `/s2 notes`, `/s2 note remove <player>`): your own note on a player ("good M7 tank"), shown in chat when they join your party or Party Finder group, or talk in chat (at most once every 10 minutes per player).
+- Party Finder history (Party Finder Stats > Played Before, on by default): when someone you've seen before joins your group, how many dungeon runs you played together (from Run History), how many finished, your best together, when you last played, and how often they joined your groups and you kicked them. `/s2 pfhistory` lists recent players; `/s2 pfhistory <name>` shows one, with your note.
+- Keybinds (`/s2 keybinds`): every key Sky2M uses (its settings, its Controls and Command Keys macros) in one searchable table, with keys that something else also uses in red and what that is. Click a settings key to open it.
+- Screenshot gallery (`/s2 screenshots`): your screenshots folder with previews, newest first. Pick one to upload it, copy or re-send its link in Sky2M chat (uploads are remembered), open the folder or the website's Screenshots page.
+- `/s2 session`: a Copy button copies the day (or the open tracker) as text for Discord: total, profit per hour, playtime and each tracker with its top drops.
+- Lobby Finder (`/s2 lobby`): the Sky2M players in your lobby (same Hypixel server), and who's elsewhere on your island in another lobby, each clickable to invite to your party. The Lobby Finder HUD (Sky2M Online > Friends & Who) keeps the list on screen. Only players who share their location with you show.
+- Rivals (`/s2 rival add|remove <name>`, or click a player in `/s2 leaderboard`'s standings): rivals are highlighted in orange on every board with how far ahead or behind you they are, and you're told in chat when one passes you on a board.
+- Per-floor Party Finder requirements (`/s2 pfreq`): a table of F1-F7 and M1-M7 with their own slowest S+, minimum Catacombs level, secrets and magical power. With Per-Floor Requirements on (Party Finder Stats settings), auto kick uses the row for the floor you're queued for or in (the Party Finder menu also remembers Master Mode now); floors without their own use the usual requirements.
+- `/s2 session` Days view: a chart of your daily profit over the last 30 days, with your best day in gold. Hover a bar for its date and profit, click it to open that day.
+- Profit Goal (each profit tracker's Settings): a goal in millions for the period the tracker shows, with a progress line on the HUD and a title and chat message when you reach it.
+- Shared inventories (`[inv]`) show what each item is worth in its tooltip and the whole inventory's value under it (Bazaar or lowest BIN, for the base item).
+- Bug reports (`/s2 bugreport`) can attach game info: your Sky2M and Minecraft versions, where you are on SkyBlock and the latest warnings and errors from your game log (never chat, and without your user folder name). On by default for bug reports, with an Attach game info button to turn it off.
+- Leap Menu: left-clicking with Spirit Leap or Infinileap in a dungeon opens the leap menu too, like right-clicking.
+- Shared name tags (Misc > Visual > Own Name Tag): the line above your head is shared with other Sky2M users, who see it above you. Add your own Custom Text (up to 40 characters), and turn on Show Collection Leaderboard with a Collection ID to show that collection's amount and your placement.
+
+### Changed
+- Screenshots uploaded with the Sky2M host (the default) appear on shadowisabot.com/screenshots with your name and head. The mod gets a one-time token from your logged-in Sky2M connection first (waiting up to 6 seconds) and sends it with the upload, so the website knows it's yours.
+- What's New (after an update, or `/s2 whatsnew`) also lists the changes and fixes since your last version under the new features, and is offered when an update only has fixes.
+- `/s2 session`'s breakdown of the previous day is also shown when you play through midnight, not only when you start the game on a new day.
+- `[item]` and `[inv]` in Hypixel chat show the real item: its reforge, recomb rarity, enchants, stars and skull, as if hovering over it (the sharer's Sky2M stores it on the Sky2M server; without the server it falls back to the plain item as before). Clicking an `[inv]` opens the full inventory with every item's real tooltip, and the rest of a message with an item keeps its colours.
+- `/ahs <item>` and `/bzs <item>` (for example `/ahs grand`) search for it straight away instead of opening the search box; on their own they still open it.
+- Command Autofill for `/bz`: suggestions are the items' Bazaar names (`enchanted diamond`), with a hyphen only where the name has one, instead of product IDs. IDs still match while typing.
+- Party Finder Stats: the floor PBs follow the floor of the group you join or create in the Party Finder (F5/M5 when queued for M5), not F7/M7, and stats show sooner by asking both profile sources at once and taking the first answer.
+- Slayer profit trackers count like SkyHanni's: while your slayer quest is on, its tracker counts anywhere on that slayer's island (not just a few areas) and includes every drop on SkyHanni's slayer drop lists (the bosses' own loot), not only the mobs' items.
+- `/pv` loads other players faster: when SkyBlockPV is slow, Sky2M's proxy is asked after 2.5 seconds (was 5) and whichever answers first is shown, instead of waiting for SkyBlockPV to finish. SkyBlockPV's fuller data still replaces it for your next look. The networth history keeps using SkyBlockPV first.
+- Chat Tabs are drawn under the command suggestions, like Current Chat Display, and clicks go to the suggestions while you type a command.
+
+### Fixed
+- `/s2 leaderboard`: collection and slayer XP boards no longer say "the Sky2M server hasn't answered yet" when it had (fixed on the Sky2M server).
+- `/s2 leaderboard`: only Hypixel's real collections are listed, with their proper names (Sunflower, Raw Cod, Spruce Log...). Duplicates such as Double Plant 1/4/5 and Red Rose 1/2 are gone (fixed on the Sky2M server).
+- Collection icons in `/s2 leaderboard` and `/s2 collections`: Raw Salmon, Pufferfish, Tropical Fish, Cocoa Beans, Red Sand and the Spruce, Birch, Jungle and Dark Oak Log collections show their item instead of nothing (their old variant ids aren't SkyBlock items, so the vanilla item is used).
+- Slayer kill times: Atoned Horror and Conjoined Brood are no longer separate boards. They're Tier 5 Revenant and Tarantula, so they count as Revenant Horror V and Tarantula Broodfather V (your saved times are merged, keeping the faster one), and `/s2 leaderboard` only lists the six slayer bosses.
+- Farming RNG drop HUD: drops other players paste in chat ("Guild > Name: RARE CROP! Crystalized Moonlight") no longer show as yours; only Hypixel's own drop messages count.
+- Fishing Profit (and every other profit tracker and `/s2 session`) no longer counts bait such as Spooky Bait or Glowy Chum Bait: taking bait out of your sacks or bait bag isn't profit. Bait already counted is removed from saved totals and past days.
+- Bug reports, suggestions and feedback (`/s2 bugreport`, `/s2 suggest`, `/s2 feedback`) are sent again: the report's type overwrote the packet's own type, so the Sky2M server didn't recognise the report.
+- `[inv]` showed the wrong owner (`[b2m3sbf's Inventory]` instead of `[2m3s's Inventory]`): colour codes are removed before reading the sender's name, which is checked against the tab list and, with the Sky2M server, taken from the sharer's login.
+- Copy RNG Drops and the rare drop features only react to your own drops, not other players' drops announced in the Dungeon Hub: a line with another player's rank and name, "Name has obtained/found...", or the name of someone in your lobby is skipped.
+- Copy Garden Drops now really controls crops: rare crops and other Garden drops are copied only when it's on. Copy Rare Drops and Copy RNG Drops used to copy them regardless.
+- Slayer PBs: Tarantula personal bests are cleared once (on this update and on the Sky2M leaderboard), since times saved before the phase fix could be a single phase (a 3.1s "PB").
+- Leaderboard GUI: collections and slayer XP lists load again. The Sky2M server now answers the mod's board-list request (it used to reply "Choose collection or slayer."), so the grouping under Farming/Mining/Combat/Foraging/Fishing works in the GUI and the `/s2 leaderboard collection` and `/s2 leaderboard slayer xp` chat browsing shows the boards again, without that confusing reply. The GUI also no longer sits on a permanent Loading when the server is slow: event boards, slayer kill times, the timeout note and Refresh keep working while the collection list is unavailable.
+- Leaderboard GUI: when a standings answer doesn't come, the screen quietly asks the server again twice before falling back to the "hasn't answered" note, and the server now says so in its log when it receives and answers a stat leaderboard request. `/s2 lbdebug status` also shows what the GUI has actually received (board list, a collection/slayer standings answer and event standings, each with age).
+
 ## 1.0.2 — 2026-10-16
 
 ### Added
 - Settings search and category filters: use `/s2 settings [filter]` or `/s2 gui <filter>` to find settings quickly. The HUD editor now has All, Mining, Dungeons, Combat, Pets, Trackers and Other filters, so you can focus on the HUDs you want to arrange.
-- Session Tracker (`/s2 session`): review profit for this game session and previous sessions, split into Total, Farming, Mining and Diana tabs. Daily history records the built-in profit trackers in the background, keeps sessions across game restarts, and recalculates values using the latest prices.
+- Session Tracker (`/s2 session`): one section per day instead of one per game session, with a Total tab and a tab for every profit tracker (all six slayers, Farming, Fishing, Foraging, Mining and Mythological Ritual). The Days list shows each day's total; click a day for its tracker breakdown. Daily history records the built-in profit trackers in the background even when their HUDs are off, keeps the day across game restarts, and recalculates values using the latest prices.
 - Slayer Boss Profit: see the profit or loss after a slayer boss, with a breakdown of drops, their values, quest cost and net result, plus a HUD summary.
 - Command Autofill improvements: more helpful in-game suggestions for supported Bazaar and auction/item commands, with normalized matching for spaces, underscores and hyphens.
 - Permanent stat leaderboards: `/s2 leaderboard collection` browses collection rankings, `/s2 leaderboard collection <item>` shows a collection's top players, and `/s2 leaderboard slayer xp <boss>` shows slayer XP standings. Existing event leaderboards and slayer kill-time PB boards remain available.
@@ -22,7 +73,7 @@ All notable changes to Sky2M are listed here, newest first.
 - Copy RNG Drops: rare crops and other Garden drops are no longer copied by the RNG-only toggle; use Copy Garden Drops for those.
 - Item Pickup Log: sack entries use repository-matched item IDs for better icons and no longer have the `[Sack]` name prefix. Inventory changes are ignored while container menus are open, preventing false pickup/drop entries from menus such as the Experimentation Table.
 - Bazaar Notifications: fully filled (100%) orders are removed from the outbid watcher instead of continuing to trigger outdated alerts.
-- Hit Colour: corrected the opacity scale so 0 is fully opaque and 100 is fully transparent.
+- Hit Colour: fixed the backwards opacity scale: 0 now shows no flash and 100 the full colour.
 - Sacks Value: stopped guessing Bazaar item IDs from unmatched sack names. A guessed ID could point to a different product and apply its price to the wrong item, inflating the total. Unknown items are now skipped rather than assigned a potentially unrelated price.
 - Improved category filtering in the HUD editor and settings navigation to make enabled HUDs easier to find and manage.
 - Enchanted Book Labels now show each single-enchantment book's numeric level in the bottom corner as well as its abbreviated name at the top.

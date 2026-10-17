@@ -31,6 +31,7 @@ public final class Sbc {
         SbcChat.init();
         SbcChatOverlay.init();
         SbcSocial.init();
+        SbcLobby.init();
         net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
             if (!(screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?>)) return;
             net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents.allowKeyPress(screen).register((s, event) -> {

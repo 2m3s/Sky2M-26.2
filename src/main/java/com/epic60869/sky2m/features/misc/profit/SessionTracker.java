@@ -212,7 +212,12 @@ public final class SessionTracker {
         // One daily section, regardless of how often the game is launched.
         long today = java.time.LocalDate.now().toEpochDay();
         if (current.day != today) {
-            if (current.hasAny()) saved.history.addFirst(current);
+            if (current.hasAny()) {
+                saved.history.addFirst(current);
+                // Playing through midnight: the finished day's breakdown, like on the first launch of a day.
+                pendingSummary = current;
+                playerTicks = 100;
+            }
             current = new Session();
             current.day = today;
             current.started = now;
@@ -332,6 +337,11 @@ public final class SessionTracker {
 
     // ------------------------------------------------------------------------------------------------ sessions
 
+    /** Saves soon: an item was edited or removed by hand. */
+    static void markDirty() {
+        dirty = true;
+    }
+
     /** The session at {@code index}: -1 is this one, 0 the last game's, and so on. */
     static Session session(int index) {
         if (index < 0 || index >= saved.history.size()) return current;
@@ -396,6 +406,8 @@ public final class SessionTracker {
             if (stats.pestKills == null) stats.pestKills = new LinkedHashMap<>();
         }
         s.activities.values().removeIf(java.util.Objects::isNull);
+        // Bait counted by older versions comes out of every day's totals.
+        for (ProfitTracker.Stats stats : s.activities.values()) stats.items.keySet().removeIf(ProfitTracker::isBait);
     }
 
     private static void merge(Session into, Session from) {

@@ -483,6 +483,17 @@ public final class Sky2MGlobalChat {
                     return;
                 }
 
+                // Full item data behind [item] and [inv] in Hypixel chat.
+                if ("shareData".equals(type) || "shareMissing".equals(type)) {
+                    Minecraft.getInstance().execute(() -> com.epic60869.sky2m.features.sbc.SbcItems.onSharePacket(type, packet));
+                    return;
+                }
+                if ("shareStored".equals(type)) return;
+                if ("uploadToken".equals(type)) {
+                    com.epic60869.sky2m.features.misc.ScreenshotShare.onUploadToken(packet);
+                    return;
+                }
+
                 if (type.startsWith("report")) {
                     Minecraft.getInstance().execute(() -> com.epic60869.sky2m.reports.Reports.handle(type, packet));
                     return;

@@ -1635,6 +1635,11 @@ public final class Sky2MConfig extends Config {
         public boolean skillAverage = true;
 
         @Expose
+        @ConfigOption(name = "Custom Text", desc = "Your own text at the start of the line above your head (up to 40 characters), like a title or your guild. Other Sky2M users see it too. Leave it empty for none.")
+        @ConfigEditorText
+        public String customText = "";
+
+        @Expose
         @ConfigOption(name = "Show Collection Leaderboard", desc = "Show your selected collection's amount and placement on the shared name tag. Other Sky2M users can see it too.")
         @ConfigEditorBoolean
         public boolean showCollectionLeaderboard = false;

@@ -112,10 +112,17 @@ public final class CommandAutofill {
         if (snapshot != bazaarSource) {
             Set<String> ids = new LinkedHashSet<>(snapshot.buy().keySet());
             ids.addAll(snapshot.sell().keySet());
+            Map<String, JsonObject> items = PriceService.items();
             List<Entry> next = new ArrayList<>(ids.size());
+            Set<String> seen = new LinkedHashSet<>();
             for (String id : ids) {
-                // Keep the exact API product ID for insertion; normalize only the search key.
-                next.add(new Entry(id, normalise(id)));
+                // The item's real name, as the Bazaar shows it: spaces stay spaces, and a hyphen only where the
+                // name has one. Products without a known name fall back to their id with spaces.
+                JsonObject item = items == null ? null : items.get(id);
+                JsonElement nameElement = item == null ? null : item.get("name");
+                String name = nameElement != null && nameElement.isJsonPrimitive() ? cleanName(nameElement.getAsString()) : "";
+                if (name.isEmpty()) name = id.toLowerCase(Locale.ROOT).replace('_', ' ');
+                if (seen.add(name)) next.add(new Entry(name, normalise(name) + " " + normalise(id)));
             }
             bazaar = next;
             bazaarSource = snapshot;
@@ -178,7 +185,7 @@ public final class CommandAutofill {
         public boolean enabled = true;
 
         @Expose
-        @ConfigOption(name = "Bazaar (/bz)", desc = "Suggest Bazaar products for /bz, /bzs and /bazaar. Search matches spaces, underscores and hyphens interchangeably; Tab inserts the actual Bazaar product ID.")
+        @ConfigOption(name = "Bazaar (/bz)", desc = "Suggest Bazaar products for /bz, /bzs and /bazaar. Search matches names and product IDs, with spaces, underscores and hyphens interchangeable; Tab inserts the item's name as the Bazaar shows it (spaces, and a hyphen only where the name has one).")
         @ConfigEditorBoolean
         public boolean bazaar = true;
 

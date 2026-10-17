@@ -15,14 +15,14 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * /s2 session: Total, Farming, Mining and Diana tabs for this game session (or a past one, with the arrows). The
- * green profit at the top is worked out again with the latest prices every Price Refresh seconds. The Total tab lists
- * the three activities; click one to open its tab.
+ * /s2 session: one section per day, with a Total tab and a tab for every profit tracker (today, or a past day with the
+ * arrows or the Days list). The green profit at the top is worked out again with the latest prices every Price Refresh
+ * seconds. The Total tab lists every tracker; click one to open its tab.
  */
 public final class SessionTrackerScreen extends Screen {
     private static final int W = 420, ROW = 18, BG = 0xC0121722, EDGE = 0xFF3B465B, GOLD = 0xFFFFD35A, TEXT = 0xFF9AA5B8,
         BUTTON = 0xFF2A3345, BUTTON_SELECTED = 0xFF3B5B8B, GREEN = 0xFF55FF55, RED = 0xFFFF5555;
-    /** The tabs: the three activities (shown after Total), then Total. */
+    /** The tabs: every profit tracker (shown after Total), then Total. */
     private static final int TOTAL = SessionTracker.ACTIVITIES.length;
 
     /** -1 is this session, 0 the last game's, and so on. */
@@ -119,6 +119,63 @@ public final class SessionTrackerScreen extends Screen {
         });
     }
 
+    private static final int CHART_DAYS = 30, CHART_H = 64;
+
+    /**
+     * The last 30 days' profit as bars (oldest on the left, today on the right), green or red, the best day in gold,
+     * with the date and profit when hovered. Clicking a bar opens that day. Returns the y below the chart.
+     */
+    private int drawChart(GuiGraphicsExtractor g, int left, int y, int mouseX, int mouseY) {
+        int days = Math.min(CHART_DAYS, SessionTracker.pastSessions() + 1);
+        int x0 = left + 10, w = W - 20, base = y + CHART_H / 2;
+        g.fill(x0, y, x0 + w, y + CHART_H, 0xFF0C0F16);
+        g.fill(x0, base, x0 + w, base + 1, EDGE);
+        if (days < 2) {
+            g.centeredText(font, "Your daily profit shows here as a chart after a couple of days.", left + W / 2, y + CHART_H / 2 - 12, TEXT);
+            return y + CHART_H;
+        }
+        double[] values = new double[days];
+        double most = 1;
+        int best = 0;
+        for (int i = 0; i < days; i++) {
+            int dayIndex = i == 0 ? -1 : i - 1; // i = 0 is today
+            values[i] = dayProfit(dayIndex, SessionTracker.session(dayIndex));
+            most = Math.max(most, Math.abs(values[i]));
+            if (values[i] > values[best]) best = i;
+        }
+        int slot = Math.max(3, w / CHART_DAYS);
+        int hovered = -1;
+        for (int i = 0; i < days; i++) {
+            int bx = x0 + w - (i + 1) * slot + 1;
+            int h = (int) Math.round(Math.abs(values[i]) / most * (CHART_H / 2 - 4));
+            int colour = i == best && values[i] > 0 ? GOLD : values[i] >= 0 ? 0xFF3FBF5F : 0xFFBF3F3F;
+            boolean over = mouseX >= bx && mouseX < bx + slot - 1 && mouseY >= y && mouseY < y + CHART_H;
+            if (over) {
+                hovered = i;
+                g.fill(bx - 1, y, bx + slot - 1, y + CHART_H, 0x20FFFFFF);
+            }
+            if (values[i] >= 0) g.fill(bx, base - h, bx + slot - 2, base, colour);
+            else g.fill(bx, base + 1, bx + slot - 2, base + 1 + h, colour);
+            int dayIndex = i == 0 ? -1 : i - 1;
+            buttons.add(new int[]{bx, y, slot - 1, CHART_H});
+            actions.add(() -> {
+                index = dayIndex;
+                showDays = false;
+                scroll = 0;
+                tab = TOTAL;
+                reprice(true);
+            });
+        }
+        g.text(font, "§7Best: " + signed(values[best]), x0 + 3, y + 3, 0xFFFFFFFF, false);
+        if (hovered >= 0) {
+            int dayIndex = hovered == 0 ? -1 : hovered - 1;
+            String when = dayIndex < 0 ? "Today" : SessionTracker.date(SessionTracker.session(dayIndex).started);
+            String text = when + ": " + signed(values[hovered]);
+            g.text(font, text, x0 + w - 3 - font.width(text), y + 3, 0xFFFFFFFF, false);
+        }
+        return y + CHART_H;
+    }
+
     private void button(GuiGraphicsExtractor g, int x, int y, int w, int h, String label, boolean selected, int mouseX, int mouseY, Runnable action) {
         boolean over = mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
         g.fill(x, y, x + w, y + h, selected ? BUTTON_SELECTED : over ? 0xFF33405A : BUTTON);
@@ -153,8 +210,8 @@ public final class SessionTrackerScreen extends Screen {
         });
         if (showDays) {
             g.centeredText(font, "Daily Profit History", width / 2, top + 28, GOLD);
-            g.text(font, "Click a day to open its total and tracker breakdown.", left + 10, top + 44, TEXT, true);
-            int rowY = top + 64;
+            g.text(font, "Click a day (or its bar) to open its total and tracker breakdown.", left + 10, top + 44, TEXT, true);
+            int rowY = drawChart(g, left, top + 58, mouseX, mouseY) + 8;
             int maxRows = Math.max(1, (bottom - rowY - 8) / 22);
             int count = SessionTracker.pastSessions() + 1;
             scroll = Math.clamp(scroll, 0, Math.max(0, count - maxRows));
@@ -217,9 +274,15 @@ public final class SessionTrackerScreen extends Screen {
         } else if (tab == TOTAL) {
             total(g, left, y, bottom, mouseX, mouseY);
         } else {
-            activity(g, left, y, bottom, SessionTracker.ACTIVITIES[tab]);
+            activity(g, left, y, bottom, SessionTracker.ACTIVITIES[tab], mouseX, mouseY);
         }
 
+        // Copy this day (or this tracker) as text, to paste in Discord.
+        boolean justCopied = System.currentTimeMillis() - copiedAt < 2_000L;
+        button(g, left + W - 134, bottom - 18, 66, 14, justCopied ? "Copied!" : "Copy", justCopied, mouseX, mouseY, () -> {
+            minecraft.keyboardHandler.setClipboard(exportText());
+            copiedAt = System.currentTimeMillis();
+        });
         if (!live()) {
             button(g, left + W - 64, bottom - 18, 60, 14, confirmDelete ? "Sure?" : "Delete", confirmDelete, mouseX, mouseY, () -> {
                 if (!confirmDelete) {
@@ -277,7 +340,7 @@ public final class SessionTrackerScreen extends Screen {
     }
 
     /** One activity: when, how long, its numbers and its drops. */
-    private void activity(GuiGraphicsExtractor g, int left, int y, int bottom, ProfitTracker.Preset preset) {
+    private void activity(GuiGraphicsExtractor g, int left, int y, int bottom, ProfitTracker.Preset preset, int mouseX, int mouseY) {
         SessionTracker.Session s = session();
         ProfitTracker.Stats stats = s.get(preset);
         if (!s.has(preset)) {
@@ -309,18 +372,70 @@ public final class SessionTrackerScreen extends Screen {
         for (int i = scroll; i < list.size() && i - scroll < visible; i++) {
             Item item = list.get(i);
             int iy = y + (i - scroll) * ROW;
+            // Click a drop to change how many there are or remove it (this day only).
+            if (mouseX >= left + 2 && mouseX < left + W - 6 && mouseY >= iy - 1 && mouseY < iy + ROW - 1) {
+                g.fill(left + 2, iy - 1, left + W - 6, iy + ROW - 1, 0x20FFFFFF);
+            }
+            buttons.add(new int[]{left + 2, iy - 1, W - 8, ROW});
+            actions.add(() -> minecraft.gui.setScreen(new ProfitItemEditScreen(this, item.id(), item.amount(), List.of(stats),
+                "Changes apply to this day of /s2 session.", () -> {
+                    SessionTracker.markDirty();
+                    reprice(true);
+                })));
             g.item(RepoItems.itemStack(item.id()), x, iy);
             g.text(font, font.plainSubstrByWidth(item.name(), 220), x + 20, iy + 4, 0xFFFFFFFF, true);
             g.text(font, "§7x" + String.format(Locale.US, "%,d", item.amount()), left + 250, iy + 4, 0xFFFFFFFF, true);
             String value = item.value() < 0 ? "§8Unknown" : "§6" + ProfitTrackerHud.coins(item.value());
             g.text(font, value, left + W - 10 - font.width(value), iy + 4, 0xFFFFFFFF, true);
         }
+        g.text(font, "Click a drop to change its amount or remove it.", x, bottom - 14, TEXT, false);
         if (list.size() > visible) {
             int trackH = visible * ROW, thumb = Math.max(10, trackH * visible / list.size());
             int thumbY = y + (trackH - thumb) * scroll / Math.max(1, list.size() - visible);
             g.fill(left + W - 4, y, left + W - 2, y + trackH, 0xFF0C0F16);
             g.fill(left + W - 4, thumbY, left + W - 2, thumbY + thumb, EDGE);
         }
+    }
+
+    private long copiedAt;
+
+    /**
+     * The shown day as plain text for Discord: the date, total profit, profit per hour and playtime, then each tracker
+     * with its profit and its top drops (just that tracker's when its tab is open).
+     */
+    private String exportText() {
+        SessionTracker.Session s = session();
+        StringBuilder out = new StringBuilder();
+        out.append("**Sky2M profit · ").append(live() ? "Today, " : "").append(SessionTracker.date(s.firstActiveAny())).append("**\n");
+        long playtime = s.playtime();
+        double total = 0;
+        for (double p : profits) total += p;
+        double shown = tab < TOTAL ? profits[tab] : total;
+        long time = tab < TOTAL && s.get(SessionTracker.ACTIVITIES[tab]) != null ? s.get(SessionTracker.ACTIVITIES[tab]).activeMs : playtime;
+        out.append(tab < TOTAL ? SessionTracker.name(SessionTracker.ACTIVITIES[tab]) + ": " : "Total: ").append(plain(shown));
+        if (time >= 60_000) out.append(" (").append(plain(shown * 3_600_000.0 / time)).append("/h, ").append(SessionTracker.duration(time)).append(')');
+        out.append('\n');
+        for (int i = 0; i < TOTAL; i++) {
+            if (tab < TOTAL && i != tab) continue;
+            ProfitTracker.Preset preset = SessionTracker.ACTIVITIES[i];
+            if (!s.has(preset)) continue;
+            if (tab == TOTAL) out.append("• ").append(SessionTracker.name(preset)).append(": ").append(plain(profits[i]))
+                .append(" (").append(SessionTracker.duration(s.get(preset).activeMs)).append(")\n");
+            List<Item> list = items.size() > i ? items.get(i) : List.of();
+            int shownItems = 0;
+            for (Item item : list) {
+                if (shownItems++ >= (tab == TOTAL ? 3 : 15)) break;
+                String name = net.minecraft.ChatFormatting.stripFormatting(item.name());
+                out.append(tab == TOTAL ? "    " : "• ").append(name).append(" x").append(String.format(Locale.US, "%,d", item.amount()));
+                if (item.value() >= 0) out.append(" = ").append(ProfitTrackerHud.coins(item.value()));
+                out.append('\n');
+            }
+        }
+        return out.toString().trim();
+    }
+
+    private static String plain(double value) {
+        return (value >= 0 ? "+" : "-") + ProfitTrackerHud.coins(Math.abs(value));
     }
 
     private boolean anyUnknown() {

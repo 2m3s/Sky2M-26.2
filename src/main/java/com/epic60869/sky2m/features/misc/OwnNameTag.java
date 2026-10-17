@@ -48,7 +48,7 @@ public final class OwnNameTag {
     public static boolean showName(Entity entity) {
         Sky2MConfig.OwnNameTag c = config();
         Minecraft mc = Minecraft.getInstance();
-        return c != null && (c.enabled || c.stats || c.showCollectionLeaderboard) && entity == mc.player && !mc.options.getCameraType().isFirstPerson()
+        return c != null && (c.enabled || c.stats || c.showCollectionLeaderboard || !customText(c).isEmpty()) && entity == mc.player && !mc.options.getCameraType().isFirstPerson()
             && !mc.gui.hud.isHidden() && !entity.isInvisible();
     }
 
@@ -57,11 +57,17 @@ public final class OwnNameTag {
         Minecraft mc = Minecraft.getInstance();
         if (entity instanceof Player player && player != mc.player) return SbcNameTags.line(player.getUUID());
         Sky2MConfig.OwnNameTag c = config();
-        if (c == null || (!c.stats && !c.showCollectionLeaderboard) || entity != mc.player || !Sky2MLocation.onSkyblock()) return null;
-        refresh(mc);
+        String custom = c == null ? "" : customText(c);
+        if (c == null || (!c.stats && !c.showCollectionLeaderboard && custom.isEmpty()) || entity != mc.player || !Sky2MLocation.onSkyblock()) return null;
+        if (c.stats) refresh(mc);
         MutableComponent line = Component.empty();
         boolean any = false;
+        if (!custom.isEmpty()) {
+            line.append(Component.literal(custom).withStyle(ChatFormatting.LIGHT_PURPLE));
+            any = true;
+        }
         if (c.stats && c.networth && networth >= 0) {
+            if (any) line.append(Component.literal("   "));
             line.append(Component.literal("NW " + CombatFeatures.formatCoins(networth)).withStyle(ChatFormatting.GOLD));
             any = true;
         }
@@ -86,6 +92,13 @@ public final class OwnNameTag {
             if (shared != null) return shared;
         }
         return line;
+    }
+
+    /** The player's own name tag text: one line, no colour codes, at most 40 characters. */
+    private static String customText(Sky2MConfig.OwnNameTag c) {
+        String text = c.customText == null ? "" : ChatFormatting.stripFormatting(c.customText);
+        text = text == null ? "" : text.replaceAll("[\\r\\n]+", " ").trim();
+        return text.length() > 40 ? text.substring(0, 40) : text;
     }
 
     /** Loads your profile in the background when the cached stats are old (or someone else's, after an account switch). */

@@ -71,6 +71,8 @@ public abstract class Sky2MChatScreenMixin {
     /** Chat Tabs: clicking a tab, Ctrl+F, and Enter while searching. */
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void sky2m$chatTabsClick(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick, CallbackInfoReturnable<Boolean> cir) {
+        // The tabs sit under the command suggestions, so while a command is typed the suggestions get the click.
+        if (input.getValue().startsWith("/")) return;
         if (com.epic60869.sky2m.features.misc.ChatTabs.mouseClicked(event.x(), event.y(), ((ChatScreen) (Object) this).height, input)) cir.setReturnValue(true);
     }
 
