@@ -13,6 +13,7 @@ out/
 *-prompt.md
 
 # Local agent configuration and test files (private, keep on PC only)
+AGENTS.md
 opencode.json
 opencode.json.backup
 opencode.json.backup-final
