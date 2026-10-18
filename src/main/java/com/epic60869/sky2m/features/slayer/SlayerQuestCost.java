@@ -22,15 +22,19 @@ public final class SlayerQuestCost {
     /** One spawn cost paid, for {@code slayer}'s quest ("Revenant Horror"..., or null when no quest showed). */
     public record Charge(String slayer, long coins, boolean bank) {}
 
-    /** SkyHanni's slayer.autoslayer.bank pattern: auto-slayer takes the spawn cost from your bank, not your purse. */
-    private static final Pattern AUTO_SLAYER_BANK = Pattern.compile("^Took (.+) coins from your bank for auto-slayer\\.\\.\\.$");
+    /**
+     * The spawn fee taken from the bank: SkyHanni's slayer.autoslayer.bank ("Took 1.9k coins from your bank for
+     * auto-slayer..."), and the same message without "for auto-slayer" when Hypixel takes a normal quest's fee from the
+     * bank because the purse is short.
+     */
+    private static final Pattern BANK_CHARGE = Pattern.compile("^Took (.+?) coins from your bank\\b(.*)$");
+    /** A bank charge that doesn't say it's for auto-slayer only counts this close to a quest start (either side). */
+    private static final long BANK_NEAR_START_MS = 10_000L;
     private static final Pattern NUMBER = Pattern.compile("[\\d,]+(?:\\.\\d+)?");
     /** How long after the quest started its slayer may take to show on the scoreboard. */
     private static final long QUEST_COST_WINDOW_MS = 3_000L;
     /** The highest cost that can be a spawn fee: anything more is some other purse change. */
     private static final long MAX_COST = 350_000L;
-    /** A bank charge this close before "SLAYER QUEST STARTED!" is for that quest (Hypixel can send it first). */
-    private static final long BANK_BEFORE_START_MS = 5_000L;
 
     /** The purse over the last 15 seconds: {time, coins}. Hypixel takes the fee before "SLAYER QUEST STARTED!". */
     private static final ArrayDeque<double[]> purseHistory = new ArrayDeque<>();
@@ -40,7 +44,9 @@ public final class SlayerQuestCost {
     private static String questSlayer;
     /** The current quest's cost from the purse and from the bank, or -1 when not seen. */
     private static long purseCost = -1, bankCost = -1;
-    private static long bankAt;
+    private static long bankAt, lastStartAt;
+    /** A bank charge that came before its quest started, waiting for the start to confirm it, or -1. */
+    private static long pendingBank = -1;
     private static boolean initialized;
 
     private SlayerQuestCost() {}
@@ -57,7 +63,7 @@ public final class SlayerQuestCost {
         listeners.add(listener);
     }
 
-    /** The current quest's spawn cost: the auto-slayer bank charge if one came, else the purse fee; -1 if unknown. */
+    /** The current quest's spawn cost: the bank charge if one came, else the purse fee; -1 if unknown. */
     public static long cost() {
         return bankCost > 0 ? bankCost : purseCost;
     }
@@ -67,18 +73,32 @@ public final class SlayerQuestCost {
         long now = System.currentTimeMillis();
         if (text.equals("SLAYER QUEST STARTED!")) {
             questStartedAt = now;
+            lastStartAt = now;
             questSlayer = null;
             purseCost = -1;
-            if (now - bankAt > BANK_BEFORE_START_MS) bankCost = -1;
+            bankCost = -1;
+            // The fee was taken from the bank just before the quest started: it's this quest's.
+            if (pendingBank > 0 && now - bankAt <= BANK_NEAR_START_MS) {
+                bankCost = pendingBank;
+                charge(new Charge(SlayerArea.questSlayer(), pendingBank, true));
+            }
+            pendingBank = -1;
             return;
         }
-        Matcher autoSlayer = AUTO_SLAYER_BANK.matcher(text);
-        if (autoSlayer.matches()) {
-            long cost = Math.round(parseCoins(autoSlayer.group(1)));
+        Matcher bank = BANK_CHARGE.matcher(text);
+        if (bank.matches()) {
+            long cost = Math.round(parseCoins(bank.group(1)));
             if (cost <= 0 || cost > MAX_COST) return;
-            bankCost = cost;
             bankAt = now;
-            charge(new Charge(SlayerArea.questSlayer(), cost, true));
+            boolean autoSlayer = bank.group(2).toLowerCase(java.util.Locale.ROOT).contains("slayer");
+            if (autoSlayer || now - lastStartAt <= BANK_NEAR_START_MS) {
+                bankCost = cost;
+                pendingBank = -1;
+                charge(new Charge(SlayerArea.questSlayer(), cost, true));
+            } else {
+                // Maybe for a quest about to start: only counted if one starts within 10 seconds.
+                pendingBank = cost;
+            }
         }
     }
 
@@ -103,6 +123,11 @@ public final class SlayerQuestCost {
         double highest = -1;
         for (double[] entry : purseHistory) if (entry[0] >= started - 10_000L) highest = Math.max(highest, entry[1]);
         long cost = highest > 0 && lastPurse >= 0 ? Math.round(highest - lastPurse) : -1;
+        // One line per quest, so a log shows why a cost came out "unknown".
+        System.out.println("[Sky2M] Slayer quest cost: " + (questSlayer == null ? "no quest seen" : questSlayer)
+            + ", purse " + (highest < 0 ? "not readable" : Math.round(highest) + " -> " + Math.round(lastPurse))
+            + (bankCost > 0 ? ", bank charge " + bankCost : "")
+            + " -> " + (cost > 0 && cost <= MAX_COST ? cost : bankCost > 0 ? "bank charge" : "unknown"));
         if (cost <= 0 || cost > MAX_COST) return;
         purseCost = cost;
         if (questSlayer != null) charge(new Charge(questSlayer, cost, false));
