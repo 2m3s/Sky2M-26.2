@@ -10,7 +10,6 @@ import com.epic60869.sky2m.features.slayer.SlayerTimes;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
@@ -48,9 +47,8 @@ public final class Sky2MLeaderboardScreen extends Screen {
         }
     }
 
-    private static final int ACCENT = 0xFFFFD35A;
-    private static final int GREY = 0xFF7A8290;
-    private static final int LINE = 0xFF3A3F48;
+    /** Secondary text (hints, notes): between the settings' grey category names and dark grey. */
+    private static final int GREY = 0xFF808080;
     private static final int LIST_ROW = 16;
     private static final int TABLE_ROW = 13;
     private static final int ICON = 12;
@@ -105,23 +103,48 @@ public final class Sky2MLeaderboardScreen extends Screen {
     private int retries;
     private boolean forceOnce;
     private final List<PickButton> pickButtons = new ArrayList<>();
+    /** The toolbar's tabs, filters and buttons drawn this frame, for clicks. */
+    private final List<Hit> hits = new ArrayList<>();
+
+    /** A clickable toolbar entry drawn this frame. */
+    private record Hit(int x0, int y0, int x1, int y1, Runnable action) {}
 
     public Sky2MLeaderboardScreen() {
         super(Component.literal("Sky2M Leaderboards"));
     }
 
     // ---------------------------------------------------------------- layout
+    // Laid out like the /s2 settings: a header bar with the title, then (under a toolbar with the tabs, search and
+    // buttons) the board list in a left panel, like the settings' categories, and the standings in a right panel,
+    // like the options. Each list sits in the settings' sunken box with its scroll bar.
 
     private int left() { return 10; }
     private int top() { return 10; }
     private int panelWidth() { return width - 20; }
     private int panelHeight() { return height - 20; }
-    private int contentTop() { return top() + (tab == Tab.COLLECTIONS ? 72 : 52); }
-    private int contentBottom() { return top() + panelHeight() - 8; }
-    private int listWidth() { return Math.max(150, Math.min(240, panelWidth() * 36 / 100)); }
-    private int listLeft() { return left() + 8; }
-    private int tableLeft() { return listLeft() + listWidth() + 10; }
-    private int tableRight() { return left() + panelWidth() - 8; }
+    private int toolbarTop() { return top() + 29; }
+    /** Tabs and search. */
+    private int row1() { return toolbarTop() + 4; }
+    /** Collection filters, the week switch and Refresh. */
+    private int row2() { return toolbarTop() + 22; }
+    private int panelsTop() { return toolbarTop() + 46; }
+    /** The bottom of both sunken boxes. */
+    private int contentBottom() { return top() + panelHeight() - 10; }
+    /** Narrower (down to 120) only on the smallest screens, where the standings need the room more. */
+    private int listWidth() { return Math.max(120, Math.min(240, panelWidth() * 36 / 100)); }
+    private int listPanelLeft() { return left() + 4; }
+    private int listPanelWidth() { return listWidth() + 24; }
+    /** The list's sunken box, under the purple heading; its scroll bar is on its left, like the settings' categories. */
+    private int listInsetLeft() { return listPanelLeft() + 5; }
+    private int listInsetTop() { return panelsTop() + 18; }
+    private int listLeft() { return listInsetLeft() + 10; }
+    private int tablePanelLeft() { return listPanelLeft() + listPanelWidth() + 5; }
+    private int tablePanelRight() { return left() + panelWidth() - 5; }
+    /** The standings' sunken box, under the board's title; its scroll bar is on its right, like the settings' options. */
+    private int tableInsetTop() { return panelsTop() + 26; }
+    private int tableLeft() { return tablePanelLeft() + 11; }
+    private int tableRight() { return tablePanelRight() - 18; }
+    private int tableBottom() { return contentBottom() - 2; }
 
     @Override
     protected void init() {
@@ -130,31 +153,7 @@ public final class Sky2MLeaderboardScreen extends Screen {
 
     private void rebuild() {
         clearWidgets();
-        int x = left() + 8, y = top() + 24;
-        for (Tab t : Tab.values()) {
-            addRenderableWidget(Button.builder(Component.literal(t == tab ? "» " + t.label + " «" : t.label), b -> switchTab(t))
-                .bounds(x, y, 84, 20).build());
-            x += 88;
-        }
-        int rx = left() + panelWidth() - 8 - 60;
-        addRenderableWidget(Button.builder(Component.literal("Refresh"), b -> forceOnce = true).bounds(rx, y, 60, 20).build());
-        if (tab == Tab.COLLECTIONS || tab == Tab.SLAYER_XP) {
-            rx -= 84;
-            addRenderableWidget(Button.builder(Component.literal(thisWeek ? "This Week" : "All Time")
-                    .withStyle(thisWeek ? ChatFormatting.AQUA : ChatFormatting.WHITE), b -> {
-                thisWeek = !thisWeek;
-                tableScroll = 0;
-                retries = 0;
-                pendingSince = 0;
-                request(false);
-                rebuild();
-            }).bounds(rx, y, 80, 20)
-                .tooltip(net.minecraft.client.gui.components.Tooltip.create(Component.literal(
-                    "All Time: everyone's totals. This Week: what everyone gained since Monday (00:00 UTC).")))
-                .build());
-        }
-        int searchWidth = Math.max(80, Math.min(160, rx - x - 12));
-        searchBox = new EditBox(font, rx - 6 - searchWidth, y + 1, searchWidth, 18, Component.literal("Search"));
+        searchBox = new EditBox(font, 0, 0, 80, 10, Component.literal("Search"));
         searchBox.setMaxLength(40);
         searchBox.setHint(Component.literal("Search...").withStyle(ChatFormatting.DARK_GRAY));
         searchBox.setValue(search);
@@ -162,23 +161,23 @@ public final class Sky2MLeaderboardScreen extends Screen {
             search = value;
             listScroll = 0;
         });
+        // Right of the tabs, like the settings' search in the top right; as wide as there's room for (60-140).
+        int tabsEnd = left() + 12;
+        for (Tab t : Tab.values()) tabsEnd += font.width(t.label) + TAB_GAP;
+        int fieldRight = left() + panelWidth() - 10 - Sky2MGuiStyle.SEARCH_ICON;
+        int fieldWidth = Math.max(60, Math.min(140, fieldRight - tabsEnd - 6));
+        Sky2MGuiStyle.placeSearch(searchBox, fieldRight - fieldWidth, row1(), fieldWidth);
         addRenderableWidget(searchBox);
-        if (tab == Tab.COLLECTIONS) {
-            int cx = left() + 8, cy = top() + 48;
-            List<String> filters = new ArrayList<>();
-            filters.add("All");
-            filters.addAll(CATEGORIES);
-            for (String c : filters) {
-                String label = c.equals(category) ? "» " + c + " «" : c;
-                int w = font.width(label) + 12;
-                addRenderableWidget(Button.builder(Component.literal(label), b -> {
-                    category = c;
-                    listScroll = 0;
-                    rebuild();
-                }).bounds(cx, cy, w, 18).build());
-                cx += w + 4;
-            }
-        }
+    }
+
+    private static final int TAB_GAP = 12;
+
+    private void toggleWeek() {
+        thisWeek = !thisWeek;
+        tableScroll = 0;
+        retries = 0;
+        pendingSince = 0;
+        request(false);
     }
 
     private void switchTab(Tab t) {
@@ -187,7 +186,6 @@ public final class Sky2MLeaderboardScreen extends Screen {
         listScroll = 0;
         tableScroll = 0;
         pendingSince = 0;
-        rebuild();
     }
 
     // ---------------------------------------------------------------- requests
@@ -399,17 +397,99 @@ public final class Sky2MLeaderboardScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
-        g.fill(0, 0, width, height, 0xFF07090D);
-        g.fill(left(), top(), left() + panelWidth(), top() + panelHeight(), 0xFF181B21);
-        g.fill(left(), top(), left() + panelWidth(), top() + 2, ACCENT);
-        g.text(font, Component.literal("Leaderboards").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD), left() + 8, top() + 8, 0xFFFFFFFF, true);
-        String status = statusText();
-        g.text(font, status, left() + panelWidth() - 8 - font.width(status), top() + 8, GREY, false);
+        Sky2MGuiStyle.backdrop(g, width, height);
+        Sky2MGuiStyle.panel(g, left(), top(), panelWidth(), panelHeight(), true);
+        drawHeader(g);
+        hits.clear();
+        drawToolbar(g, mouseX, mouseY);
 
+        int panelsHeight = contentBottom() + 5 - panelsTop();
+        Sky2MGuiStyle.panel(g, listPanelLeft(), panelsTop(), listPanelWidth(), panelsHeight, false);
+        Sky2MGuiStyle.panel(g, tablePanelLeft(), panelsTop(), tablePanelRight() - tablePanelLeft(), panelsHeight, false);
         drawBoards(g, mouseX, mouseY);
-        g.fill(tableLeft() - 6, contentTop(), tableLeft() - 5, contentBottom(), LINE);
         drawTable(g, mouseX, mouseY);
         super.extractRenderState(g, mouseX, mouseY, delta);
+    }
+
+    /** The settings' header bar: the title in the middle, the status on the right when both fit. */
+    private void drawHeader(GuiGraphicsExtractor g) {
+        int x = left() + 4, w = panelWidth() - 9;
+        Component title = Sky2MGuiStyle.title("Leaderboards");
+        String status = statusText();
+        int titleX = x + (w - font.width(title)) / 2;
+        int statusRoom = x + w - 6 - (titleX + font.width(title) + 10);
+        if (statusRoom < font.width(status)) {
+            // Too narrow for both with the title in the middle: title on the left, the status after it.
+            titleX = x + 6;
+            statusRoom = x + w - 6 - (titleX + font.width(title) + 10);
+        }
+        Sky2MGuiStyle.panel(g, x, top() + 5, w, 20, false);
+        g.text(font, title, titleX, top() + 11, Sky2MGuiStyle.TITLE, false);
+        String fit = font.plainSubstrByWidth(status, Math.max(0, statusRoom));
+        g.text(font, fit, x + w - 6 - font.width(fit), top() + 11, Sky2MGuiStyle.TITLE, false);
+    }
+
+    /** Tabs and the search field, then the collection filters, the week switch and Refresh. */
+    private void drawToolbar(GuiGraphicsExtractor g, int mouseX, int mouseY) {
+        Sky2MGuiStyle.panel(g, left() + 4, toolbarTop(), panelWidth() - 9, 42, false);
+        int x = left() + 12;
+        for (Tab t : Tab.values()) {
+            x += category(g, t.label, x, row1(), t == tab, mouseX, mouseY, () -> {
+                if (t != tab) switchTab(t);
+            }) + TAB_GAP;
+        }
+        Sky2MGuiStyle.search(g, searchBox);
+
+        int right = left() + panelWidth() - 10;
+        int refreshWidth = Sky2MGuiStyle.buttonWidth(font, "Refresh");
+        int bx = right - refreshWidth;
+        button(g, "Refresh", bx, refreshWidth, mouseX, mouseY, () -> forceOnce = true);
+        if (tab == Tab.COLLECTIONS || tab == Tab.SLAYER_XP) {
+            int weekWidth = Sky2MGuiStyle.buttonWidth(font, "This Week");
+            bx -= weekWidth + 4;
+            if (button(g, thisWeek ? "This Week" : "All Time", bx, weekWidth, mouseX, mouseY, this::toggleWeek)) {
+                g.setTooltipForNextFrame(font, List.of(Component.literal(
+                    "All Time: everyone's totals. This Week: what everyone gained since Monday (00:00 UTC).")), java.util.Optional.empty(), mouseX, mouseY);
+            }
+        }
+        if (tab == Tab.COLLECTIONS) {
+            List<String> filters = new ArrayList<>();
+            filters.add("All");
+            filters.addAll(CATEGORIES);
+            int total = 0;
+            for (String c : filters) total += font.width(c);
+            int start = left() + 12;
+            // The gap shrinks to fit them left of the buttons.
+            int gap = Math.max(4, Math.min(10, (bx - 8 - start - total) / (filters.size() - 1)));
+            int fx = start;
+            for (String c : filters) {
+                fx += category(g, c, fx, row2(), c.equals(category), mouseX, mouseY, () -> {
+                    category = c;
+                    listScroll = 0;
+                }) + gap;
+            }
+        }
+    }
+
+    /** A category-style toolbar entry on a 16px row, clickable; returns its width. */
+    private int category(GuiGraphicsExtractor g, String text, int x, int rowY, boolean isSelected, int mouseX, int mouseY, Runnable action) {
+        int w = font.width(text);
+        Hit hit = new Hit(x - 3, rowY, x + w + 3, rowY + 16, action);
+        hits.add(hit);
+        return Sky2MGuiStyle.category(g, font, text, x, rowY + 4, isSelected, inside(hit, mouseX, mouseY));
+    }
+
+    /** A MoulConfig button on the second toolbar row; returns whether it's hovered. */
+    private boolean button(GuiGraphicsExtractor g, String text, int x, int w, int mouseX, int mouseY, Runnable action) {
+        Hit hit = new Hit(x, row2(), x + w, row2() + 16, action);
+        hits.add(hit);
+        boolean hover = inside(hit, mouseX, mouseY);
+        Sky2MGuiStyle.button(g, font, text, x, row2(), w, 16, hover);
+        return hover;
+    }
+
+    private static boolean inside(Hit hit, double x, double y) {
+        return x >= hit.x0() && x < hit.x1() && y >= hit.y0() && y < hit.y1();
     }
 
     private String statusText() {
@@ -419,8 +499,21 @@ public final class Sky2MLeaderboardScreen extends Screen {
         return "Full lists on " + WEBSITE;
     }
 
+    /** The list's purple heading, like the settings' "Categories". */
+    private String listHeading() {
+        return switch (tab) {
+            case COLLECTIONS -> category.equals("All") ? "Collections" : category;
+            case SLAYER_XP -> "Slayers";
+            case KILL_TIMES -> "Bosses";
+            case EVENTS -> "Events";
+        };
+    }
+
     private void drawBoards(GuiGraphicsExtractor g, int mouseX, int mouseY) {
-        int x = listLeft(), y = contentTop(), w = listWidth();
+        Sky2MGuiStyle.heading(g, font, listHeading(), listPanelLeft(), panelsTop() + 6, listPanelWidth());
+        int insetRight = listPanelLeft() + listPanelWidth() - 5;
+        Sky2MGuiStyle.inset(g, listInsetLeft(), listInsetTop(), insetRight, contentBottom());
+        int x = listLeft(), y = listTop(), w = listWidth();
         if (boards.isEmpty()) {
             String text = !SbcNet.online() ? "Can't reach the Sky2M server."
                 : (tab == Tab.COLLECTIONS || tab == Tab.SLAYER_XP) && Sky2MLeaderboards.statList() == null ? "Loading boards..."
@@ -432,22 +525,22 @@ public final class Sky2MLeaderboardScreen extends Screen {
             }
             return;
         }
-        int visible = Math.max(1, (contentBottom() - y) / LIST_ROW);
+        int visible = listVisible();
         listScroll = Math.max(0, Math.min(listScroll, Math.max(0, boards.size() - visible)));
         headBoard = OwnNameTag.headBoard();
-        g.enableScissor(x - 2, y, x + w + 2, contentBottom());
+        g.enableScissor(listInsetLeft() + 1, listInsetTop() + 1, insetRight - 1, contentBottom() - 1);
         for (int i = listScroll; i < boards.size() && i < listScroll + visible; i++) {
             Board b = boards.get(i);
             int ry = y + (i - listScroll) * LIST_ROW;
             if (b.header() != null) {
-                g.text(font, Component.literal(b.header().toUpperCase(Locale.ROOT)).withStyle(ChatFormatting.BOLD), x, ry + 5, GREY, false);
+                // A group heading in the settings' heading purple, with the sub-category line after it.
+                g.text(font, b.header(), x, ry + 5, Sky2MGuiStyle.HEADING, false);
+                g.fill(x + font.width(b.header()) + 4, ry + 9, x + w, ry + 10, Sky2MGuiStyle.LINE);
                 continue;
             }
             boolean isSelected = selected != null && b.key().equals(selected.key());
             boolean hover = mouseX >= x - 2 && mouseX < x + w + 2 && mouseY >= ry && mouseY < ry + LIST_ROW;
-            if (isSelected) g.fill(x - 2, ry, x + w + 2, ry + LIST_ROW, 0xFF2E3440);
-            else if (hover) g.fill(x - 2, ry, x + w + 2, ry + LIST_ROW, 0xFF22262E);
-            if (isSelected) g.fill(x - 2, ry, x - 1, ry + LIST_ROW, ACCENT);
+            if (hover && !isSelected) g.fill(x - 2, ry, x + w + 2, ry + LIST_ROW, Sky2MGuiStyle.ROW_HOVER);
             int nameX = x + 2;
             if (b.icon() != null && !b.icon().isEmpty()) {
                 g.pose().pushMatrix();
@@ -461,20 +554,35 @@ public final class Sky2MLeaderboardScreen extends Screen {
             // The board shown over your head (right-click a board to pick it): an aqua arrow before its hint.
             boolean overHead = b.key().equals(headBoard);
             if (overHead) hintWidth += font.width(HEAD_MARK) + 4;
-            g.text(font, font.plainSubstrByWidth(b.name(), x + w - nameX - hintWidth), nameX, ry + 4,
-                isSelected ? ACCENT : Sky2MRivals.hasOwnRivalsOn(b.key()) ? 0xFFFFAA00 : 0xFFFFFFFF, false);
+            // Like the settings' categories: the selected board aqua and underlined, the rest grey (white while
+            // hovered); boards with your rivals on them stay orange.
+            String name = font.plainSubstrByWidth(b.name(), x + w - nameX - hintWidth);
+            Component label = isSelected ? Component.literal(name).withStyle(ChatFormatting.UNDERLINE) : Component.literal(name);
+            g.text(font, label, nameX, ry + 4, isSelected ? Sky2MGuiStyle.SELECTED : Sky2MRivals.hasOwnRivalsOn(b.key()) ? 0xFFFFAA00
+                : hover ? 0xFFFFFFFF : Sky2MGuiStyle.UNSELECTED, false);
             if (b.hint() != null) g.text(font, b.hint(), x + w - font.width(b.hint()), ry + 4, GREY, false);
             if (overHead) g.text(font, HEAD_MARK, x + w - hintWidth + 2, ry + 4, 0xFF55FFFF, false);
         }
         g.disableScissor();
-        scrollbar(g, x + w + 3, y, contentBottom(), listScroll, visible, boards.size());
+        Sky2MGuiStyle.scrollbar(g, listInsetLeft() + 2, listInsetTop() + 4, contentBottom() - 4, listScroll, visible, boards.size());
     }
+
+    /** The first board row's top, inside the list's sunken box. */
+    private int listTop() { return listInsetTop() + 2; }
+
+    private int listVisible() { return Math.max(1, (contentBottom() - 1 - listTop()) / LIST_ROW); }
+
+    /** The standings table's first row (text line; its highlight starts 2px above). */
+    private int tableRowsTop(Picker picker) { return tableInsetTop() + 6 + pickerHeight(picker) + 14; }
 
     private void drawTable(GuiGraphicsExtractor g, int mouseX, int mouseY) {
         pickButtons.clear();
-        int x = tableLeft(), right = tableRight(), y = contentTop();
+        int x = tableLeft(), right = tableRight(), y = panelsTop() + 5;
+        int insetLeft = tablePanelLeft() + 5, insetRight = tablePanelRight() - 5;
+        Sky2MGuiStyle.inset(g, insetLeft, tableInsetTop(), insetRight, contentBottom());
         if (selected == null) {
-            g.text(font, "Pick a board on the left. Right-click one to show it over your head.", x, y + 4, GREY, false);
+            g.text(font, font.plainSubstrByWidth("Pick a board on the left. Right-click one to show it over your head.", insetRight - x),
+                x, y, Sky2MGuiStyle.DESCRIPTION, true);
             return;
         }
         String title = switch (tab) {
@@ -483,17 +591,17 @@ public final class Sky2MLeaderboardScreen extends Screen {
             default -> selected.name();
         };
         if (thisWeek && (tab == Tab.COLLECTIONS || tab == Tab.SLAYER_XP)) title += " · This Week (ends in " + duration(weekEndsIn()) + ")";
-        g.text(font, Component.literal(title).withStyle(ChatFormatting.BOLD), x, y, 0xFFFFFFFF, false);
 
         List<Standing> rows = standings();
         String error = standingsError();
         if (rows == null || !error.isEmpty() || rows.isEmpty()) {
+            g.text(font, Component.literal(font.plainSubstrByWidth(title, insetRight - x)).withStyle(ChatFormatting.BOLD), x, y, Sky2MGuiStyle.TEXT, true);
             String text = !SbcNet.online() ? SbcNet.OFFLINE
                 : !error.isEmpty() ? error
                 : rows == null ? (timedOut() ? "The Sky2M server hasn't answered yet; press Refresh to ask again." : "Loading...")
                 : tab == Tab.KILL_TIMES ? "Nobody has a time for this boss yet."
                 : thisWeek ? "Nobody has gained any this week yet. Gains count from the first time the server sees you each week." : "No scores yet.";
-            int ly = y + 18;
+            int ly = tableInsetTop() + 6;
             for (var line : font.split(Component.literal(text), right - x)) {
                 g.text(font, line, x, ly, GREY, false);
                 ly += 10;
@@ -501,11 +609,13 @@ public final class Sky2MLeaderboardScreen extends Screen {
             return;
         }
 
-        // Your own place, above the table.
+        // Your own place, right of the title (the title gives way to it).
         Standing you = null;
         for (Standing s : rows) if (s.self()) you = s;
         String yours = you == null ? "You're not in the top " + rows.size() + " yet" : "You: " + you.rank() + "  ·  " + you.value();
         g.text(font, yours, right - font.width(yours), y, you == null ? GREY : 0xFF55FF55, false);
+        String fitTitle = font.plainSubstrByWidth(title, Math.max(0, right - font.width(yours) - 8 - x));
+        g.text(font, Component.literal(fitTitle).withStyle(ChatFormatting.BOLD), x, y, Sky2MGuiStyle.TEXT, true);
         // Your rivals on this board: how far ahead or behind you they are.
         StringBuilder rivalText = new StringBuilder();
         for (Standing s : rows) {
@@ -519,21 +629,21 @@ public final class Sky2MLeaderboardScreen extends Screen {
                 rivalText.append(ahead ? " (" + amount + " ahead)" : s.amount() == you.amount() ? " (tied)" : " (" + amount + " behind)");
             }
         }
-        if (!rivalText.isEmpty()) g.text(font, font.plainSubstrByWidth(rivalText.toString(), right - x), x, y + 9, 0xFFFFAA00, false);
+        if (!rivalText.isEmpty()) g.text(font, font.plainSubstrByWidth(rivalText.toString(), right - x), x, y + 10, 0xFFFFAA00, false);
 
         Picker picker = picker(rows);
-        drawPicker(g, picker, x, right, y + 22, mouseX, mouseY);
+        drawPicker(g, picker, x, right, tableInsetTop() + 6, mouseX, mouseY);
 
         int[] c = {x, x + 40, Math.max(x + 160, right - 120)};
         String valueHeader = tab == Tab.KILL_TIMES ? "Time" : (thisWeek && tab != Tab.EVENTS ? "Gained" : tab == Tab.SLAYER_XP ? "XP" : "Amount");
-        int hy = y + 22 + pickerHeight(picker);
-        g.text(font, "Rank", c[0], hy, 0xFF55FF55, false);
-        g.text(font, "Player", c[1], hy, 0xFF55FF55, false);
-        g.text(font, valueHeader, right - font.width(valueHeader), hy, 0xFF55FF55, false);
-        g.fill(x - 2, hy + 10, right + 2, hy + 11, LINE);
+        int top = tableRowsTop(picker);
+        int hy = top - 14;
+        g.text(font, "Rank", c[0], hy, Sky2MGuiStyle.HEADING, false);
+        g.text(font, "Player", c[1], hy, Sky2MGuiStyle.HEADING, false);
+        g.text(font, valueHeader, right - font.width(valueHeader), hy, Sky2MGuiStyle.HEADING, false);
+        g.fill(x - 2, hy + 10, right + 2, hy + 11, Sky2MGuiStyle.LINE);
 
-        int top = hy + 14;
-        int visible = Math.max(1, (contentBottom() - top) / TABLE_ROW);
+        int visible = Math.max(1, (tableBottom() - top + 2) / TABLE_ROW);
         tableScroll = Math.max(0, Math.min(tableScroll, Math.max(0, rows.size() - visible)));
         for (int i = tableScroll; i < rows.size() && i < tableScroll + visible; i++) {
             Standing s = rows.get(i);
@@ -542,15 +652,15 @@ public final class Sky2MLeaderboardScreen extends Screen {
             boolean over = mouseX >= x - 2 && mouseX < right + 2 && mouseY >= ry - 2 && mouseY < ry + TABLE_ROW - 2;
             if (s.self()) g.fill(x - 2, ry - 2, right + 2, ry + TABLE_ROW - 2, 0xFF1F3324);
             else if (rival) g.fill(x - 2, ry - 2, right + 2, ry + TABLE_ROW - 2, 0xFF3A2A12);
-            else if (over) g.fill(x - 2, ry - 2, right + 2, ry + TABLE_ROW - 2, 0xFF22262E);
-            else if (i % 2 == 1) g.fill(x - 2, ry - 2, right + 2, ry + TABLE_ROW - 2, 0xFF1C1F26);
+            else if (over) g.fill(x - 2, ry - 2, right + 2, ry + TABLE_ROW - 2, Sky2MGuiStyle.ROW_HOVER);
+            else if (i % 2 == 1) g.fill(x - 2, ry - 2, right + 2, ry + TABLE_ROW - 2, Sky2MGuiStyle.ROW);
             g.text(font, s.rank(), c[0], ry, s.rankColour(), false);
             g.text(font, font.plainSubstrByWidth((rival ? "⚔ " : "") + s.player(), right - c[1] - font.width(s.value()) - 10), c[1], ry,
-                s.self() ? 0xFF55FF55 : rival ? 0xFFFFAA00 : 0xFFFFFFFF, false);
-            g.text(font, s.value(), right - font.width(s.value()), ry, s.self() ? 0xFF55FF55 : 0xFFB8C0CC, false);
+                s.self() ? 0xFF55FF55 : rival ? 0xFFFFAA00 : Sky2MGuiStyle.TEXT, false);
+            g.text(font, s.value(), right - font.width(s.value()), ry, s.self() ? 0xFF55FF55 : Sky2MGuiStyle.TEXT_DIM, false);
             if (over && !s.self()) g.setTooltipForNextFrame(font, rivalTooltip(s.player(), rival), java.util.Optional.empty(), mouseX, mouseY);
         }
-        scrollbar(g, right + 4, top, contentBottom(), tableScroll, visible, rows.size());
+        Sky2MGuiStyle.scrollbar(g, insetRight - 10, tableInsetTop() + 4, contentBottom() - 4, tableScroll, visible, rows.size());
     }
 
     /**
@@ -560,7 +670,7 @@ public final class Sky2MLeaderboardScreen extends Screen {
      */
     private Picker picker(List<Standing> rows) {
         if (rows == null || rows.isEmpty() || selected == null || tableRight() - tableLeft() < MIN_PICKER_WIDTH) return null;
-        int room = contentBottom() - (contentTop() + 22) - 14 - MIN_TABLE_ROWS * TABLE_ROW;
+        int room = tableBottom() + 2 - (tableInsetTop() + 6) - 14 - MIN_TABLE_ROWS * TABLE_ROW;
         int fit = Math.min(3, (room - PICK_ROW - 3) / PICK_ROW);
         if (fit < 1) return null;
         int youIndex = -1;
@@ -580,16 +690,17 @@ public final class Sky2MLeaderboardScreen extends Screen {
     /** The picker's rows: rank, player, value and gap to you, and a [Rival] / [Rival ✓] button on the right. */
     private void drawPicker(GuiGraphicsExtractor g, Picker picker, int x, int right, int top, int mouseX, int mouseY) {
         if (picker == null) return;
-        g.fill(x - 2, top - 2, right + 2, top + pickerHeight(picker) - 4, 0xFF1C1F26);
-        g.text(font, picker.title(), x, top, GREY, false);
+        // A box like one of the settings' options, titled like an accordion.
+        Sky2MGuiStyle.panel(g, x - 3, top - 3, right - x + 6, pickerHeight(picker) - 1, false);
+        g.text(font, picker.title(), x, top, Sky2MGuiStyle.TEXT_DIM, false);
         int ry = top + PICK_ROW;
         for (Standing s : picker.picks()) {
             boolean rival = Sky2MRivals.isRival(s.player(), selected.key());
             String label = rival ? "[Rival ✓]" : "[Rival]";
             int bx = right - font.width(label);
             boolean over = mouseX >= bx - 2 && mouseX < right + 2 && mouseY >= ry - 2 && mouseY < ry + PICK_ROW - 2;
-            if (over) g.fill(bx - 2, ry - 2, right + 2, ry + PICK_ROW - 2, 0xFF2E3440);
-            g.text(font, label, bx, ry, rival ? 0xFF55FF55 : over ? ACCENT : 0xFFFFAA00, false);
+            if (over) g.fill(bx - 2, ry - 2, right + 2, ry + PICK_ROW - 2, Sky2MGuiStyle.ROW_HOVER);
+            g.text(font, label, bx, ry, rival ? 0xFF55FF55 : over ? 0xFFFFFFFF : 0xFFFFAA00, false);
             pickButtons.add(new PickButton(bx - 2, ry - 2, right + 2, ry + PICK_ROW - 2, s.player()));
 
             g.text(font, s.rank(), x, ry, s.rankColour(), false);
@@ -599,10 +710,10 @@ public final class Sky2MLeaderboardScreen extends Screen {
             String value = gap.isEmpty() ? s.value() : s.value() + "  " + gap;
             if (valueRight - nameX - font.width(value) < 40) value = s.value();
             if (valueRight - nameX - font.width(value) < 40) value = "";
-            if (!value.isEmpty()) g.text(font, value, valueRight - font.width(value), ry, 0xFFB8C0CC, false);
+            if (!value.isEmpty()) g.text(font, value, valueRight - font.width(value), ry, Sky2MGuiStyle.TEXT_DIM, false);
             int nameWidth = valueRight - nameX - (value.isEmpty() ? 0 : font.width(value) + 6);
             g.text(font, font.plainSubstrByWidth((rival ? "⚔ " : "") + s.player(), Math.max(0, nameWidth)), nameX, ry,
-                rival ? 0xFFFFAA00 : 0xFFFFFFFF, false);
+                rival ? 0xFFFFAA00 : Sky2MGuiStyle.TEXT, false);
             if (over) g.setTooltipForNextFrame(font, pickTooltip(s.player(), rival), java.util.Optional.empty(), mouseX, mouseY);
             ry += PICK_ROW;
         }
@@ -658,21 +769,27 @@ public final class Sky2MLeaderboardScreen extends Screen {
         return lines;
     }
 
-    private static void scrollbar(GuiGraphicsExtractor g, int x, int top, int bottom, int scroll, int visible, int total) {
-        if (total <= visible) return;
-        int track = bottom - top;
-        int thumb = Math.max(10, track * visible / total);
-        int thumbY = top + (track - thumb) * scroll / Math.max(1, total - visible);
-        g.fill(x, top, x + 2, bottom, 0xFF101318);
-        g.fill(x, thumbY, x + 2, thumbY + thumb, LINE);
-    }
-
     // ---------------------------------------------------------------- input
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (super.mouseClicked(event, doubleClick)) return true;
         if (event.button() != 0 && event.button() != 1) return false;
+        // The search field's border and icon, which the borderless EditBox inside it doesn't cover.
+        if (event.button() == 0 && Sky2MGuiStyle.inSearch(searchBox, event.x(), event.y())) {
+            setFocused(searchBox);
+            return true;
+        }
+        // Tabs, filters and buttons, where they were drawn last frame.
+        if (event.button() == 0) {
+            for (Hit hit : List.copyOf(hits)) {
+                if (inside(hit, event.x(), event.y())) {
+                    Sky2MGuiStyle.click();
+                    hit.action().run();
+                    return true;
+                }
+            }
+        }
         // The rival picker's buttons: rival on this board, or undo.
         if (event.button() == 0 && selected != null) {
             for (PickButton b : pickButtons) {
@@ -684,18 +801,19 @@ public final class Sky2MLeaderboardScreen extends Screen {
         }
         // A player in the standings: make them your rival on this board, or stop (right-click: on every board).
         List<Standing> rows = standings();
-        int tableTop = contentTop() + 22 + pickerHeight(picker(rows)) + 14;
-        if (rows != null && selected != null && event.x() >= tableLeft() - 2 && event.x() < tableRight() + 2 && event.y() >= tableTop - 2 && event.y() < contentBottom()) {
+        int tableTop = tableRowsTop(picker(rows));
+        if (rows != null && selected != null && event.x() >= tableLeft() - 2 && event.x() < tableRight() + 2 && event.y() >= tableTop - 2 && event.y() < tableBottom()) {
             int row = tableScroll + (int) ((event.y() - tableTop + 2) / TABLE_ROW);
-            if (row >= 0 && row < rows.size() && !rows.get(row).self()) {
+            int visible = Math.max(1, (tableBottom() - tableTop + 2) / TABLE_ROW);
+            if (row >= 0 && row < rows.size() && row < tableScroll + visible && !rows.get(row).self()) {
                 String name = rows.get(row).player();
                 if (event.button() == 0) Sky2MRivals.toggle(name, selected.key(), rivalBoardName());
                 else if (Sky2MRivals.isRival(name, selected.key())) Sky2MRivals.remove(name, null);
                 return true;
             }
         }
-        int x = listLeft(), w = listWidth(), y = contentTop();
-        if (event.x() < x - 2 || event.x() >= x + w + 2 || event.y() < y || event.y() >= contentBottom()) return false;
+        int x = listLeft(), w = listWidth(), y = listTop();
+        if (event.x() < x - 2 || event.x() >= x + w + 2 || event.y() < y || event.y() >= y + listVisible() * LIST_ROW) return false;
         int index = listScroll + (int) ((event.y() - y) / LIST_ROW);
         if (index < 0 || index >= boards.size() || boards.get(index).header() != null) return false;
         Board b = boards.get(index);
@@ -727,7 +845,7 @@ public final class Sky2MLeaderboardScreen extends Screen {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         int step = (int) Math.signum(scrollY) * 3;
-        if (mouseX < tableLeft() - 6) listScroll = Math.max(0, listScroll - step);
+        if (mouseX < tablePanelLeft()) listScroll = Math.max(0, listScroll - step);
         else tableScroll = Math.max(0, tableScroll - step);
         return true;
     }
