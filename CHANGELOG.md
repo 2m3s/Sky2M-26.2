@@ -68,6 +68,8 @@ All notable changes to Sky2M are listed here, newest first.
 - Chat Tabs are drawn under the command suggestions, like Current Chat Display, and clicks go to the suggestions while you type a command.
 
 ### Fixed
+- Enchanted books dropped in the profit trackers and `/s2 session` show their book icon instead of a barrier (their "ENCHANTMENT_X_1" price id is looked up as the repo's "X;1", else drawn as an enchanted book named after the enchant).
+- Tab list emblems: SkyHanni's compact tab printed an emblem's exact colour as text ("<#55CCFF>") and drew the emblem uncoloured. In the tab list emblems and symbols now use the nearest of Minecraft's 16 colours (chat and name tags keep the exact one).
 - Fix players with a Sky2M emblem or supporter symbol losing their head in SkyHanni's compact tab list: in the tab list the symbols now go after the name instead of in front of it.
 - Custom Scoreboard's Sowdust line no longer jumps around while farming: Hypixel shortens it to "30.1M (+798)" while you gain sowdust, which was read as 30.1 with huge fake changes. It now keeps the exact amount (from the tab list when shown, else the last exact one) with Hypixel's gain beside it.
 - Sweep Display no longer errors in `/s2 gui` before the tab list has shown your sweep (it says "Sweep: ?").

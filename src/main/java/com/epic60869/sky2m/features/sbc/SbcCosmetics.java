@@ -115,7 +115,7 @@ public final class SbcCosmetics {
 
     /** The tier symbol and emblem (with a space after), or null if the player has neither or symbols are off. */
     public static Component symbols(UUID uuid) {
-        Component symbols = bare(uuid);
+        Component symbols = bare(uuid, false);
         return symbols == null ? null : Component.empty().append(symbols).append(Component.literal(" "));
     }
 
@@ -124,11 +124,15 @@ public final class SbcCosmetics {
      * compact tab) only treat a line as a player, and draw its head, when the name follows the level directly.
      */
     public static Component symbolsAfter(UUID uuid) {
-        Component symbols = bare(uuid);
+        Component symbols = bare(uuid, true);
         return symbols == null ? null : Component.literal(" ").append(symbols);
     }
 
-    private static Component bare(UUID uuid) {
+    /**
+     * {@code legacy}: colours limited to Minecraft's 16 chat colours (the nearest one), for the tab list. SkyHanni's
+     * compact tab rebuilds lines from legacy colour codes and prints an RGB colour as "<#55CCFF>" text instead.
+     */
+    private static Component bare(UUID uuid, boolean legacy) {
         if (!Sbc.config().cosmetics.symbols || !Flags.isEnabled("cosmetics")) return null;
         Entry entry = entry(uuid);
         if (entry == null || (entry.tier() == null && entry.badge() == null)) return null;
@@ -136,7 +140,7 @@ public final class SbcCosmetics {
         boolean any = false;
         for (Symbol s : new Symbol[]{entry.tier(), entry.badge()}) {
             if (s == null || !s.shown()) continue;
-            out.append(text(s).withStyle(style -> style.withHoverEvent(
+            out.append((legacy ? text(s, nearestChatColour(s.colour())) : text(s)).withStyle(style -> style.withHoverEvent(
                 new HoverEvent.ShowText(Component.literal(s.name()).withStyle(Style.EMPTY.withColor(s.colour()))))));
             any = true;
         }
@@ -145,9 +149,30 @@ public final class SbcCosmetics {
 
     /** One symbol as text: its character in its colour, or an image emblem's picture. */
     public static MutableComponent text(Symbol s) {
-        Style style = Style.EMPTY.withColor(s.colour()).withBold(false).withItalic(false);
+        return text(s, s.colour());
+    }
+
+    private static MutableComponent text(Symbol s, int colour) {
+        Style style = Style.EMPTY.withColor(colour).withBold(false).withItalic(false);
         if (!s.image().isBlank()) return SbcEmblems.component(s.image(), style);
         return Component.literal(s.symbol()).withStyle(style);
+    }
+
+    /** The chat colour (one of the 16) closest to {@code rgb}, as an RGB value. */
+    static int nearestChatColour(int rgb) {
+        int best = rgb, bestDistance = Integer.MAX_VALUE;
+        for (ChatFormatting format : ChatFormatting.values()) {
+            net.minecraft.network.chat.TextColor colour = net.minecraft.network.chat.TextColor.fromLegacyFormat(format);
+            if (colour == null) continue;
+            int c = colour.getValue();
+            int dr = (c >> 16 & 255) - (rgb >> 16 & 255), dg = (c >> 8 & 255) - (rgb >> 8 & 255), db = (c & 255) - (rgb & 255);
+            int distance = dr * dr * 3 + dg * dg * 4 + db * db * 2;
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = c;
+            }
+        }
+        return best;
     }
 
     /** {@code name} with the player's symbols in front. */
