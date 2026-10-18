@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
 
 /**
  * What the current slayer quest cost, as SkyHanni's SlayerProfitTracker works it out: what the purse actually went down
- * by around "SLAYER QUEST STARTED!" (up to 350k; Aatrox's discount and the Rift's motes come out right that way), or,
+ * by around "SLAYER QUEST STARTED!", or around the boss spawning when Hypixel takes it then (up to 350k; Aatrox's discount and the Rift's motes come out right that way), or,
  * with auto-slayer, what "Took X coins from your bank for auto-slayer..." says. Worked out once per quest here so the
  * slayer profit trackers and the per-kill profit line agree on it.
  */
@@ -43,7 +43,10 @@ public final class SlayerQuestCost {
     private static long questStartedAt;
     private static String questSlayer;
     /** The current quest's cost from the purse and from the bank, or -1 when not seen. */
-    private static long purseCost = -1, bankCost = -1;
+    private static long purseCost = -1, bankCost = -1, previousCost = -1;
+    /** When to look at the purse for the fee (the quest start, then the boss spawn if needed), and which it was. */
+    private static long measureAt;
+    private static String measureWhat = "";
     private static long bankAt, lastStartAt;
     /** A bank charge that came before its quest started, waiting for the start to confirm it, or -1. */
     private static long pendingBank = -1;
@@ -68,10 +71,20 @@ public final class SlayerQuestCost {
         return bankCost > 0 ? bankCost : purseCost;
     }
 
+    /**
+     * The spawn cost of the boss that just died: right after the next quest started (an instant restart, in the same
+     * tick as the kill), that's the previous quest's cost, not the new one's.
+     */
+    public static long costOfLastBoss() {
+        return lastStartAt > 0 && System.currentTimeMillis() - lastStartAt < 5_000L ? previousCost : cost();
+    }
+
     private static void onChat(String text) {
         if (!Sky2MLocation.onSkyblock()) return;
         long now = System.currentTimeMillis();
         if (text.equals("SLAYER QUEST STARTED!")) {
+            // The boss that just died belongs to the quest that's ending: keep its cost for the kill's profit line.
+            previousCost = cost();
             questStartedAt = now;
             lastStartAt = now;
             questSlayer = null;
@@ -83,6 +96,15 @@ public final class SlayerQuestCost {
                 charge(new Charge(SlayerArea.questSlayer(), pendingBank, true));
             }
             pendingBank = -1;
+            measureAt = now;
+            measureWhat = "quest start";
+            return;
+        }
+        // Hypixel can take the fee when the boss spawns instead (an instant restart shows no purse change at the
+        // start): measure again there if the start didn't find it.
+        if (text.startsWith("SLAYER BOSS!") && text.contains("spawned") && cost() < 0) {
+            measureAt = now;
+            measureWhat = "boss spawn";
             return;
         }
         Matcher bank = BANK_CHARGE.matcher(text);
@@ -114,21 +136,30 @@ public final class SlayerQuestCost {
             purseHistory.addLast(new double[]{now, purse});
             while (!purseHistory.isEmpty() && now - purseHistory.getFirst()[0] > 15_000L) purseHistory.removeFirst();
         }
-        if (questStartedAt == 0) return;
+        if (measureAt == 0) return;
         if (questSlayer == null) questSlayer = SlayerArea.questSlayer();
-        // Wait for the quest to show (up to 3 seconds), so the fee goes to the right slayer.
-        if (now - questStartedAt < QUEST_COST_WINDOW_MS && questSlayer == null) return;
-        long started = questStartedAt;
+        // Always wait 3 seconds: the scoreboard's purse shows the fee a moment after the message, and with an instant
+        // restart the old quest's slayer is already on the sidebar, so knowing the slayer isn't enough.
+        if (now - measureAt < QUEST_COST_WINDOW_MS) return;
+        long at = measureAt;
+        measureAt = 0;
         questStartedAt = 0;
-        double highest = -1;
-        for (double[] entry : purseHistory) if (entry[0] >= started - 10_000L) highest = Math.max(highest, entry[1]);
-        long cost = highest > 0 && lastPurse >= 0 ? Math.round(highest - lastPurse) : -1;
-        // One line per quest, so a log shows why a cost came out "unknown".
-        System.out.println("[Sky2M] Slayer quest cost: " + (questSlayer == null ? "no quest seen" : questSlayer)
-            + ", purse " + (highest < 0 ? "not readable" : Math.round(highest) + " -> " + Math.round(lastPurse))
+        if (cost() > 0) return;
+        // The fee: the highest purse in the 10 s before minus the lowest since (mob kill coins coming in after the fee
+        // can't hide it that way).
+        double highest = -1, lowest = -1;
+        for (double[] entry : purseHistory) {
+            if (entry[0] >= at - 10_000L && entry[0] <= at) highest = Math.max(highest, entry[1]);
+            else if (entry[0] > at) lowest = lowest < 0 ? entry[1] : Math.min(lowest, entry[1]);
+        }
+        long cost = highest > 0 && lowest >= 0 ? Math.round(highest - lowest) : -1;
+        boolean found = cost > 0 && cost <= MAX_COST;
+        // One line per check, so a log shows why a cost came out "unknown".
+        System.out.println("[Sky2M] Slayer quest cost at " + measureWhat + ": " + (questSlayer == null ? "no quest seen" : questSlayer)
+            + ", purse " + (highest < 0 ? "not readable" : Math.round(highest) + " -> " + Math.round(lowest))
             + (bankCost > 0 ? ", bank charge " + bankCost : "")
-            + " -> " + (cost > 0 && cost <= MAX_COST ? cost : bankCost > 0 ? "bank charge" : "unknown"));
-        if (cost <= 0 || cost > MAX_COST) return;
+            + " -> " + (found ? cost : bankCost > 0 ? "bank charge" : measureWhat.equals("quest start") ? "not yet, checking at boss spawn" : "unknown"));
+        if (!found) return;
         purseCost = cost;
         if (questSlayer != null) charge(new Charge(questSlayer, cost, false));
     }

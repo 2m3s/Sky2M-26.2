@@ -313,7 +313,7 @@ public final class SlayerBossProfit {
     static void onKill(String boss) {
         if (!enabled() || baseline == null) return;
         if (kill != null) close();
-        long cost = SlayerQuestCost.cost();
+        long cost = SlayerQuestCost.costOfLastBoss();
         kill = new Kill(boss, System.currentTimeMillis(), baseline, new LinkedHashMap<>(observedGains), cost);
         hudUntil = Long.MAX_VALUE;
         // Items that were lying around when the boss spawned aren't its drops (ones dropped since are, even if they
