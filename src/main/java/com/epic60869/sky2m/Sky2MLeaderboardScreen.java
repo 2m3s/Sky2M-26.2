@@ -1,6 +1,8 @@
 package com.epic60869.sky2m;
 
 import com.epic60869.sky2m.custom.RepoItems;
+import com.epic60869.sky2m.features.core.Sky2MAlerts;
+import com.epic60869.sky2m.features.misc.OwnNameTag;
 import com.epic60869.sky2m.features.portfolio.CollectionPortfolio;
 import com.epic60869.sky2m.features.sbc.SbcNet;
 import com.epic60869.sky2m.features.slayer.SlayerLeaderboard;
@@ -432,6 +434,7 @@ public final class Sky2MLeaderboardScreen extends Screen {
         }
         int visible = Math.max(1, (contentBottom() - y) / LIST_ROW);
         listScroll = Math.max(0, Math.min(listScroll, Math.max(0, boards.size() - visible)));
+        headBoard = OwnNameTag.headBoard();
         g.enableScissor(x - 2, y, x + w + 2, contentBottom());
         for (int i = listScroll; i < boards.size() && i < listScroll + visible; i++) {
             Board b = boards.get(i);
@@ -455,9 +458,13 @@ public final class Sky2MLeaderboardScreen extends Screen {
                 nameX += ICON + 4;
             }
             int hintWidth = b.hint() == null ? 0 : font.width(b.hint()) + 6;
+            // The board shown over your head (right-click a board to pick it): an aqua arrow before its hint.
+            boolean overHead = b.key().equals(headBoard);
+            if (overHead) hintWidth += font.width(HEAD_MARK) + 4;
             g.text(font, font.plainSubstrByWidth(b.name(), x + w - nameX - hintWidth), nameX, ry + 4,
                 isSelected ? ACCENT : Sky2MRivals.hasOwnRivalsOn(b.key()) ? 0xFFFFAA00 : 0xFFFFFFFF, false);
             if (b.hint() != null) g.text(font, b.hint(), x + w - font.width(b.hint()), ry + 4, GREY, false);
+            if (overHead) g.text(font, HEAD_MARK, x + w - hintWidth + 2, ry + 4, 0xFF55FFFF, false);
         }
         g.disableScissor();
         scrollbar(g, x + w + 3, y, contentBottom(), listScroll, visible, boards.size());
@@ -467,7 +474,7 @@ public final class Sky2MLeaderboardScreen extends Screen {
         pickButtons.clear();
         int x = tableLeft(), right = tableRight(), y = contentTop();
         if (selected == null) {
-            g.text(font, "Pick a board on the left.", x, y + 4, GREY, false);
+            g.text(font, "Pick a board on the left. Right-click one to show it over your head.", x, y + 4, GREY, false);
             return;
         }
         String title = switch (tab) {
@@ -687,14 +694,34 @@ public final class Sky2MLeaderboardScreen extends Screen {
                 return true;
             }
         }
-        if (event.button() != 0) return false;
         int x = listLeft(), w = listWidth(), y = contentTop();
         if (event.x() < x - 2 || event.x() >= x + w + 2 || event.y() < y || event.y() >= contentBottom()) return false;
         int index = listScroll + (int) ((event.y() - y) / LIST_ROW);
         if (index < 0 || index >= boards.size() || boards.get(index).header() != null) return false;
         Board b = boards.get(index);
+        if (event.button() == 1) {
+            toggleOverHead(b);
+            return true;
+        }
         if (selected == null || !b.key().equals(selected.key())) select(b);
         return true;
+    }
+
+    private static final String HEAD_MARK = "⬆";
+    /** The board shown over your head, read once per frame for the list's marker. */
+    private String headBoard;
+
+    /** Right-click on a board: show it over your head, or stop when it already is. */
+    private void toggleOverHead(Board b) {
+        if (!OwnNameTag.canShowOverHead(b.key())) {
+            Sky2MAlerts.chat(Component.literal("Only collection, slayer XP and kill time boards can be shown over your head.").withStyle(ChatFormatting.RED));
+            return;
+        }
+        boolean showing = OwnNameTag.toggleHeadBoard(b.key());
+        String name = b.type().equals("pb") ? b.id() : b.name();
+        Sky2MAlerts.chat(showing
+            ? Component.literal("Showing " + name + " over your head (third person). Right-click it again to stop.").withStyle(ChatFormatting.AQUA)
+            : Component.literal("Stopped showing " + name + " over your head.").withStyle(ChatFormatting.GRAY));
     }
 
     @Override

@@ -21,14 +21,18 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Misc > Visual > Own Name Tag: your own name tag above your head in third person (vanilla hides it), and a line above
- * it with your networth and skill average ("NW 37.47B   Skill Avg 52.4"). Both come from your selected profile, loaded
- * like the profile viewer in the background at most every 10 minutes; rendering only reads the cached values. Drawn by
- * {@code Sky2MOwnNameTagMixin}. Only your own player: other players' networth would need their whole profile and museum.
+ * Misc > Visual > Own Name Tag: your own name tag above your head in third person (vanilla hides it), with up to two
+ * lines above it: your networth and skill average ("NW 37.47B   Skill Avg 52.4"), and above that your standing on the
+ * leaderboard you picked by right-clicking it in /s2 leaderboard ("Wheat 12,345,678 #4": gold, silver or bronze for
+ * the top 3, aqua otherwise). The stats come from your selected profile, loaded like the profile viewer in the
+ * background at most every 10 minutes; rendering only reads the cached values. Other Sky2M players' lines come from
+ * the server ({@link SbcNameTags}). Drawn by {@code Sky2MOwnNameTagMixin}.
  */
 public final class OwnNameTag {
     /** The line above the name tag, put into the player's render state when it's extracted. */
     public static final RenderStateDataKey<Component> LINE = RenderStateDataKey.create(() -> "sky2m:own_name_tag_line");
+    /** The leaderboard line above the stats line. */
+    public static final RenderStateDataKey<Component> BOARD_LINE = RenderStateDataKey.create(() -> "sky2m:own_name_tag_board");
 
     private static final long REFRESH_MS = 10 * 60_000L, RETRY_MS = 2 * 60_000L;
     private static final AtomicBoolean BUSY = new AtomicBoolean();
@@ -48,7 +52,7 @@ public final class OwnNameTag {
     public static boolean showName(Entity entity) {
         Sky2MConfig.OwnNameTag c = config();
         Minecraft mc = Minecraft.getInstance();
-        return c != null && (c.enabled || c.stats || c.showCollectionLeaderboard || !customText(c).isEmpty()) && entity == mc.player && !mc.options.getCameraType().isFirstPerson()
+        return c != null && (c.enabled || c.stats || headBoard(c) != null || !customText(c).isEmpty()) && entity == mc.player && !mc.options.getCameraType().isFirstPerson()
             && !mc.gui.hud.isHidden() && !entity.isInvisible();
     }
 
@@ -58,7 +62,8 @@ public final class OwnNameTag {
         if (entity instanceof Player player && player != mc.player) return SbcNameTags.line(player.getUUID());
         Sky2MConfig.OwnNameTag c = config();
         String custom = c == null ? "" : customText(c);
-        if (c == null || (!c.stats && !c.showCollectionLeaderboard && custom.isEmpty()) || entity != mc.player || !Sky2MLocation.onSkyblock()) return null;
+        String board = c == null ? null : headBoard(c);
+        if (c == null || (!c.stats && board == null && custom.isEmpty()) || entity != mc.player || !Sky2MLocation.onSkyblock()) return null;
         if (c.stats) refresh(mc);
         MutableComponent line = Component.empty();
         boolean any = false;
@@ -76,22 +81,55 @@ public final class OwnNameTag {
             line.append(Component.literal(String.format(Locale.ROOT, "Skill Avg %.1f", skillAverage)).withStyle(ChatFormatting.GREEN));
             any = true;
         }
-        if (!any && c.showCollectionLeaderboard) {
-            line.append(Component.literal("Collection").withStyle(ChatFormatting.AQUA));
-            any = true;
-        }
-        if (!any) return null;
         long now = System.currentTimeMillis();
         if (now - lastPublish >= 30_000L) {
             lastPublish = now;
-            String board = c.showCollectionLeaderboard ? c.collectionLeaderboard.trim().toUpperCase(Locale.ROOT) : "";
-            SbcNameTags.publish(line.getString(), board);
+            SbcNameTags.publish(line.getString(), board == null ? "" : board);
         }
-        if (c.showCollectionLeaderboard) {
-            Component shared = SbcNameTags.line(mc.player.getUUID());
-            if (shared != null) return shared;
-        }
-        return line;
+        return any ? line : null;
+    }
+
+    /** The leaderboard line above {@code entity}'s stats line, or null: yours from the board you picked, others' shared. */
+    public static Component boardLine(Entity entity) {
+        Minecraft mc = Minecraft.getInstance();
+        if (entity instanceof Player player && player != mc.player) return SbcNameTags.boardLine(player.getUUID());
+        Sky2MConfig.OwnNameTag c = config();
+        if (c == null || entity != mc.player || headBoard(c) == null || !Sky2MLocation.onSkyblock()) return null;
+        return SbcNameTags.boardLine(mc.player.getUUID());
+    }
+
+    /** Boards the server can show over your head: collections, slayer XP and slayer kill times. */
+    public static boolean canShowOverHead(String boardKey) {
+        return boardKey != null && (boardKey.startsWith("collection|") || boardKey.startsWith("slayer|") || boardKey.startsWith("pb|"));
+    }
+
+    /**
+     * Shows {@code boardKey} over your head ("collection|WHEAT", "slayer|zombie", "pb|Revenant Horror V"), or stops when
+     * it's the one already shown. Returns whether a board is shown now.
+     */
+    public static boolean toggleHeadBoard(String boardKey) {
+        Sky2MConfig.OwnNameTag c = config();
+        if (c == null || !canShowOverHead(boardKey)) return false;
+        boolean showing = !(boardKey.equals(headBoard(c)));
+        c.headBoard = showing ? boardKey : "";
+        c.showCollectionLeaderboard = showing;
+        Sky2MConfig.saveCurrent(Sky2MConfig.current());
+        lastPublish = 0;
+        return showing;
+    }
+
+    /** The board shown over your head, or null (an older config's Collection ID counts as "collection|ID"). */
+    public static String headBoard(Sky2MConfig.OwnNameTag c) {
+        if (!c.showCollectionLeaderboard) return null;
+        if (c.headBoard != null && canShowOverHead(c.headBoard)) return c.headBoard;
+        String legacy = c.collectionLeaderboard == null ? "" : c.collectionLeaderboard.trim().toUpperCase(Locale.ROOT);
+        return legacy.isEmpty() ? null : "collection|" + legacy;
+    }
+
+    /** The board shown over your head, for the leaderboard screen's marker, or null. */
+    public static String headBoard() {
+        Sky2MConfig.OwnNameTag c = config();
+        return c == null ? null : headBoard(c);
     }
 
     /** The player's own name tag text: one line, no colour codes, at most 40 characters. */

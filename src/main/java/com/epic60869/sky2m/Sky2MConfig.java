@@ -1713,13 +1713,16 @@ public final class Sky2MConfig extends Config {
         public String customText = "";
 
         @Expose
-        @ConfigOption(name = "Show Collection Leaderboard", desc = "Show your selected collection's amount and placement on the shared name tag. Other Sky2M users can see it too.")
+        @ConfigOption(name = "Show Leaderboard Above Head", desc = "A line above your stats with your amount and placement on a leaderboard (gold, silver or bronze for the top 3, aqua otherwise). Pick the board by right-clicking it in /s2 leaderboard (collections, slayer XP or kill times). Other Sky2M users can see it too.")
         @ConfigEditorBoolean
         public boolean showCollectionLeaderboard = false;
 
+        /** The board shown over your head ("collection|WHEAT", "slayer|zombie", "pb|Revenant Horror V"), picked in /s2 leaderboard. */
         @Expose
-        @ConfigOption(name = "Collection ID", desc = "Hypixel collection ID for the leaderboard, e.g. WHEAT, CARROT, SUGAR_CANE or ENDER_PEARL.")
-        @ConfigEditorText
+        public String headBoard = "";
+
+        /** The old Collection ID setting: still read until a board is picked in /s2 leaderboard. */
+        @Expose
         public String collectionLeaderboard = "WHEAT";
     }
 
