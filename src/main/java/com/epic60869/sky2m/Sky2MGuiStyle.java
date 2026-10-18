@@ -117,10 +117,25 @@ public final class Sky2MGuiStyle {
      * typing). {@code box} is an unbordered {@link EditBox} placed with {@link #placeSearch}; this draws around it.
      */
     public static void search(GuiGraphicsExtractor g, EditBox box) {
+        field(g, box);
+        int y0 = box.getY() - (SEARCH_HEIGHT - 8) / 2, x1 = box.getX() + box.getWidth() + 4;
+        context(g).drawTexturedRect(GuiTextures.SEARCH, x1 + 2, y0 + (SEARCH_HEIGHT - 16) / 2, 16, 16);
+    }
+
+    /**
+     * The search's field without the icon, for typing anything else (an amount): MoulConfig's text fields look the
+     * same. {@code box} is placed with {@link #placeSearch}.
+     */
+    public static void field(GuiGraphicsExtractor g, EditBox box) {
         int x0 = box.getX() - 4, y0 = box.getY() - (SEARCH_HEIGHT - 8) / 2, x1 = box.getX() + box.getWidth() + 4;
         g.fill(x0, y0, x1, y0 + SEARCH_HEIGHT, box.isFocused() ? 0xFF00FF00 : 0xFFFFFFFF);
         g.fill(x0 + 1, y0 + 1, x1 - 1, y0 + SEARCH_HEIGHT - 1, 0xFF000000);
-        context(g).drawTexturedRect(GuiTextures.SEARCH, x1 + 2, y0 + (SEARCH_HEIGHT - 16) / 2, 16, 16);
+    }
+
+    /** Whether a click at mx, my lands on a {@link #field} (including the padding the EditBox doesn't cover). */
+    public static boolean inField(EditBox box, double mx, double my) {
+        int y0 = box.getY() - (SEARCH_HEIGHT - 8) / 2;
+        return mx >= box.getX() - 4 && mx < box.getX() + box.getWidth() + 4 && my >= y0 && my < y0 + SEARCH_HEIGHT;
     }
 
     public static final int SEARCH_HEIGHT = 16;
