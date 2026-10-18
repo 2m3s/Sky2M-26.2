@@ -1459,6 +1459,21 @@ public final class Sky2MConfig extends Config {
         @ConfigOption(name = "Edit Position", desc = "Open the HUD editor and drag the Mining Commissions HUD.")
         @ConfigEditorButton(buttonText = "OPEN")
         public Runnable editPosition = () -> openHudEditor();
+
+        @Expose
+        @ConfigOption(name = "Highlight Event", desc = "In the Dwarven Mines, highlight the current mining event's targets: the goblins and golems of a Goblin Raid, and the Raffle Tickets on the ground during a Raffle.")
+        @ConfigEditorBoolean
+        public boolean highlightEvent = false;
+
+        @Expose
+        @ConfigOption(name = "Goblin Raid Colour", desc = "Outline colour for Goblin Raid goblins and golems.")
+        @ConfigEditorColour
+        public String goblinRaidColour = "0:255:255:85:85";
+
+        @Expose
+        @ConfigOption(name = "Raffle Ticket Colour", desc = "Outline and box colour for Raffle Tickets on the ground.")
+        @ConfigEditorColour
+        public String raffleTicketColour = "0:255:85:255:85";
     }
 
     public static final class FarmingRng {

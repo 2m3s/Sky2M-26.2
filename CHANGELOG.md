@@ -5,6 +5,9 @@ All notable changes to Sky2M are listed here, newest first.
 ## Unreleased
 
 ### Added
+- Sky2M emblems can be pictures: emblems staff upload on the website are downloaded once (kept in `config/sky2m/emblems`) and drawn at text height wherever emblems show (chat, tab list, name tags, `/s2 cosmetics`), and the new Fish emblem (🐟) shows like the other symbols.
+- Mining Commissions > Highlight Event (off by default): in the Dwarven Mines, outlines the goblins and golems of a Goblin Raid, and outlines and boxes the Raffle Tickets on the ground during a Raffle, only while that event is running. Both colours can be changed.
+- Crystal Hollows Waypoints: Auto-Find From Nametags (off by default) marks King Yolkar, Odawa, Xalx, Corleone, the Key Guardian and the Jungle Temple as soon as their nametags load, and Share Finds In Party Chat (off by default) posts each place you find yourself once per lobby in party chat, where Sky2M and Skyblocker turn it into a waypoint.
 - New installs start from Sky2M's recommended settings and HUD layout (bundled defaults) instead of everything off at the top-left. Only when there's no Sky2M config yet: existing players, and players carrying settings over from SkyBalls, keep theirs.
 - Boss Spawn Alert (Slayers > Boss Fight, on by default): "BOSS SPAWNED" with your boss and tier (e.g. "Tarantula Broodfather V") and a sound the moment the sidebar says "Slay the boss!" for your quest, so the spawn isn't missed while AFK, even when the boss is off-screen or out of range; your boss's nametag appearing triggers it if the sidebar doesn't. When the boss is off-screen the subtitle says where it is ("→ to your right, 23 m"). Pick the sound (Anvil, Bell, Pling, Level Up, Wither Spawn, Dragon Growl) and volume, and optionally repeat it every 2 seconds until the boss is on-screen (up to 10 seconds).
 - Rival picker in `/s2 leaderboard`: above a board's standings, "Closest above you" lists the 1-3 players ranked just above you with their value and how far ahead they are, each with a one-click [Rival] button to make them your rival on that board ([Rival ✓] to undo). When you're not on the board it shows the bottom of the list as "Closest to beat". It shows fewer players, or hides, when the screen is small.
@@ -47,6 +50,7 @@ All notable changes to Sky2M are listed here, newest first.
 - Shared name tags (Misc > Visual > Own Name Tag): the line above your head is shared with other Sky2M users, who see it above you. Add your own Custom Text (up to 40 characters), and turn on Show Collection Leaderboard with a Collection ID to show that collection's amount and your placement.
 
 ### Changed
+- Dungeon sim: the sidebar no longer starts with "killer560's personal testing sim" or ends with a Discord invite, and the tab list's header says "Dungeon Sim" with no Discord link (it still says it's a local practice world, not Hypixel).
 - Name tag above your head: the leaderboard now has its own line at the top, then networth and skill average, then your name. Pick the board by right-clicking it in `/s2 leaderboard` (collections, slayer XP or kill times; right-click again to stop; the board shows an aqua ⬆ in the list) instead of typing a Collection ID, which is gone from the settings. The line is gold, silver or bronze when you're #1-#3, aqua otherwise. Other Sky2M players' tags show the same two lines.
 - What's New is no longer shown on a fresh install's first run, only after an update; the setting is now called Show What's New on Update. The last version you ran is kept in `config/sky2m/last-version.txt`, so importing settings can't hide or repeat it.
 - `/s2 gui` position editor: the category and Done buttons sit together in a row at the top centre (wrapping onto more rows in a narrow window), with the title and help text under them. Clicks on a button always go to the button, even over a HUD.
@@ -62,6 +66,7 @@ All notable changes to Sky2M are listed here, newest first.
 - Chat Tabs are drawn under the command suggestions, like Current Chat Display, and clicks go to the suggestions while you type a command.
 
 ### Fixed
+- Fix players with a Sky2M emblem or supporter symbol losing their head in SkyHanni's compact tab list: in the tab list the symbols now go after the name instead of in front of it.
 - Custom Scoreboard's Sowdust line no longer jumps around while farming: Hypixel shortens it to "30.1M (+798)" while you gain sowdust, which was read as 30.1 with huge fake changes. It now keeps the exact amount (from the tab list when shown, else the last exact one) with Hypixel's gain beside it.
 - Sweep Display no longer errors in `/s2 gui` before the tab list has shown your sweep (it says "Sweep: ?").
 - Slayer cost "unknown" with instant restarts: Hypixel can take the spawn fee when the boss spawns rather than at "SLAYER QUEST STARTED!", so the purse is checked 3 seconds after the quest start and, if no fee showed, again 3 seconds after "SLAYER BOSS! ... spawned!". The per-kill "Profit" line uses the cost of the quest the boss belonged to, even when the next quest started in the same moment.

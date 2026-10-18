@@ -1750,6 +1750,16 @@ public final class FeatureConfigs {
         public boolean crystalWaypointsFromChat = true;
 
         @Expose
+        @ConfigOption(name = "Auto-Find From Nametags", desc = "Mark King Yolkar, Odawa, Xalx, Corleone, the Key Guardian and the Jungle Temple door guardian as soon as their nametags load, even from a distance.")
+        @ConfigEditorBoolean
+        public boolean crystalWaypointsNametags = false;
+
+        @Expose
+        @ConfigOption(name = "Share Finds In Party Chat", desc = "When you find a place yourself, post it once per lobby in party chat (\"Place: x, y, z\"), which Sky2M and Skyblocker party members turn into waypoints.")
+        @ConfigEditorBoolean
+        public boolean crystalWaypointsPartyShare = false;
+
+        @Expose
         @ConfigOption(name = "Pickaxe Ability HUD", desc = "Cooldown of your pickaxe ability (Mining Speed Boost, Pickobulus, ...) on the mining islands (Gold Mine, Deep Caverns, Dwarven Mines, Crystal Hollows, Mineshafts). Move it in /s2 gui.")
         @ConfigEditorBoolean
         public boolean pickaxeAbilityHud = false;

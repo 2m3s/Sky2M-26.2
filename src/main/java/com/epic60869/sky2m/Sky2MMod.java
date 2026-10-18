@@ -79,6 +79,7 @@ public final class Sky2MMod implements ClientModInitializer {
         com.epic60869.sky2m.features.dungeons.SecretChime.init();
         com.epic60869.sky2m.features.mining.MiningFeatures.init();
         com.epic60869.sky2m.features.mining.CrystalHollowsWaypoints.init();
+        com.epic60869.sky2m.features.mining.MiningEventHighlight.init();
         com.epic60869.sky2m.features.mining.PickaxeAbility.init();
         com.epic60869.sky2m.features.mining.DrillFuel.init();
         com.epic60869.sky2m.features.mining.PristineRecord.init(configDir);
