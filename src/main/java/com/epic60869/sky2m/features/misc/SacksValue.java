@@ -209,6 +209,7 @@ public final class SacksValue {
         lastCompute = System.currentTimeMillis();
         Map<String, Long> sacks = SackTracker.snapshot();
         boolean stale = SackTracker.isStale();
+        String profile = SackTracker.profileKey();
         Sky2MPriceTooltip.warmup();
         CompletableFuture.runAsync(() -> {
             try {
@@ -230,6 +231,8 @@ public final class SacksValue {
                     high += Math.max(lowEach, highEach) * amount;
                 }
                 lines = line(mode, low, high, items, stale, sacks.isEmpty());
+                // A stale total (a sale it couldn't follow) would put a wrong point on the graph.
+                if (!stale && !sacks.isEmpty()) SackValueHistory.record(profile, Math.round(mode == FeatureConfigs.SacksPriceMode.SELL_OFFER ? high : low));
             } finally {
                 COMPUTING.set(false);
             }

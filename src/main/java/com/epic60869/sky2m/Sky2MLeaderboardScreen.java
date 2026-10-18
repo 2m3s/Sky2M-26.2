@@ -81,6 +81,18 @@ public final class Sky2MLeaderboardScreen extends Screen {
     /** One line of the standings table. */
     private record Standing(String rank, String player, String value, boolean self, int rankColour, long amount) {}
 
+    /** The rival picker above the table: its title, the players in it (best rank first) and you (null: not on the board). */
+    private record Picker(String title, List<Standing> picks, Standing you) {}
+
+    /** A [Rival] button drawn this frame, for clicks. */
+    private record PickButton(int x0, int y0, int x1, int y1, String player) {}
+
+    private static final int PICK_ROW = 11;
+    /** The table keeps at least this many rows; the picker drops players (then hides) to leave them. */
+    private static final int MIN_TABLE_ROWS = 4;
+    /** Narrower than this, the picker hides: the name, gap and button don't fit. */
+    private static final int MIN_PICKER_WIDTH = 170;
+
     private EditBox searchBox;
     private Board selected;
     private int listScroll;
@@ -90,6 +102,7 @@ public final class Sky2MLeaderboardScreen extends Screen {
     private long pendingSince;
     private int retries;
     private boolean forceOnce;
+    private final List<PickButton> pickButtons = new ArrayList<>();
 
     public Sky2MLeaderboardScreen() {
         super(Component.literal("Sky2M Leaderboards"));
@@ -451,6 +464,7 @@ public final class Sky2MLeaderboardScreen extends Screen {
     }
 
     private void drawTable(GuiGraphicsExtractor g, int mouseX, int mouseY) {
+        pickButtons.clear();
         int x = tableLeft(), right = tableRight(), y = contentTop();
         if (selected == null) {
             g.text(font, "Pick a board on the left.", x, y + 4, GREY, false);
@@ -500,9 +514,12 @@ public final class Sky2MLeaderboardScreen extends Screen {
         }
         if (!rivalText.isEmpty()) g.text(font, font.plainSubstrByWidth(rivalText.toString(), right - x), x, y + 9, 0xFFFFAA00, false);
 
+        Picker picker = picker(rows);
+        drawPicker(g, picker, x, right, y + 22, mouseX, mouseY);
+
         int[] c = {x, x + 40, Math.max(x + 160, right - 120)};
         String valueHeader = tab == Tab.KILL_TIMES ? "Time" : (thisWeek && tab != Tab.EVENTS ? "Gained" : tab == Tab.SLAYER_XP ? "XP" : "Amount");
-        int hy = y + 22;
+        int hy = y + 22 + pickerHeight(picker);
         g.text(font, "Rank", c[0], hy, 0xFF55FF55, false);
         g.text(font, "Player", c[1], hy, 0xFF55FF55, false);
         g.text(font, valueHeader, right - font.width(valueHeader), hy, 0xFF55FF55, false);
@@ -527,6 +544,83 @@ public final class Sky2MLeaderboardScreen extends Screen {
             if (over && !s.self()) g.setTooltipForNextFrame(font, rivalTooltip(s.player(), rival), java.util.Optional.empty(), mouseX, mouseY);
         }
         scrollbar(g, right + 4, top, contentBottom(), tableScroll, visible, rows.size());
+    }
+
+    /**
+     * The rival picker: the 1-3 players ranked directly above you, or the bottom of the list when you're not on it
+     * ("Closest to beat"). Null (hidden) when you're first, the table is too narrow, or it would leave the table fewer
+     * than {@link #MIN_TABLE_ROWS} rows; at small sizes it shows fewer players first.
+     */
+    private Picker picker(List<Standing> rows) {
+        if (rows == null || rows.isEmpty() || selected == null || tableRight() - tableLeft() < MIN_PICKER_WIDTH) return null;
+        int room = contentBottom() - (contentTop() + 22) - 14 - MIN_TABLE_ROWS * TABLE_ROW;
+        int fit = Math.min(3, (room - PICK_ROW - 3) / PICK_ROW);
+        if (fit < 1) return null;
+        int youIndex = -1;
+        for (int i = 0; i < rows.size() && youIndex < 0; i++) if (rows.get(i).self()) youIndex = i;
+        Standing you = youIndex < 0 ? null : rows.get(youIndex);
+        int end = youIndex < 0 ? rows.size() : youIndex;
+        List<Standing> picks = new ArrayList<>();
+        for (int i = Math.max(0, end - fit); i < end; i++) picks.add(rows.get(i));
+        if (picks.isEmpty()) return null;
+        return new Picker(you == null ? "Closest to beat" : "Closest above you", picks, you);
+    }
+
+    private static int pickerHeight(Picker picker) {
+        return picker == null ? 0 : PICK_ROW * (picker.picks().size() + 1) + 3;
+    }
+
+    /** The picker's rows: rank, player, value and gap to you, and a [Rival] / [Rival ✓] button on the right. */
+    private void drawPicker(GuiGraphicsExtractor g, Picker picker, int x, int right, int top, int mouseX, int mouseY) {
+        if (picker == null) return;
+        g.fill(x - 2, top - 2, right + 2, top + pickerHeight(picker) - 4, 0xFF1C1F26);
+        g.text(font, picker.title(), x, top, GREY, false);
+        int ry = top + PICK_ROW;
+        for (Standing s : picker.picks()) {
+            boolean rival = Sky2MRivals.isRival(s.player(), selected.key());
+            String label = rival ? "[Rival ✓]" : "[Rival]";
+            int bx = right - font.width(label);
+            boolean over = mouseX >= bx - 2 && mouseX < right + 2 && mouseY >= ry - 2 && mouseY < ry + PICK_ROW - 2;
+            if (over) g.fill(bx - 2, ry - 2, right + 2, ry + PICK_ROW - 2, 0xFF2E3440);
+            g.text(font, label, bx, ry, rival ? 0xFF55FF55 : over ? ACCENT : 0xFFFFAA00, false);
+            pickButtons.add(new PickButton(bx - 2, ry - 2, right + 2, ry + PICK_ROW - 2, s.player()));
+
+            g.text(font, s.rank(), x, ry, s.rankColour(), false);
+            int nameX = x + 40, valueRight = bx - 8;
+            // Value and gap when there's room for them and a name; the gap goes first, then the value.
+            String gap = picker.you() == null ? "" : gapText(s, picker.you());
+            String value = gap.isEmpty() ? s.value() : s.value() + "  " + gap;
+            if (valueRight - nameX - font.width(value) < 40) value = s.value();
+            if (valueRight - nameX - font.width(value) < 40) value = "";
+            if (!value.isEmpty()) g.text(font, value, valueRight - font.width(value), ry, 0xFFB8C0CC, false);
+            int nameWidth = valueRight - nameX - (value.isEmpty() ? 0 : font.width(value) + 6);
+            g.text(font, font.plainSubstrByWidth((rival ? "⚔ " : "") + s.player(), Math.max(0, nameWidth)), nameX, ry,
+                rival ? 0xFFFFAA00 : 0xFFFFFFFF, false);
+            if (over) g.setTooltipForNextFrame(font, pickTooltip(s.player(), rival), java.util.Optional.empty(), mouseX, mouseY);
+            ry += PICK_ROW;
+        }
+    }
+
+    /** "(1,234 ahead)" or "(tied)": how far {@code s} is ahead of you. */
+    private String gapText(Standing s, Standing you) {
+        long gap = Math.abs(s.amount() - you.amount());
+        if (gap == 0) return "(tied)";
+        return "(" + (tab == Tab.KILL_TIMES ? SlayerTimes.format(gap) : fmt(gap)) + (s.amount() > you.amount() ? " ahead)" : " behind)");
+    }
+
+    /** What the picker's button does for this player. */
+    private List<Component> pickTooltip(String player, boolean rival) {
+        List<Component> lines = new ArrayList<>();
+        if (!rival) {
+            lines.add(Component.literal("Make " + player + " your rival on " + rivalBoardName()));
+        } else if (Sky2MRivals.isRivalEverywhere(player)) {
+            lines.add(Component.literal("Your rival on all boards").withStyle(ChatFormatting.GOLD));
+            lines.add(Component.literal("Click: rival only on " + rivalBoardName()));
+        } else {
+            lines.add(Component.literal(player + " is your rival on " + rivalBoardName()).withStyle(ChatFormatting.GOLD));
+            lines.add(Component.literal("Click to undo"));
+        }
+        return lines;
     }
 
     /** The board's name for rivals ("Wheat", "Slayer XP Zombie", "Kill Times Revenant Horror V"). */
@@ -572,9 +666,18 @@ public final class Sky2MLeaderboardScreen extends Screen {
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (super.mouseClicked(event, doubleClick)) return true;
         if (event.button() != 0 && event.button() != 1) return false;
+        // The rival picker's buttons: rival on this board, or undo.
+        if (event.button() == 0 && selected != null) {
+            for (PickButton b : pickButtons) {
+                if (event.x() >= b.x0() && event.x() < b.x1() && event.y() >= b.y0() && event.y() < b.y1()) {
+                    Sky2MRivals.toggle(b.player(), selected.key(), rivalBoardName());
+                    return true;
+                }
+            }
+        }
         // A player in the standings: make them your rival on this board, or stop (right-click: on every board).
         List<Standing> rows = standings();
-        int tableTop = contentTop() + 22 + 14;
+        int tableTop = contentTop() + 22 + pickerHeight(picker(rows)) + 14;
         if (rows != null && selected != null && event.x() >= tableLeft() - 2 && event.x() < tableRight() + 2 && event.y() >= tableTop - 2 && event.y() < contentBottom()) {
             int row = tableScroll + (int) ((event.y() - tableTop + 2) / TABLE_ROW);
             if (row >= 0 && row < rows.size() && !rows.get(row).self()) {

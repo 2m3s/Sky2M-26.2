@@ -27,14 +27,16 @@ import java.util.regex.Pattern;
 
 /**
  * Profit per slayer boss: "T5 Tara Profit: -10k" in chat after each kill, with a hover listing each drop and its value, the
- * drops' total, the quest's cost and what's left, and the same in the Boss Profit HUD. Drops are what came into your
- * inventory since your boss spawned, what went straight into your sacks (Hypixel's "[Sacks]" messages) and what it
- * showed on the ground when it died (whichever is more for each item), and only
- * items that boss drops (SkyHanni's slayer drop lists), so mob drops and pickups meanwhile don't count. The
+ * drops' total, the quest's cost and what's left, and the same in the Boss Profit HUD. It counts by the same rules as
+ * the slayer profit trackers (SkyHanni's SlayerProfitTracker), so the two agree: only items on that boss's own slayer
+ * drop list (SkyHanni's SlayerProfitTrackerItems; nothing counts until the lists have loaded), "[Sacks]" changes within
+ * 10 seconds of a Sack menu are you moving items, not drops, and the cost is the spawn cost actually paid
+ * ({@link SlayerQuestCost}: the purse drop at the quest start, or auto-slayer's bank charge; "unknown" and 0 if neither
+ * was seen). Drops are what came into your inventory since your boss spawned, what went straight into your sacks
+ * (Hypixel's "[Sacks]" messages) and what it showed on the ground when it died (whichever is more for each item). The
  * chat line goes out once the drops on the ground have landed (or the "[Sacks]" message with them comes), at most
- * 30 seconds after the kill;
- * the HUD shows from the moment the boss dies and fills in as later drops arrive, for up to 30 seconds. The cost is
- * what your purse went down by when the quest started, or Hypixel's price for that boss and tier.
+ * 30 seconds after the kill; the HUD shows from the moment the boss dies and fills in as later drops arrive, for up to
+ * 30 seconds.
  */
 public final class SlayerBossProfit {
     /**
@@ -46,7 +48,6 @@ public final class SlayerBossProfit {
     private static final long TRACK_MS = 30_000L;
     /** "+64 Revenant Flesh (Combat Sack)" in a "[Sacks]" message's hover. */
     private static final Pattern SACK_CHANGE = Pattern.compile("^ *([+-])([0-9,]+) (.+?) [(].*[)] *$");
-    private static final Pattern NUMBER = Pattern.compile("[\\d,.]+");
 
     /** Inventory when your boss spawned: item price id -> count. */
     private static Map<String, Integer> baseline;
@@ -58,12 +59,10 @@ public final class SlayerBossProfit {
     /** The latest result, for the HUD, and when its boss died. */
     private static Result last;
 
-    /** What the purse went down by around the last quest start, or -1 (checked against the price at the kill). */
-    private static long questPaid = -1;
-    private static long questStartedAt;
-    /** The purse over the last 15 seconds: {time, coins}. Hypixel takes the fee before "SLAYER QUEST STARTED!". */
-    private static final java.util.ArrayDeque<double[]> PURSE = new java.util.ArrayDeque<>();
     private static int ticks;
+    /** When a Sack menu was last open: SkyHanni's ItemAddManager treats sack changes for 10s after it as moved items. */
+    private static long lastSackMenuAt;
+    private static final long SACK_MENU_MS = 10_000L;
 
     private static final class Kill {
         final String boss;
@@ -77,6 +76,7 @@ public final class SlayerBossProfit {
         final java.util.Set<Integer> seenItems = new java.util.HashSet<>();
         /** When the first of the boss's drops showed on the ground, or 0. */
         long groundAt;
+        /** The spawn cost paid, or -1 when it wasn't seen. */
         final long cost;
         boolean posted;
 
@@ -91,10 +91,10 @@ public final class SlayerBossProfit {
 
     private record Line(String name, long amount, double value) {}
 
-    /** One boss's drops (most valuable first), their total, the quest's cost and the profit. */
-    private record Result(String boss, long at, List<Line> lines, double drops, long cost, boolean counting) {
+    /** One boss's drops (most valuable first), their total, the quest's cost (-1 if unknown) and the profit. */
+    private record Result(String boss, long at, List<Line> lines, double drops, long cost, boolean counting, boolean listLoaded) {
         double total() {
-            return drops - cost;
+            return drops - Math.max(0, cost);
         }
     }
 
@@ -106,6 +106,9 @@ public final class SlayerBossProfit {
     private static final String DROPS_URL = "https://raw.githubusercontent.com/hannibal002/SkyHanni-REPO/main/constants/SlayerProfitTrackerItems.json";
     /** Slayer ("Revenant Horror") -> the keys its drops can show up as (see {@link #keys}). Empty until loaded. */
     private static volatile Map<String, java.util.Set<String>> drops = Map.of();
+
+    /** Whether SkyHanni's drop lists have loaded, for /s2 selftest. */
+    public static boolean dropListsLoaded() { return !drops.isEmpty(); }
 
     /** Downloads the drop lists (kept on disk for when GitHub can't be reached). */
     private static void loadDrops(java.nio.file.Path configDir) {
@@ -183,14 +186,18 @@ public final class SlayerBossProfit {
         return n > 0 ? "T" + n + " " + slayer : slayer;
     }
 
-    /** Whether {@code id} (a price id, or a pet's LVL_n_TIER_TYPE) is one of the boss's drops; all count before the list loads. */
+    /**
+     * Whether {@code id} (a price id, or a pet's LVL_n_TIER_TYPE) is on the boss's own slayer's drop list, the same
+     * rule as the slayer profit trackers; nothing counts before the lists load.
+     */
     private static boolean isBossDrop(String boss, String id) {
+        return isDropOf(slayer(boss), id);
+    }
+
+    /** Whether the boss's slayer drop list has loaded (else nothing can count, and the hover says so). */
+    private static boolean listLoaded(String boss) {
         java.util.Set<String> keys = drops.get(slayer(boss));
-        if (keys == null || keys.isEmpty()) return true;
-        if (id == null) return false;
-        if (keys.contains(id)) return true;
-        Matcher pet = PET_ID.matcher(id);
-        return pet.matches() && keys.contains("PET:" + pet.group(1));
+        return keys != null && !keys.isEmpty();
     }
 
     /**
@@ -233,7 +240,9 @@ public final class SlayerBossProfit {
 
     public static void init(java.nio.file.Path configDir) {
         loadDrops(configDir);
+        SlayerQuestCost.init();
         ClientTickEvents.END_CLIENT_TICK.register(mc -> {
+            if (mc.gui.screen() != null && mc.gui.screen().getTitle().getString().contains("Sack")) lastSackMenuAt = System.currentTimeMillis();
             if (++ticks % 5 == 0) tick();
             // Right after a kill, every tick: the boss's drops land on the ground all at once, and the chat line goes
             // out as soon as they have.
@@ -265,12 +274,12 @@ public final class SlayerBossProfit {
     private static void onMessage(Component component) {
         String text = Sky2MLocation.strip(component.getString()).trim();
         if (text.equals("SLAYER QUEST STARTED!")) {
-            // The fee is taken when you click Maddox's menu, just before this message; the scoreboard can lag behind.
-            questStartedAt = System.currentTimeMillis();
-            questPaid = -1;
             // Prices load on first use: get them now so they're there when the boss dies.
             Sky2MPriceTooltip.warmup();
         } else if (text.startsWith("[Sacks]") && kill != null) {
+            // As the slayer trackers (SkyHanni's ItemAddManager): changes while or just after a Sack menu is open are
+            // you moving items.
+            if (System.currentTimeMillis() - lastSackMenuAt < SACK_MENU_MS) return;
             boolean bossDrops = false;
             for (Map.Entry<String, Long> e : sackGains(component).entrySet()) {
                 if (e.getValue() <= 0) continue;
@@ -282,52 +291,6 @@ public final class SlayerBossProfit {
             // from before the kill, doesn't count: the boss's come in a later one.)
             if (bossDrops) postChat();
         }
-    }
-
-    /** The purse (or Piggy) from the scoreboard, or -1. */
-    private static double purse() {
-        String value = Sky2MLocation.scoreboardValue("Purse:");
-        if (value == null) value = Sky2MLocation.scoreboardValue("Piggy:");
-        if (value == null) return -1;
-        Matcher m = NUMBER.matcher(value);
-        if (!m.find()) return -1;
-        try {
-            return Double.parseDouble(m.group().replace(",", ""));
-        } catch (NumberFormatException e) {
-            return -1;
-        }
-    }
-
-    /**
-     * The quest's cost for {@code boss}: what the purse went down by if that's Hypixel's price or half of it
-     * (Aatrox's Slashed Pricing), else Hypixel's price. Other coin changes around the quest start can't be mistaken
-     * for the fee that way.
-     */
-    private static long cost(String boss) {
-        long standard = standardCost(boss);
-        if (questPaid > 0 && standard > 0) {
-            for (long price : new long[]{standard, standard / 2}) {
-                if (Math.abs(questPaid - price) <= price * 0.05) return price;
-            }
-        }
-        return standard;
-    }
-
-    /** Hypixel's price for a quest (without Aatrox's discount). */
-    private static long standardCost(String boss) {
-        // Rift quests cost motes, not coins.
-        if (boss.startsWith("Riftstalker Bloodfiend")) return 0;
-        String tier = boss.substring(boss.lastIndexOf(' ') + 1);
-        boolean blaze = boss.startsWith("Inferno Demonlord");
-        if (boss.startsWith("Atoned Horror")) tier = "V";
-        return switch (tier) {
-            case "I" -> blaze ? 10_000 : 2_000;
-            case "II" -> blaze ? 25_000 : 7_500;
-            case "III" -> blaze ? 60_000 : 20_000;
-            case "IV" -> blaze ? 150_000 : 50_000;
-            case "V" -> 100_000;
-            default -> 0;
-        };
     }
 
     // ---------------------------------------------------------------- the fight
@@ -350,7 +313,7 @@ public final class SlayerBossProfit {
     static void onKill(String boss) {
         if (!enabled() || baseline == null) return;
         if (kill != null) close();
-        long cost = cost(boss);
+        long cost = SlayerQuestCost.cost();
         kill = new Kill(boss, System.currentTimeMillis(), baseline, new LinkedHashMap<>(observedGains), cost);
         hudUntil = Long.MAX_VALUE;
         // Items that were lying around when the boss spawned aren't its drops (ones dropped since are, even if they
@@ -376,21 +339,6 @@ public final class SlayerBossProfit {
 
     private static void tick() {
         long now = System.currentTimeMillis();
-        double purse = purse();
-        if (purse >= 0) {
-            PURSE.addLast(new double[]{now, purse});
-            while (!PURSE.isEmpty() && now - PURSE.peekFirst()[0] > 15_000L) PURSE.removeFirst();
-            // Three seconds after the quest started the scoreboard shows the fee paid: the drop from the highest
-            // purse in the 10 seconds before the message.
-            if (questStartedAt > 0 && now - questStartedAt > 3_000L) {
-                double highest = -1;
-                for (double[] sample : PURSE) {
-                    if (sample[0] >= questStartedAt - 10_000L && sample[0] <= questStartedAt) highest = Math.max(highest, sample[1]);
-                }
-                questPaid = highest > purse ? Math.round(highest - purse) : -1;
-                questStartedAt = 0;
-            }
-        }
         // Sample inventory throughout the fight, not just after the boss dies. This catches drops that are
         // consumed, moved to sacks, or otherwise disappear before the kill snapshot is taken.
         if (baseline != null) observeInventory();
@@ -452,7 +400,7 @@ public final class SlayerBossProfit {
     private static void close() {
         refresh();
         postChat();
-        if (last != null) last = new Result(last.boss(), last.at(), last.lines(), last.drops(), last.cost(), false);
+        if (last != null) last = new Result(last.boss(), last.at(), last.lines(), last.drops(), last.cost(), false, last.listLoaded());
         kill = null;
     }
 
@@ -508,7 +456,7 @@ public final class SlayerBossProfit {
         }
         lines.sort((a, b) -> Double.compare(b.value(), a.value()));
         double drops = lines.stream().mapToDouble(Line::value).sum();
-        last = new Result(k.boss, k.at, List.copyOf(lines), drops, k.cost, true);
+        last = new Result(k.boss, k.at, List.copyOf(lines), drops, k.cost, true, listLoaded(k.boss));
     }
 
     // ---------------------------------------------------------------- chat
@@ -528,13 +476,14 @@ public final class SlayerBossProfit {
         if (c == null || !c.chat) return;
         Result r = last;
         MutableComponent hover = Component.literal(r.boss() + " drops").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD);
-        if (r.lines().isEmpty()) hover.append(Component.literal("\nNo drops seen").withStyle(ChatFormatting.GRAY));
+        if (!r.listLoaded()) hover.append(Component.literal("\nDrop list not loaded").withStyle(ChatFormatting.RED));
+        else if (r.lines().isEmpty()) hover.append(Component.literal("\nNo drops seen").withStyle(ChatFormatting.GRAY));
         for (Line line : r.lines()) {
             hover.append(Component.literal("\n" + line.amount() + "x " + line.name() + "  ").withStyle(ChatFormatting.WHITE))
                 .append(Component.literal(line.value() > 0 ? CombatFeatures.formatCoins(line.value()) : "no price").withStyle(ChatFormatting.GOLD));
         }
         hover.append(Component.literal("\n\nDrops: ").withStyle(ChatFormatting.GRAY)).append(Component.literal(CombatFeatures.formatCoins(r.drops())).withStyle(ChatFormatting.GOLD))
-            .append(Component.literal("\nSlayer cost: ").withStyle(ChatFormatting.GRAY)).append(Component.literal("-" + CombatFeatures.formatCoins(r.cost())).withStyle(ChatFormatting.RED))
+            .append(Component.literal("\nSlayer cost: ").withStyle(ChatFormatting.GRAY)).append(costText(r.cost()))
             .append(Component.literal("\nTotal: ").withStyle(ChatFormatting.GRAY)).append(coins(r.total()));
         Sky2MAlerts.chat(Component.literal(shortName(r.boss()) + " Profit: ").withStyle(style -> style.withColor(ChatFormatting.YELLOW)
                 .withHoverEvent(new HoverEvent.ShowText(hover)))
@@ -577,8 +526,14 @@ public final class SlayerBossProfit {
         }
         if (r.lines().size() > rows) lines.add(Component.literal("+" + (r.lines().size() - rows) + " more").withStyle(ChatFormatting.DARK_GRAY));
         lines.add(Component.literal("Slayer cost: ").withStyle(ChatFormatting.GRAY)
-            .append(Component.literal("-" + CombatFeatures.formatCoins(r.cost())).withStyle(ChatFormatting.RED)));
+            .append(costText(r.cost())));
         return lines;
+    }
+
+    /** "-100k", or "unknown" when the spawn cost wasn't seen (it counts as 0 then). */
+    private static MutableComponent costText(long cost) {
+        if (cost < 0) return Component.literal("unknown").withStyle(ChatFormatting.DARK_GRAY);
+        return Component.literal("-" + CombatFeatures.formatCoins(cost)).withStyle(ChatFormatting.RED);
     }
 
     private static MutableComponent coins(double value) {

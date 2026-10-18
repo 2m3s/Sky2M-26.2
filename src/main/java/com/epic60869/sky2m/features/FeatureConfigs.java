@@ -956,6 +956,54 @@ public final class FeatureConfigs {
         @ConfigOption(name = "Show Minibosses", desc = "Also show slayer minibosses near you in the HUD, under Hypixel's SLAYER MINIBOSS line with their name and health.")
         @ConfigEditorBoolean
         public boolean showMinibosses = true;
+
+        @Expose
+        @ConfigOption(name = "T5 Phase Times", desc = "For Tier 5 Tarantula and Tier 5 Revenant, under the boss in the Boss Phase Display (needs it on): hits left while the nametag shows hits, the current phase's time, and each finished phase's time with the downtime between phases (while the boss's nametag is gone, e.g. Tarantula Broodfather to Conjoined Brood).")
+        @ConfigEditorBoolean
+        public boolean t5PhaseTimes = false;
+
+        @Expose
+        @ConfigOption(name = "T5 Phase Summary", desc = "When a Tier 5 Tarantula or Revenant dies, one line in chat (only you see it), e.g. \"T5 Tara: 41.2s (phase 1 18.1s · downtime 3.4s · phase 2 19.7s)\". Replaces the Phase Timer's chat summary for those bosses.")
+        @ConfigEditorBoolean
+        public boolean t5PhaseSummary = false;
+    }
+
+    /** Title and sound when your slayer boss spawns, for runs where you aren't watching the screen. */
+    public static final class BossSpawnAlert {
+        @Expose
+        @ConfigOption(name = "Boss Spawn Alert", desc = "\"BOSS SPAWNED\" with the boss and tier (e.g. Tarantula Broodfather V) and a sound as soon as the sidebar says \"Slay the boss!\" for your quest, or when your boss's nametag appears. If the boss is off-screen, the subtitle says where it is.")
+        @ConfigEditorBoolean
+        public boolean enabled = true;
+
+        @Expose
+        @ConfigOption(name = "Sound", desc = "Sound played with the alert.")
+        @ConfigEditorDropdown
+        public BossSpawnSound sound = BossSpawnSound.ANVIL;
+
+        @Expose
+        @ConfigOption(name = "Volume", desc = "Volume of the alert sound.")
+        @ConfigEditorSlider(minValue = 0.1f, maxValue = 1f, minStep = 0.05f)
+        public float volume = 1f;
+
+        @Expose
+        @ConfigOption(name = "Repeat Until Seen", desc = "Play the sound again every 2 seconds until your boss is on-screen or under your crosshair, for up to 10 seconds.")
+        @ConfigEditorBoolean
+        public boolean repeatUntilSeen = false;
+    }
+
+    public enum BossSpawnSound {
+        ANVIL("Anvil"), BELL("Bell"), PLING("Pling"), LEVEL_UP("Level Up"), WITHER("Wither Spawn"), DRAGON("Dragon Growl");
+
+        private final String label;
+
+        BossSpawnSound(String label) {
+            this.label = label;
+        }
+
+        @Override
+        public String toString() {
+            return label;
+        }
     }
 
     /** Voidgloom Seraph helpers, ported from SkyHanni's Enderman slayer features. */
@@ -3972,6 +4020,16 @@ public final class FeatureConfigs {
         public boolean history = true;
 
         @Expose
+        @ConfigOption(name = "Flag Kicked Players", desc = "When someone you kicked from your group before joins your Party Finder group or your party, warn in chat: how often you kicked them and when last, your note on them, and [Kick] and [History] buttons. Kicks count once Hypixel says they were removed.")
+        @ConfigEditorBoolean
+        public boolean flagKicked = true;
+
+        @Expose
+        @ConfigOption(name = "Auto-Note Kicks", desc = "The first time you kick someone who joined your Party Finder group, save a note on them (\"Kicked from M7 on Oct 18, 2026\") unless they already have one. See /s2 notes.")
+        @ConfigEditorBoolean
+        public boolean autoNoteKicks = false;
+
+        @Expose
         @ConfigOption(name = "Kick Button", desc = "Adds a [KICK] button under the stats that kicks them from the party.")
         @ConfigEditorBoolean
         public boolean kickButton = true;
@@ -4274,7 +4332,9 @@ public final class FeatureConfigs {
 
     public enum ProfitSummaryLine {
         COINS("Coins"), KERNEL_PROFIT("Kernel Profit"), QUEST_COSTS("Costs"), TOTAL_PROFIT("Total Profit"),
-        PROFIT_PER_HOUR("Profit/h"), ACTIONS("Actions"), UPTIME("Uptime");
+        PROFIT_PER_HOUR("Profit/h"), ACTIONS("Actions"), UPTIME("Uptime"),
+        /** Slayer trackers only: bosses/h and profit/boss this session, with your best session. Not in any defaults. */
+        PACE("Slayer Pace");
 
         private final String label;
 
@@ -4288,7 +4348,7 @@ public final class FeatureConfigs {
         }
 
         static List<ProfitSummaryLine> farmingDefaults() {
-            return List.of(values());
+            return List.of(COINS, KERNEL_PROFIT, QUEST_COSTS, TOTAL_PROFIT, PROFIT_PER_HOUR, ACTIONS, UPTIME);
         }
 
         static List<ProfitSummaryLine> standardDefaults() {
@@ -4387,6 +4447,15 @@ public final class FeatureConfigs {
         @ConfigOption(name = "Price", desc = "Bazaar insta-sell price, sell offer price, or both as a range (insta-sell to sell offer). Items not on the bazaar use their NPC sell price.")
         @ConfigEditorDropdown
         public SacksPriceMode priceMode = SacksPriceMode.RANGE;
+
+        @Expose
+        @ConfigOption(name = "Value History", desc = "Save your sacks' total value once a day per profile (the latest value of each day; the insta-sell value when Price is Range) whenever Sacks Value works it out, and draw it as a graph with /s2 sacks history. Needs Sacks Value on.")
+        @ConfigEditorBoolean
+        public boolean history = true;
+
+        @ConfigOption(name = "Open Value Graph", desc = "Your sacks' value over time. Also /s2 sacks history.")
+        @ConfigEditorButton(buttonText = "Open")
+        public Runnable openHistory = com.epic60869.sky2m.features.misc.SackValueHistory::open;
     }
 
     public enum SacksPriceMode {
@@ -5691,6 +5760,24 @@ public final class FeatureConfigs {
         @ConfigOption(name = "Phase Alerts", desc = "A title and ding when your boss switches between a hit phase and a damage phase (needs Enabled).")
         @ConfigEditorBoolean
         public boolean phaseAlerts = false;
+    }
+
+    /** Slayer RNG meter HUD, ported from SkyHanni's SlayerRngMeterDisplay. */
+    public static final class SlayerRngMeterDisplay {
+        @Expose
+        @ConfigOption(name = "Enabled", desc = "A HUD for your current quest's slayer: the drop selected in its RNG Meter (open Maddox's RNG Meter menu once to read it), the meter's progress (\"Scythe Blade: 63.2% (XP / needed)\") from the Stored XP line after each boss, and about how many bosses are left. Move it in /s2 gui.")
+        @ConfigEditorBoolean
+        public boolean enabled = false;
+
+        @Expose
+        @ConfigOption(name = "Bosses Left", desc = "Show how many bosses are left: the XP still needed over the XP one boss added last time (or the tier's slayer XP before that).")
+        @ConfigEditorBoolean
+        public boolean bossesLeft = true;
+
+        @Expose
+        @ConfigOption(name = "Warn Without a Drop", desc = "After a boss, say in chat when that slayer has no RNG Meter drop selected.")
+        @ConfigEditorBoolean
+        public boolean warnEmpty = false;
     }
 
     public static final class DamageNumbers {

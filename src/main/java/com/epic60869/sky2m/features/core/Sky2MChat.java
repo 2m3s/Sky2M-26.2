@@ -42,7 +42,7 @@ public final class Sky2MChat {
             try {
                 listener.onMessage(component, overlay);
             } catch (Exception e) {
-                com.epic60869.sky2m.features.sbc.SbcCrashReports.report(e, "chat listener");
+                Sky2MErrors.caught(Sky2MPerf.nameOf(listener), e, "chat listener");
             }
             Sky2MPerf.end(Sky2MPerf.Kind.CHAT, Sky2MPerf.nameOf(listener), started);
         }
@@ -57,7 +57,7 @@ public final class Sky2MChat {
             try {
                 listener.onMessage(message);
             } catch (Exception e) {
-                com.epic60869.sky2m.features.sbc.SbcCrashReports.report(e, "chat listener");
+                Sky2MErrors.caught(Sky2MPerf.nameOf(listener), e, "chat listener");
             }
             Sky2MPerf.end(Sky2MPerf.Kind.CHAT, Sky2MPerf.nameOf(listener), started);
         }

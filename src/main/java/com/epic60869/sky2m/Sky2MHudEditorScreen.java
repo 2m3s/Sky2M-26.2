@@ -143,8 +143,14 @@ public final class Sky2MHudEditorScreen extends Screen {
                 () -> com.epic60869.sky2m.features.core.Sky2MHuds.editorWidth(hud),
                 () -> com.epic60869.sky2m.features.core.Sky2MHuds.editorHeight(hud),
                 (g, x, y) -> {
-                    if (hud.custom() != null) com.epic60869.sky2m.features.core.Sky2MHuds.renderCustom(g, hud, true);
-                    else com.epic60869.sky2m.features.core.Sky2MHuds.render(g, com.epic60869.sky2m.features.core.Sky2MHuds.editorLines(hud), x, y, placement.scale, placement.background);
+                    // A custom HUD that throws would otherwise take the whole editor screen down with it.
+                    if (hud.custom() != null) {
+                        try {
+                            com.epic60869.sky2m.features.core.Sky2MHuds.renderCustom(g, hud, true);
+                        } catch (Exception ex) {
+                            com.epic60869.sky2m.features.core.Sky2MErrors.caught(hud.name(), ex);
+                        }
+                    } else com.epic60869.sky2m.features.core.Sky2MHuds.render(g, com.epic60869.sky2m.features.core.Sky2MHuds.editorLines(hud), x, y, placement.scale, placement.background);
                 }, "hud:" + hud.id()));
         }
         // Move every HUD to where it is drawn on this screen (GUI scale / window size may have changed since it

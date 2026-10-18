@@ -69,7 +69,8 @@ public final class SlayerTimes {
     /** Whether the boss scan in {@link SlayerFeatures} has to run for these messages. */
     static boolean enabled() {
         Sky2MConfig.PersonalBest config = config();
-        return config != null && (config.timeToKill || config.personalBests) || SlayerBossProfit.enabled();
+        return config != null && (config.timeToKill || config.personalBests) || SlayerBossProfit.enabled()
+            || SlayerBossSpawnAlert.enabled();
     }
 
     /**
@@ -87,7 +88,8 @@ public final class SlayerTimes {
             return;
         }
         if (killed) return;
-        if (spawnedAt == 0) {
+        boolean spawned = spawnedAt == 0;
+        if (spawned) {
             spawnedAt = now;
             SlayerBossProfit.onSpawn();
         }
@@ -105,6 +107,8 @@ public final class SlayerTimes {
                 saveLastBoss();
             }
         }
+        // After the name is read, so the alert can say which boss and tier it is.
+        if (spawned) SlayerBossSpawnAlert.onNametagSpawn(boss);
     }
 
     /**

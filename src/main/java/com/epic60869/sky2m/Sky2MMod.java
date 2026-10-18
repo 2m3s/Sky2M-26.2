@@ -67,9 +67,11 @@ public final class Sky2MMod implements ClientModInitializer {
         com.epic60869.sky2m.features.slayer.EndermanSlayer.init();
         com.epic60869.sky2m.features.slayer.BlazeSlayer.init();
         com.epic60869.sky2m.features.slayer.RngMeterValue.init();
+        com.epic60869.sky2m.features.slayer.SlayerRngMeterDisplay.init(configDir);
         com.epic60869.sky2m.features.slayer.SlayerTimes.init(configDir);
         com.epic60869.sky2m.features.slayer.SlayerPbHud.init();
         com.epic60869.sky2m.features.slayer.SlayerMinibossAlert.init();
+        com.epic60869.sky2m.features.slayer.SlayerBossSpawnAlert.init();
         com.epic60869.sky2m.features.slayer.SlayerBossProfit.init(configDir);
         com.epic60869.sky2m.features.garden.GardenFeatures.init();
         com.epic60869.sky2m.features.fishing.FishingFeatures.init();
@@ -150,6 +152,11 @@ public final class Sky2MMod implements ClientModInitializer {
         com.epic60869.sky2m.features.misc.KeybindSheetScreen.register();
         com.epic60869.sky2m.features.misc.ScreenshotGallery.register();
         com.epic60869.sky2m.features.core.Sky2MPerfScreen.register();
+        com.epic60869.sky2m.features.core.Sky2MPerfWarnings.register();
+        com.epic60869.sky2m.features.core.Sky2MErrors.register();
+        com.epic60869.sky2m.features.core.Sky2MHudOverviewScreen.register();
+        Sky2MConfigCode.init();
+        Sky2MSelfTest.init();
         Sky2MNopoFeatures.init(configDir);
         Sky2MNick.init(config);
         Sky2MMouseLock.init(config);
@@ -203,6 +210,7 @@ public final class Sky2MMod implements ClientModInitializer {
         com.epic60869.sky2m.features.misc.CarryTracker.init(configDir);
         com.epic60869.sky2m.features.misc.MayorDisplay.init();
         com.epic60869.sky2m.features.misc.NetworthHistory.init(configDir);
+        com.epic60869.sky2m.features.misc.SackValueHistory.init(configDir);
         com.epic60869.sky2m.features.misc.ItemQuality.init();
         com.epic60869.sky2m.features.misc.ChatFilters.init();
         com.epic60869.sky2m.features.misc.SpamFilters.init();

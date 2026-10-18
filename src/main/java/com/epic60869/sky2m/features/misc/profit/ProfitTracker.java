@@ -10,8 +10,10 @@ import com.epic60869.sky2m.features.core.Sky2MChat;
 import com.epic60869.sky2m.features.core.Sky2MHuds;
 import com.epic60869.sky2m.features.core.Sky2MLocation;
 import com.epic60869.sky2m.features.fishing.FishingData;
+import com.epic60869.sky2m.features.garden.Crops;
 import com.epic60869.sky2m.features.slayer.SlayerArea;
 import com.epic60869.sky2m.features.slayer.SlayerBossProfit;
+import com.epic60869.sky2m.features.slayer.SlayerQuestCost;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -38,7 +40,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -152,12 +153,10 @@ public final class ProfitTracker {
 
     private static final Pattern PEST_KILL = Pattern.compile("^You received (\\d+)x (.+) for killing an? (.+)!$");
     private static final String KERNEL_DONATION = "[NPC] Feast Chef Ted: Thanks for the donation! I've added a Kernel to your purse.";
-    private static final Pattern NUMBER = Pattern.compile("[\\d,]+(?:\\.\\d+)?");
     private static final Pattern TREASURE_CATCH = Pattern.compile("^. (?:GOOD|GREAT|OUTSTANDING|MUSICAL) CATCH!|^. (?:GOOD|GREAT|OUTSTANDING) JUNK CATCH!|^. TROPHY (?:FISH|FROG)!");
     private static final long BOUNTIFUL_WINDOW_MS = 2_000L;
     private static final long COMPACTION_WINDOW_MS = 60_000L;
     private static final long SACK_WINDOW_MS = 60_000L;
-    private static final long QUEST_COST_WINDOW_MS = 3_000L;
     private static final Gson GSON = new GsonBuilder().excludeFieldsWithoutExposeAnnotation().setPrettyPrinting().create();
 
     private static final Map<Preset, PresetData> PRESETS = new EnumMap<>(Preset.class);
@@ -169,7 +168,6 @@ public final class ProfitTracker {
     private static final Map<String, Conversion> conversions = new ConcurrentHashMap<>();
     private static final Map<String, Integer> replenishCosts = new HashMap<>();
     private static final Map<String, long[]> removals = new HashMap<>();
-    private static final ArrayDeque<double[]> purseHistory = new ArrayDeque<>();
 
     private static Path file;
     private static boolean dirty;
@@ -182,8 +180,6 @@ public final class ProfitTracker {
     private static long lastCraftingAt;
     /** When a menu was last open, and a Sack menu: SkyHanni ignores purse gains for 2s after a menu, sack changes for 10s after a Sack. */
     private static long lastScreenAt, lastSackMenuAt;
-    /** SkyHanni's slayer.autoslayer.bank pattern: auto-slayer takes the spawn cost from your bank, not your purse. */
-    private static final Pattern AUTO_SLAYER_BANK = Pattern.compile("^Took (.+) coins from your bank for auto-slayer\\.\\.\\.$");
     private static double lastPurse = -1;
     private static long lastFarmed;
     private static Preset shownPreset;
@@ -191,8 +187,6 @@ public final class ProfitTracker {
     private static Preset previousPreset;
     private static Preset lastCounting;
     private static long previousPresetLeftAt;
-    private static long questStartedAt;
-    private static Preset questPreset;
     private static boolean conversionsRequested;
 
     private ProfitTracker() {}
@@ -235,6 +229,8 @@ public final class ProfitTracker {
         file = configDir.resolve("sky2m").resolve("profit-trackers.json");
         loadPresets();
         SlayerArea.init();
+        SlayerQuestCost.init();
+        SlayerQuestCost.onCharge(ProfitTracker::onQuestCharge);
         for (Preset preset : Preset.values()) {
             SAVED.put(preset, new Saved());
             SESSION.put(preset, new Stats());
@@ -304,45 +300,17 @@ public final class ProfitTracker {
         return matches.size() == 1 ? matches.getFirst() : null;
     }
 
-    /**
-     * The slayer quest, as a preset (SkyHanni's SlayerType names): from the sidebar, else its team lines (a scoreboard
-     * mod such as SkyHanni's custom scoreboard can take the sidebar objective away), else the tab list (its Slayer widget),
-     * as SkyHanni falls back to. Letters only: Hypixel's padding symbols (some, like ⚽, survive the scoreboard cleanup)
-     * can land inside the boss's name.
-     */
+    /** The slayer quest, as a preset ({@link SlayerArea#questSlayer} reads it, shared with the per-kill profit line). */
     private static Preset slayerQuest() {
-        Preset quest = slayerQuestIn(Sky2MLocation.scoreboard());
-        if (quest == null) quest = slayerQuestIn(Sky2MLocation.teamLines());
-        if (quest == null) quest = slayerQuestIn(tabSlayerLines());
-        return quest;
+        return slayerPreset(SlayerArea.questSlayer());
     }
 
-    /** Every tab list line (its entries aren't in display order, and no player name holds a slayer boss's name). */
-    private static List<String> tabSlayerLines() {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.getConnection() == null) return List.of();
-        List<String> out = new ArrayList<>();
-        for (net.minecraft.client.multiplayer.PlayerInfo info : mc.getConnection().getListedOnlinePlayers()) {
-            String text = com.epic60869.sky2m.sim.util.TabText.plain(info);
-            if (text != null && !text.isBlank()) out.add(text);
-        }
-        return out;
-    }
-
-    private static Preset slayerQuestIn(List<String> lines) {
-        for (String raw : lines) {
-            String line = LETTERS_ONLY.matcher(raw).replaceAll("");
-            if (line.contains("RevenantHorror") || line.contains("AtonedHorror")) return Preset.ZOMBIE;
-            if (line.contains("TarantulaBroodfather") || line.contains("ConjoinedBrood")) return Preset.SPIDER;
-            if (line.contains("SvenPackmaster")) return Preset.WOLF;
-            if (line.contains("VoidgloomSeraph")) return Preset.ENDERMAN;
-            if (line.contains("InfernoDemonlord")) return Preset.BLAZE;
-            if (line.contains("Bloodfiend")) return Preset.VAMPIRE;
-        }
+    /** "Revenant Horror" -> ZOMBIE..., or null. */
+    private static Preset slayerPreset(String slayerName) {
+        if (slayerName == null) return null;
+        for (Preset preset : Preset.values()) if (preset.slayer() && slayerName.equals(preset.slayerName())) return preset;
         return null;
     }
-
-    private static final Pattern LETTERS_ONLY = Pattern.compile("[^A-Za-z]");
 
     /** What decided the slayer tracker last, logged when it changes, so a test's log shows why it did or didn't count. */
     private static String slayerState = "";
@@ -562,7 +530,7 @@ public final class ProfitTracker {
     // ------------------------------------------------------------------------------------------------ events
 
     private static void onBreak(Block block, long gameTime) {
-        if (currentPreset() != Preset.FARMING || !isCrop(block)) return;
+        if (currentPreset() != Preset.FARMING || !Crops.isCrop(block)) return;
         long now = System.currentTimeMillis();
         activity(Preset.FARMING);
         lastFarmed = now;
@@ -619,27 +587,12 @@ public final class ProfitTracker {
             dirty = true;
             return;
         }
-        if (text.equals("SLAYER QUEST STARTED!")) {
-            questStartedAt = System.currentTimeMillis();
-            questPreset = null;
-            return;
-        }
         if (text.equals("SLAYER QUEST COMPLETE!")) {
             // SkyHanni counts the boss for your quest's tracker wherever you are when it completes.
             Preset slayer = slayerQuest();
             if (slayer != null && counting(slayer)) {
                 for (Stats stats : targets(slayer)) stats.actions++;
                 activity(slayer);
-                dirty = true;
-            }
-            return;
-        }
-        Matcher autoSlayer = AUTO_SLAYER_BANK.matcher(text);
-        if (autoSlayer.matches()) {
-            Preset slayer = slayerQuest();
-            long cost = Math.round(parseCoins(autoSlayer.group(1)));
-            if (slayer != null && counting(slayer) && cost > 0 && cost <= 350_000) {
-                for (Stats stats : targets(slayer)) stats.costs += cost;
                 dirty = true;
             }
             return;
@@ -703,7 +656,6 @@ public final class ProfitTracker {
         }
         removals.values().removeIf(r -> r[1] < now);
         trackPurse(mc, current, now);
-        trackQuestCost(now);
         if (mc.gui.screen() != null) {
             String title = mc.gui.screen().getTitle().getString();
             if (title.equals("Craft Item") || title.endsWith(" Recipe")) lastCraftingAt = now;
@@ -768,13 +720,9 @@ public final class ProfitTracker {
      * for slayers, fishing and the Mythological Ritual, and Bountiful coins while farming.
      */
     private static void trackPurse(Minecraft mc, Preset preset, long now) {
-        double purse = purse();
+        double purse = SlayerQuestCost.purse();
         double previous = lastPurse;
         lastPurse = purse;
-        if (purse >= 0) {
-            purseHistory.addLast(new double[]{now, purse});
-            while (!purseHistory.isEmpty() && now - purseHistory.getFirst()[0] > 15_000L) purseHistory.removeFirst();
-        }
         if (preset == null || purse < 0 || previous < 0 || mc.gui.screen() != null) return;
         double gained = purse - previous;
         if (gained <= 1 || gained >= 100_000) return;
@@ -792,50 +740,16 @@ public final class ProfitTracker {
     }
 
     /**
-     * The quest's cost, as SkyHanni's slayer tracker: what the purse actually went down by around "SLAYER QUEST
-     * STARTED!" (up to 350k; Aatrox's discount and the Rift's motes come out right that way). With auto-slayer the
-     * fee comes from the bank instead ({@link #AUTO_SLAYER_BANK}).
+     * A quest's spawn cost, worked out once by {@link SlayerQuestCost} (shared with the per-kill profit line): the
+     * purse fee counts with the quest's activity, auto-slayer's bank charge on its own, as SkyHanni's tracker.
      */
-    private static void trackQuestCost(long now) {
-        if (questStartedAt == 0) return;
-        if (questPreset == null) questPreset = slayerQuest();
-        if (now - questStartedAt < QUEST_COST_WINDOW_MS && questPreset == null) return;
-        Preset preset = questPreset;
-        long started = questStartedAt;
-        questStartedAt = 0;
+    private static void onQuestCharge(SlayerQuestCost.Charge charge) {
+        if (!anyEnabled() || !Sky2MLocation.onSkyblock()) return;
+        Preset preset = slayerPreset(charge.slayer());
         if (preset == null || !counting(preset)) return;
-        double highest = -1;
-        for (double[] entry : purseHistory) if (entry[0] >= started - 10_000L) highest = Math.max(highest, entry[1]);
-        long cost = highest > 0 && lastPurse >= 0 ? Math.round(highest - lastPurse) : -1;
-        if (cost <= 0 || cost > 350_000) return;
-        for (Stats stats : targets(preset)) stats.costs += cost;
-        activity(preset);
+        for (Stats stats : targets(preset)) stats.costs += charge.coins();
+        if (!charge.bank()) activity(preset);
         dirty = true;
-    }
-
-    /** "1.9k", "250,000", "1.2M" -> coins (SkyHanni's formatDouble). */
-    private static double parseCoins(String text) {
-        String t = text.trim().replace(",", "").toLowerCase(java.util.Locale.ROOT);
-        double scale = t.endsWith("k") ? 1e3 : t.endsWith("m") ? 1e6 : t.endsWith("b") ? 1e9 : 1;
-        if (scale != 1) t = t.substring(0, t.length() - 1);
-        try {
-            return Double.parseDouble(t) * scale;
-        } catch (NumberFormatException e) {
-            return -1;
-        }
-    }
-
-    private static double purse() {
-        String value = Sky2MLocation.scoreboardValue("Purse:");
-        if (value == null) value = Sky2MLocation.scoreboardValue("Piggy:");
-        if (value == null) return -1;
-        Matcher m = NUMBER.matcher(value);
-        if (!m.find()) return -1;
-        try {
-            return Double.parseDouble(m.group().replace(",", ""));
-        } catch (NumberFormatException e) {
-            return -1;
-        }
     }
 
     private static Map<String, Integer> inventory(Minecraft mc) {
@@ -869,14 +783,6 @@ public final class ProfitTracker {
         }
     }
 
-    private static boolean isCrop(Block block) {
-        return block == Blocks.WHEAT || block == Blocks.CARROTS || block == Blocks.POTATOES || block == Blocks.NETHER_WART
-            || block == Blocks.PUMPKIN || block == Blocks.CARVED_PUMPKIN || block == Blocks.MELON || block == Blocks.COCOA
-            || block == Blocks.SUGAR_CANE || block == Blocks.CACTUS || block == Blocks.RED_MUSHROOM
-            || block == Blocks.BROWN_MUSHROOM || block == Blocks.RED_MUSHROOM_BLOCK || block == Blocks.BROWN_MUSHROOM_BLOCK
-            || block == Blocks.SUNFLOWER || block == Blocks.ROSE_BUSH;
-    }
-
     /** What Replenish takes back to replant a crop, or null if it doesn't. */
     private static String replenishCrop(Block block, long gameTime) {
         if (block == Blocks.WHEAT) return "SEEDS";
@@ -885,7 +791,7 @@ public final class ProfitTracker {
         if (block == Blocks.NETHER_WART) return "NETHER_STALK";
         if (block == Blocks.COCOA) return "INK_SACK:3";
         if (block == Blocks.ROSE_BUSH) return "WILD_ROSE";
-        if (block == Blocks.SUNFLOWER) return gameTime % 24_000L >= 12_000L ? "MOONFLOWER" : "DOUBLE_PLANT";
+        if (block == Blocks.SUNFLOWER) return Crops.sunflower(gameTime);
         return null;
     }
 

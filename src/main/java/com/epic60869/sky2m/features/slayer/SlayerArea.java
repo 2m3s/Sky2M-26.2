@@ -4,7 +4,10 @@ import com.epic60869.sky2m.features.core.Sky2MLocation;
 import com.epic60869.sky2m.features.hunting.IslandGraph;
 import net.minecraft.client.Minecraft;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * Which slayer the place you're standing in is for, ported from SkyHanni's SlayerApi.checkTypeForCurrentArea: the
@@ -80,4 +83,44 @@ public final class SlayerArea {
         if (Sky2MLocation.area().equals("The End") && IslandGraph.NO_AREA.equals(area)) return "Voidgloom Seraph";
         return null;
     }
+
+    /**
+     * The slayer whose quest you have ("Revenant Horror"..., SkyHanni's SlayerType names), or null: from the sidebar,
+     * else its team lines (a scoreboard mod such as SkyHanni's custom scoreboard can take the sidebar objective away),
+     * else the tab list (its Slayer widget), as SkyHanni falls back to. Letters only: Hypixel's padding symbols (some,
+     * like ⚽, survive the scoreboard cleanup) can land inside the boss's name.
+     */
+    public static String questSlayer() {
+        String quest = questSlayerIn(Sky2MLocation.scoreboard());
+        if (quest == null) quest = questSlayerIn(Sky2MLocation.teamLines());
+        if (quest == null) quest = questSlayerIn(tabLines());
+        return quest;
+    }
+
+    /** Every tab list line (its entries aren't in display order, and no player name holds a slayer boss's name). */
+    private static List<String> tabLines() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.getConnection() == null) return List.of();
+        List<String> out = new ArrayList<>();
+        for (net.minecraft.client.multiplayer.PlayerInfo info : mc.getConnection().getListedOnlinePlayers()) {
+            String text = com.epic60869.sky2m.sim.util.TabText.plain(info);
+            if (text != null && !text.isBlank()) out.add(text);
+        }
+        return out;
+    }
+
+    private static String questSlayerIn(List<String> lines) {
+        for (String raw : lines) {
+            String line = LETTERS_ONLY.matcher(raw).replaceAll("");
+            if (line.contains("RevenantHorror") || line.contains("AtonedHorror")) return "Revenant Horror";
+            if (line.contains("TarantulaBroodfather") || line.contains("ConjoinedBrood")) return "Tarantula Broodfather";
+            if (line.contains("SvenPackmaster")) return "Sven Packmaster";
+            if (line.contains("VoidgloomSeraph")) return "Voidgloom Seraph";
+            if (line.contains("InfernoDemonlord")) return "Inferno Demonlord";
+            if (line.contains("Bloodfiend")) return "Riftstalker Bloodfiend";
+        }
+        return null;
+    }
+
+    private static final Pattern LETTERS_ONLY = Pattern.compile("[^A-Za-z]");
 }

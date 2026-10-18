@@ -34,7 +34,7 @@ public final class Sky2MWorldRender {
             try {
                 renderer.accept(COLLECTOR);
             } catch (Exception e) {
-                com.epic60869.sky2m.features.sbc.SbcCrashReports.report(e, "world renderer");
+                Sky2MErrors.caught(Sky2MPerf.nameOf(renderer), e, "world renderer");
             }
             Sky2MPerf.end(Sky2MPerf.Kind.WORLD, Sky2MPerf.nameOf(renderer), started);
         }

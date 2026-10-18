@@ -93,6 +93,7 @@ public final class Sky2MRivals {
             }
         });
         Sky2MRivalHud.init();
+        Sky2MRivalRecap.init();
     }
 
     // ---------------------------------------------------------------- boards
@@ -301,6 +302,18 @@ public final class Sky2MRivals {
         String key = board(board);
         for (Map<String, String> boards : rivals().values()) if (boards.containsKey(key)) return true;
         return false;
+    }
+
+    /**
+     * Every board someone is your rival on by name (not "all boards"), key -> board name, for the weekly recap's
+     * fetching: "all boards" rivals would mean every board.
+     */
+    public static synchronized Map<String, String> ownBoards() {
+        Map<String, String> out = new LinkedHashMap<>();
+        for (Map<String, String> boards : rivals().values()) {
+            for (Map.Entry<String, String> b : boards.entrySet()) if (!ALL.equals(b.getKey())) out.putIfAbsent(b.getKey(), b.getValue());
+        }
+        return out;
     }
 
     /** The names of the boards {@code name} is your rival on, for tooltips and tab completion. */

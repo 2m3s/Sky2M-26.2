@@ -76,6 +76,7 @@ public final class Sky2MPerf {
         CURRENT.clear();
         frames = 0;
         windowStart = now;
+        Sky2MPerfWarnings.onWindow(last, lastFrames);
     }
 
     public static List<Stat> stats() {

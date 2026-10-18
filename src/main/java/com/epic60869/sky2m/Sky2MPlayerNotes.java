@@ -131,6 +131,21 @@ public final class Sky2MPlayerNotes {
         return note == null ? null : note.text;
     }
 
+    /**
+     * Saves {@code text} as the note on {@code name} unless they already have one, without a chat message (Party
+     * Finder's Auto-Note Kicks never replaces a note you wrote). Returns whether it was saved.
+     */
+    public static synchronized boolean addIfAbsent(String name, String text) {
+        if (name == null || !name.matches("\\w{1,16}") || notes().containsKey(name.toLowerCase(Locale.ROOT))) return false;
+        Note note = new Note();
+        note.name = name;
+        note.text = text.length() > MAX_TEXT ? text.substring(0, MAX_TEXT) : text;
+        note.at = System.currentTimeMillis();
+        notes().put(name.toLowerCase(Locale.ROOT), note);
+        save();
+        return true;
+    }
+
     private static synchronized void set(String name, String text) {
         if (!name.matches("\\w{1,16}")) {
             say(Component.literal("That isn't a Minecraft name.").withStyle(ChatFormatting.RED));

@@ -109,7 +109,7 @@ public final class PartyFinderStats {
         PfHistory.init();
         Sky2MChat.onChat(message -> {
             FeatureConfigs.PartyFinderStats c = config();
-            if (c == null || (!c.enabled && !c.autoKick && !c.history)) return;
+            if (c == null || (!c.enabled && !c.autoKick && !c.history && !c.flagKicked)) return;
             Matcher m = JOINED.matcher(message.text().trim());
             if (!m.matches()) return;
             String name = m.group("name");
@@ -450,7 +450,7 @@ public final class PartyFinderStats {
     }
 
     private static void kick(String name, String why) {
-        PfHistory.onKicked(name);
+        // Counted in PfHistory once Hypixel says they were removed, so a kick that fails isn't counted.
         if (why != null) PartyCommands.partyChat("Kicked " + name + " (" + why + ")");
         PartyCommands.queueCommand("party kick " + name);
     }

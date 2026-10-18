@@ -247,6 +247,13 @@ final class ProfitTrackerHud {
                 case ACTIONS -> rows.add(Row.text("§7" + preset.actionLabel, "§e" + String.format(Locale.US, "%,d", stats.actions)));
                 case UPTIME -> rows.add(Row.text("§7Uptime", "§b" + uptime(stats.activeMs)
                     + (ProfitTracker.paused(preset, System.currentTimeMillis()) ? " §c(paused)" : "")));
+                case PACE -> {
+                    // Always this session's pace, whichever period the tracker shows.
+                    if (!preset.slayer()) break;
+                    ProfitTracker.Stats session = ProfitTracker.stats(preset, ProfitTracker.Period.SESSION);
+                    String pace = SlayerPace.line(preset, session, period == ProfitTracker.Period.SESSION ? profit : profit(session, source));
+                    if (pace != null) rows.add(Row.text(pace, null));
+                }
             }
         }
         if (c.settings.goalMillions > 0) {
@@ -495,6 +502,16 @@ final class ProfitTrackerHud {
         if (abs >= 1_000_000) return format.format(value / 1_000_000) + "m";
         if (abs >= 1_000) return format.format(value / 1_000) + "k";
         return format.format(value);
+    }
+
+    /** A period's profit as the tracker works it out (coins and priced drops, minus costs), for the slayer Pace line. */
+    private static double profit(ProfitTracker.Stats stats, FeatureConfigs.ProfitPriceSource source) {
+        double revenue = stats.coins;
+        for (Map.Entry<String, Long> e : stats.items.entrySet()) {
+            double unit = Sky2MPriceTooltip.price(e.getKey(), source);
+            if (unit > 0) revenue += unit * e.getValue();
+        }
+        return revenue - stats.costs;
     }
 
     private static String signed(double value) {

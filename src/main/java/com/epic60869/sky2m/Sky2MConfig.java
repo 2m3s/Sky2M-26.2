@@ -38,7 +38,7 @@ import java.nio.file.Path;
 public final class Sky2MConfig extends Config {
     public static final class General {
         @Expose
-        @ConfigOption(name = "What's New After Updates", desc = "After Sky2M updates, say so in chat with a [What's New] button: the new features, each with an on/off toggle and a button to its settings. /s2 whatsnew opens it any time.")
+        @ConfigOption(name = "Show What's New on Update", desc = "After Sky2M updates, say so in chat with a [What's New] button: the new features, each with an on/off toggle and a button to its settings. Once per new version, after joining a world; not on a fresh install. /s2 whatsnew opens it any time.")
         @ConfigEditorBoolean
         public boolean whatsNewMessage = true;
 
@@ -51,6 +51,37 @@ public final class Sky2MConfig extends Config {
         @ConfigOption(name = "Warn About Key Conflicts", desc = "Say in chat when two features (Sky2M settings, Sky2M or other mods' key binds, Command Keys macros) use the same key. Checked a few seconds after joining and whenever a key changes. Keys that only work in one menu (Wardrobe, Leap, Fusion...) don't count against keys used in the world. /s2 keyconflicts lists them any time.")
         @ConfigEditorBoolean
         public boolean warnKeyConflicts = true;
+
+        @Expose
+        @ConfigOption(name = "Performance Warnings", desc = "Say in chat when one Sky2M HUD or in-world renderer takes over 1 ms a frame for 15 seconds in a row (the numbers /s2 perf shows), with a button to its settings. Once per feature per session; [Don't warn again] stops it for that feature.")
+        @ConfigEditorBoolean
+        public boolean performanceWarnings = true;
+
+        /** Features the player chose [Don't warn again] for in a performance warning. */
+        @Expose
+        public java.util.List<String> perfWarningMuted = new java.util.ArrayList<>();
+
+        @Expose
+        @ConfigOption(name = "Error Reporter", desc = "When a Sky2M HUD, chat feature or in-world renderer hits an error, say so in chat with [Report to staff], [Copy] and [Ignore]. Reporting asks first, then sends a bug report with the error, the /s2 selftest report and your versions. Once per error per session, at most one message every 2 minutes. /s2 errors lists this session's errors.")
+        @ConfigEditorBoolean
+        public boolean errorReporter = true;
+
+        // Its search also matches every registered HUD's name (see hudOverviewSearch), so searching a HUD finds this.
+        @ConfigOption(name = "HUD Overview", desc = "Every Sky2M HUD with whether it's on, its position and scale, and whether it's off-screen, with buttons to reset each one or edit it in /s2 gui (/s2 huds).")
+        @ConfigEditorButton(buttonText = "OPEN")
+        public Runnable hudOverview = () -> com.epic60869.sky2m.features.core.Sky2MHudOverviewScreen.open(Minecraft.getInstance().gui.screen());
+
+        @ConfigOption(name = "Reset All HUD Positions", desc = "Put every Sky2M HUD back at its default position and scale. Asks first.")
+        @ConfigEditorButton(buttonText = "RESET")
+        public Runnable resetAllHudPositions = () -> com.epic60869.sky2m.features.core.Sky2MHudOverviewScreen.confirmResetAll(Minecraft.getInstance().gui.screen());
+
+        @ConfigOption(name = "Export Settings Code", desc = "Copy all your Sky2M settings to the clipboard as one code to share (/s2 config export). Versions and other personal values are left out.")
+        @ConfigEditorButton(buttonText = "COPY")
+        public Runnable exportSettingsCode = () -> Sky2MConfigCode.exportToClipboard();
+
+        @ConfigOption(name = "Import Settings Code", desc = "Load a settings code from the clipboard (/s2 config import). Asks in chat before replacing anything; your current settings are backed up to config/sky2m/config-backups first.")
+        @ConfigEditorButton(buttonText = "PASTE")
+        public Runnable importSettingsCode = () -> Sky2MConfigCode.importFromGui();
 
         @ConfigOption(name = "Tools & Editors", desc = "The HUD editor, notes, command keys and item customization.")
         @ConfigEditorAccordion(id = 101)
@@ -305,6 +336,12 @@ public final class Sky2MConfig extends Config {
 
         @Expose
         @Accordion
+        @ConfigOption(name = "Boss Spawn Alert", desc = "A title and a loud sound when your slayer boss spawns, even off-screen, so it isn't missed while AFK.")
+        @ConfigAccordionId(id = 501)
+        public com.epic60869.sky2m.features.FeatureConfigs.BossSpawnAlert bossSpawnAlert = new com.epic60869.sky2m.features.FeatureConfigs.BossSpawnAlert();
+
+        @Expose
+        @Accordion
         @ConfigOption(name = "Egg Hits Display", desc = "Hits each Tarantula egg sack still needs, shown on the egg (NoFrills').")
         @ConfigAccordionId(id = 501)
         public com.epic60869.sky2m.features.FeatureConfigs.EggHitsDisplay eggHitsDisplay = new com.epic60869.sky2m.features.FeatureConfigs.EggHitsDisplay();
@@ -346,6 +383,12 @@ public final class Sky2MConfig extends Config {
         @ConfigEditorBoolean
         @ConfigAccordionId(id = 503)
         public boolean rngMeterValue = false;
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "RNG Meter Display", desc = "A HUD with your quest slayer's selected RNG Meter drop, its progress and the bosses left (SkyHanni's).")
+        @ConfigAccordionId(id = 503)
+        public com.epic60869.sky2m.features.FeatureConfigs.SlayerRngMeterDisplay rngMeterDisplay = new com.epic60869.sky2m.features.FeatureConfigs.SlayerRngMeterDisplay();
 
         @Expose
         @ConfigOption(name = "Kills Since Rare Drop", desc = "Show the kills-since-drop counter.")
@@ -735,10 +778,22 @@ public final class Sky2MConfig extends Config {
         public boolean collectionPortfolio = true;
 
         @Expose
-        @ConfigOption(name = "Rival HUD", desc = "While you farm or gather a collection, show the Sky2M leaderboard for it against your rival there (/s2 rival add <name> <board>, or click them in /s2 leaderboard): both amounts and who's ahead by how much. Hidden when you have no rival on that board. Move it in /s2 gui.")
+        @ConfigOption(name = "Rival HUD", desc = "While you farm, mine, forage, fish or gather a collection, show the Sky2M leaderboard for it against your rival there (/s2 rival add <name> <board>, or click them in /s2 leaderboard): both amounts and who's ahead by how much. Hidden when you have no rival on that board. Move it in /s2 gui.")
         @ConfigEditorBoolean
         @ConfigAccordionId(id = 2305)
         public boolean rivalHud = false;
+
+        @Expose
+        @ConfigOption(name = "Rival Alerts", desc = "With the Rival HUD on: a title and a sound when a rival passes you, or you pass them, on the board the Rival HUD shows (at most once a minute per rival).")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 2305)
+        public boolean rivalAlerts = true;
+
+        @Expose
+        @ConfigOption(name = "Weekly Rival Recap", desc = "The first time you're on SkyBlock each week (after the weekly boards reset on Monday 00:00 UTC), say in chat who gained more last week on each board you have a rival on: you or them, both gains and the difference. Sky2M keeps the latest weekly standings it sees for those boards during the week (and checks them every 30 minutes on SkyBlock) in config/sky2m/rival-weekly.json.")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 2305)
+        public boolean rivalRecap = true;
 
         @ConfigOption(name = "Visual", desc = "Fire, explosions, player size, held item, etherwarp overlay and render tweaks.")
         @ConfigEditorAccordion(id = 2306)
@@ -1796,6 +1851,30 @@ public final class Sky2MConfig extends Config {
         mc.execute(() -> mc.gui.setScreen(new Sky2MHudEditorScreen(mc.gui.screen())));
     }
 
+    /**
+     * MoulConfig's own button editor, except that HUD Overview also matches every registered HUD's name in the
+     * settings search: HUDs are registered at runtime, so they can't be options (or search tags) of their own.
+     */
+    private static io.github.notenoughupdates.moulconfig.gui.GuiOptionEditor buttonEditor(
+        io.github.notenoughupdates.moulconfig.processor.ProcessedOption option, ConfigEditorButton button) {
+        StructuredText text = StructuredText.of(button.buttonText());
+        boolean hudOverview = option instanceof io.github.notenoughupdates.moulconfig.processor.ProcessedOption.HasField field
+            && field.getField().getDeclaringClass() == General.class && field.getField().getName().equals("hudOverview");
+        if (!hudOverview) {
+            return new io.github.notenoughupdates.moulconfig.gui.editors.GuiOptionEditorButton(option, button.runnableId(), text, option.getConfig());
+        }
+        return new io.github.notenoughupdates.moulconfig.gui.editors.GuiOptionEditorButton(option, button.runnableId(), text, option.getConfig()) {
+            @Override
+            public boolean fulfillsSearch(String word) {
+                if (super.fulfillsSearch(word)) return true;
+                for (var hud : com.epic60869.sky2m.features.core.Sky2MHuds.elements()) {
+                    if (hud.name().toLowerCase(java.util.Locale.ROOT).contains(word)) return true;
+                }
+                return false;
+            }
+        };
+    }
+
 
     private static void openDiscord() {
         Minecraft mc = Minecraft.getInstance();
@@ -1844,9 +1923,9 @@ public final class Sky2MConfig extends Config {
 
         FileHolder holder = new FileHolder(path);
 
-        managed = new ManagedConfig<>(new io.github.notenoughupdates.moulconfig.managed.ManagedConfigBuilder<>(
-            holder.file, Sky2MConfig.class
-        ));
+        var builder = new io.github.notenoughupdates.moulconfig.managed.ManagedConfigBuilder<>(holder.file, Sky2MConfig.class);
+        builder.customProcessor(ConfigEditorButton.class, Sky2MConfig::buttonEditor);
+        managed = new ManagedConfig<>(builder);
 
         // Always materialize the current config after loading. This is important
         // for newly-added settings such as Mouse Reset: older Sky2M config files

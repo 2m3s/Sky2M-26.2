@@ -1,6 +1,10 @@
 package com.epic60869.sky2m.features.dungeons;
 
+import com.epic60869.sky2m.Sky2MConfig;
+import com.epic60869.sky2m.Sky2MPlayerNotes;
 import com.epic60869.sky2m.custom.util.Compat;
+import com.epic60869.sky2m.features.FeatureConfigs;
+import com.epic60869.sky2m.features.misc.PartyCommands;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
@@ -38,7 +42,15 @@ public final class PfHistory {
         public int kicks;
         public long firstSeen;
         public long lastSeen;
+        /** When you last kicked them (0 for kicks counted before this was saved). */
+        public long lastKicked;
     }
+
+    /** One flag per player per join, though a Party Finder join can also show "joined the party". */
+    private static final long FLAG_GAP_MS = 30_000L;
+    /** A kick this long after their last Party Finder join isn't a kick from a Party Finder group, so no auto-note. */
+    private static final long PF_KICK_WINDOW_MS = 3 * 3_600_000L;
+    private static final Map<String, Long> FLAGGED = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** Runs played with someone, from Run History. */
     record Together(int runs, int completed, RunHistory.Run best, RunHistory.Run last) {}
@@ -49,6 +61,9 @@ public final class PfHistory {
     private PfHistory() {}
 
     public static void init() {
+        // Party joins and confirmed kicks come from PartyCommands' party tracking (no second parser for them).
+        PartyCommands.onMemberJoined(PfHistory::flagIfKicked);
+        PartyCommands.onMemberKicked(PfHistory::onKicked);
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, context) -> {
             for (String root : Compat.COMMAND_ROOTS) {
                 dispatcher.register(ClientCommands.literal(root).then(ClientCommands.literal("pfhistory")
@@ -106,17 +121,75 @@ public final class PfHistory {
             s.lastSeen = System.currentTimeMillis();
         }
         save();
+        flagIfKicked(name);
         if (!announce) return;
         Together together = together(name);
         if (before || together.runs() > 0) say(describe(name, false));
     }
 
-    /** You kicked someone from your group (auto kick or the [KICK] button). */
-    static synchronized void onKicked(String name) {
-        Seen s = seen().get(name.toLowerCase(Locale.ROOT));
-        if (s == null) return;
-        s.kicks++;
+    /**
+     * Hypixel confirmed a kick you sent (auto kick, a [KICK] button or /p kick). Only players who joined one of your
+     * Party Finder groups are tracked. With Auto-Note Kicks, the first kick also leaves a note unless there is one.
+     */
+    static void onKicked(String name) {
+        Seen s;
+        boolean first;
+        long now = System.currentTimeMillis();
+        synchronized (PfHistory.class) {
+            s = seen().get(name.toLowerCase(Locale.ROOT));
+            if (s == null) return;
+            s.kicks++;
+            s.lastKicked = now;
+            first = s.kicks == 1;
+        }
         save();
+        FeatureConfigs.PartyFinderStats c = config();
+        if (!first || c == null || !c.autoNoteKicks || now - s.lastSeen > PF_KICK_WINDOW_MS) return;
+        String floor = PartyFinderStats.currentFloorKey();
+        String date = new java.text.SimpleDateFormat("MMM d, yyyy", Locale.US).format(new java.util.Date(now));
+        String text = "Kicked from " + (floor == null ? "a Party Finder group" : floor) + " on " + date;
+        if (Sky2MPlayerNotes.addIfAbsent(s.name, text)) {
+            say(Component.literal("Noted " + s.name + ": " + text + ".").withStyle(ChatFormatting.GRAY));
+        }
+    }
+
+    /**
+     * "⚠ Name — you kicked them 2× before (last: 3 days ago)" with their note, [Kick] and [History], when someone
+     * you kicked before joins your Party Finder group or your party.
+     */
+    static void flagIfKicked(String name) {
+        FeatureConfigs.PartyFinderStats c = config();
+        if (c == null || !c.flagKicked) return;
+        Seen s;
+        synchronized (PfHistory.class) {
+            s = seen().get(name.toLowerCase(Locale.ROOT));
+        }
+        if (s == null || s.kicks < 1) return;
+        long now = System.currentTimeMillis();
+        Long last = FLAGGED.put(name.toLowerCase(Locale.ROOT), now);
+        if (last != null && now - last < FLAG_GAP_MS) return;
+        MutableComponent out = Component.literal("⚠ " + name).withStyle(ChatFormatting.RED, ChatFormatting.BOLD)
+            .append(Component.literal(" — you kicked them " + s.kicks + "× before"
+                + (s.lastKicked > 0 ? " (last: " + agoWords(s.lastKicked) + ")" : "")).withStyle(st -> st.withColor(ChatFormatting.YELLOW).withBold(false)));
+        String note = Sky2MPlayerNotes.note(name);
+        if (note != null) {
+            out.append(Component.literal("  Note: ").withStyle(st -> st.withColor(ChatFormatting.GOLD).withBold(false)))
+                .append(Component.literal(note).withStyle(st -> st.withColor(ChatFormatting.WHITE).withBold(false)));
+        }
+        out.append(Component.literal("  "));
+        out.append(Component.literal("[Kick]").withStyle(st -> st.withColor(ChatFormatting.RED).withBold(true)
+            .withClickEvent(new ClickEvent.RunCommand("/p kick " + name))
+            .withHoverEvent(new HoverEvent.ShowText(Component.literal("Kick " + name + " from the party")))));
+        out.append(Component.literal(" "));
+        out.append(Component.literal("[History]").withStyle(st -> st.withColor(ChatFormatting.AQUA).withBold(true)
+            .withClickEvent(new ClickEvent.RunCommand("/s2 pfhistory " + name))
+            .withHoverEvent(new HoverEvent.ShowText(Component.literal("Show everything about " + name)))));
+        say(out);
+    }
+
+    private static FeatureConfigs.PartyFinderStats config() {
+        Sky2MConfig c = Sky2MConfig.current();
+        return c == null ? null : c.dungeons.partyFinderStats;
     }
 
     /** Runs in Run History with {@code name} in the party. */
@@ -201,6 +274,16 @@ public final class PfHistory {
         if (minutes < 60) return minutes + "m ago";
         if (minutes < 48 * 60) return minutes / 60 + "h ago";
         return minutes / (60 * 24) + "d ago";
+    }
+
+    /** "3 days ago", "5 hours ago", "just now": the long form for the kicked-before flag. */
+    private static String agoWords(long time) {
+        long minutes = Math.max(0, (System.currentTimeMillis() - time) / 60_000L);
+        if (minutes < 1) return "just now";
+        if (minutes < 60) return minutes + (minutes == 1 ? " minute ago" : " minutes ago");
+        long hours = minutes / 60;
+        if (hours < 48) return hours + (hours == 1 ? " hour ago" : " hours ago");
+        return hours / 24 + " days ago";
     }
 
     private static void say(Component text) {

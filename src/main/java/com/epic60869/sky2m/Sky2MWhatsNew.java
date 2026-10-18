@@ -17,6 +17,9 @@ import net.minecraft.network.chat.HoverEvent;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -87,22 +90,57 @@ public final class Sky2MWhatsNew {
         return c == null ? null : c.general;
     }
 
-    /** Once per update: remember the version, and say what's new. */
+    /**
+     * config/sky2m/last-version.txt: the version that last ran. Kept outside sky2m-mod.json so importing someone's
+     * settings code or cloud settings can't make an update look new (or hide one).
+     */
+    private static Path lastVersionFile() {
+        return Minecraft.getInstance().gameDirectory.toPath().resolve("config").resolve("sky2m").resolve("last-version.txt");
+    }
+
+    /** The stored last-run version, falling back to the config's for installs from before the file existed. */
+    private static String lastVersion(Sky2MConfig.General general) {
+        try {
+            Path file = lastVersionFile();
+            if (Files.exists(file)) return Files.readString(file, StandardCharsets.UTF_8).trim();
+        } catch (Exception e) {
+            System.err.println("[Sky2M] Couldn't read last-version.txt: " + e.getMessage());
+        }
+        return general.lastSeenVersion == null ? "" : general.lastSeenVersion;
+    }
+
+    private static void storeLastVersion(String version) {
+        try {
+            Path file = lastVersionFile();
+            Files.createDirectories(file.getParent());
+            Files.writeString(file, version, StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            System.err.println("[Sky2M] Couldn't write last-version.txt: " + e.getMessage());
+        }
+    }
+
+    /** Once per update: remember the version, and say what's new. A fresh install only stores it (nothing is new). */
     private static void checkForUpdate() {
         Sky2MConfig.General general = general();
         String installed = Sky2MChangelog.installedVersion();
-        if (general == null || installed.isEmpty() || installed.equals(general.lastSeenVersion)) return;
-        String previous = general.lastSeenVersion;
+        if (general == null || installed.isEmpty()) return;
+        String previous = lastVersion(general);
+        if (installed.equals(previous)) {
+            if (!Files.exists(lastVersionFile())) storeLastVersion(installed);
+            return;
+        }
+        storeLastVersion(installed);
         general.lastSeenVersion = installed;
         general.whatsNewSince = previous;
         Sky2MConfig.saveCurrent(Sky2MConfig.current());
+        if (previous.isEmpty()) return;
         if (!general.whatsNewMessage || (features(previous).isEmpty() && changes(previous).isEmpty())) return;
 
         Component button = Component.literal("[What's New]").withStyle(style -> style.withColor(ChatFormatting.GREEN).withBold(true)
             .withClickEvent(new ClickEvent.RunCommand("s2 whatsnew"))
             .withHoverEvent(new HoverEvent.ShowText(Component.literal("See the new features and turn them on or off"))));
         Component message = Component.literal("[S2M] ").withStyle(ChatFormatting.LIGHT_PURPLE)
-            .append(Component.literal(previous.isEmpty() ? "Sky2M " + installed + " is installed! " : "Sky2M updated to " + installed + "! ")
+            .append(Component.literal("Sky2M updated to " + installed + "! ")
                 .withStyle(ChatFormatting.GOLD))
             .append(button);
         Minecraft mc = Minecraft.getInstance();

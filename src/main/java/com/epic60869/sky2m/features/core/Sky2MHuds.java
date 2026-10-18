@@ -133,7 +133,7 @@ public final class Sky2MHuds {
     /** The HUD's feature is turned on (its registered setting, else its {@code enabled}). */
     public static boolean turnedOn(Element element) {
         BooleanSupplier setting = SETTINGS.get(element.id());
-        return safe(setting != null ? setting : element.enabled());
+        return safe(element, setting != null ? setting : element.enabled());
     }
 
     public static List<Element> elements() {
@@ -170,13 +170,13 @@ public final class Sky2MHuds {
         if (refWidth <= 0 || refHeight <= 0) setReferenceToScreen();
         Sky2MPerf.frame();
         for (Element element : ELEMENTS.values()) {
-            if (!safe(element.enabled())) continue;
+            if (!safe(element, element.enabled())) continue;
             long started = Sky2MPerf.start();
             if (element.custom() != null) {
                 try {
                     if (customVisible(element)) renderCustom(graphics, element, false);
                 } catch (Exception e) {
-                    com.epic60869.sky2m.features.sbc.SbcCrashReports.report(e, "HUD " + element.id());
+                    Sky2MErrors.caught(element.name(), e, "HUD " + element.id());
                 }
                 Sky2MPerf.end(Sky2MPerf.Kind.HUD, element.name(), started);
                 continue;
@@ -190,10 +190,11 @@ public final class Sky2MHuds {
         }
     }
 
-    private static boolean safe(BooleanSupplier supplier) {
+    private static boolean safe(Element element, BooleanSupplier supplier) {
         try {
             return supplier.getAsBoolean();
         } catch (Exception e) {
+            Sky2MErrors.caught(element.name(), e);
             return false;
         }
     }
@@ -219,6 +220,7 @@ public final class Sky2MHuds {
             List<Component> lines = element.lines().get();
             return lines == null ? List.of() : lines;
         } catch (Exception e) {
+            Sky2MErrors.caught(element.name(), e);
             return List.of();
         }
     }
@@ -298,8 +300,12 @@ public final class Sky2MHuds {
         graphics.pose().pushMatrix();
         graphics.pose().translate((float) x, (float) y);
         graphics.pose().scale(p.scale, p.scale);
-        element.custom().render(graphics, preview);
-        graphics.pose().popMatrix();
+        // Popped even if the HUD throws, so one broken HUD doesn't shift every HUD drawn after it.
+        try {
+            element.custom().render(graphics, preview);
+        } finally {
+            graphics.pose().popMatrix();
+        }
     }
 
     /** Scaled on-screen width of an element as shown in the editor. */
@@ -377,6 +383,49 @@ public final class Sky2MHuds {
     public static void changeScale(String id, float delta) {
         Placement p = placement(id);
         p.scale = Math.max(0.5f, Math.min(3f, Math.round((p.scale + delta) * 10f) / 10f));
+    }
+
+    /** Puts a registered HUD back at its registered x/y and scale 1 (the background choice is kept), and saves. */
+    public static boolean resetPlacement(String id) {
+        Element element = ELEMENTS.get(id);
+        if (element == null) return false;
+        Placement p = placement(id);
+        p.x = element.defaultX();
+        p.y = element.defaultY();
+        p.scale = 1f;
+        save();
+        return true;
+    }
+
+    /** {@link #resetPlacement} for every registered HUD, saved once. */
+    public static void resetAllPlacements() {
+        for (Element element : ELEMENTS.values()) {
+            Placement p = placement(element.id());
+            p.x = element.defaultX();
+            p.y = element.defaultY();
+            p.scale = 1f;
+        }
+        save();
+    }
+
+    /**
+     * Whether the saved position puts part of the HUD past the screen edge on this window: it is still drawn, pulled
+     * back to the edge, but not where it was placed.
+     */
+    public static boolean offScreen(Element element) {
+        if (Minecraft.getInstance().getWindow() == null) return false;
+        try {
+            Placement p = placement(element.id());
+            int w = editorWidth(element), h = editorHeight(element);
+            int screenW = Minecraft.getInstance().getWindow().getGuiScaledWidth();
+            int screenH = Minecraft.getInstance().getWindow().getGuiScaledHeight();
+            int x = refWidth <= 0 ? p.x : Math.round((p.x + w / 2f) * screenW / refWidth - w / 2f);
+            int y = refHeight <= 0 ? p.y : Math.round((p.y + h / 2f) * screenH / refHeight - h / 2f);
+            return x < 0 || y < 0 || x + w > screenW || y + h > screenH;
+        } catch (Exception e) {
+            Sky2MErrors.caught(element.name(), e);
+            return false;
+        }
     }
 
     private static void load() {
