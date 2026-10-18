@@ -68,6 +68,8 @@ public final class Sky2MHuds {
 
     public static void init(Path configDir) {
         file = configDir.resolve("sky2m-huds.json");
+        // New players start from Sky2M's default HUD layout; an existing file is never replaced.
+        com.epic60869.sky2m.Sky2MConfig.copyBundledDefault(file, "sky2m-huds.json");
         load();
         HudElementRegistry.addLast(ID, (graphics, delta) -> renderAll(graphics));
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(mc -> clientTicks++);

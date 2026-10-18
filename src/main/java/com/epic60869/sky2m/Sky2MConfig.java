@@ -66,14 +66,20 @@ public final class Sky2MConfig extends Config {
         @ConfigEditorBoolean
         public boolean errorReporter = true;
 
-        // Its search also matches every registered HUD's name (see hudOverviewSearch), so searching a HUD finds this.
+        @ConfigOption(name = "HUDs", desc = "The HUD overview and the HUD editor (/s2 gui).")
+        @ConfigEditorAccordion(id = 102)
+        public boolean hudsGroup = false;
+
+        // Its search also matches every registered HUD's name (see buttonEditor), so searching a HUD finds this.
         @ConfigOption(name = "HUD Overview", desc = "Every Sky2M HUD with whether it's on, its position and scale, and whether it's off-screen, with buttons to reset each one or edit it in /s2 gui (/s2 huds).")
         @ConfigEditorButton(buttonText = "OPEN")
+        @ConfigAccordionId(id = 102)
         public Runnable hudOverview = () -> com.epic60869.sky2m.features.core.Sky2MHudOverviewScreen.open(Minecraft.getInstance().gui.screen());
 
-        @ConfigOption(name = "Reset All HUD Positions", desc = "Put every Sky2M HUD back at its default position and scale. Asks first.")
-        @ConfigEditorButton(buttonText = "RESET")
-        public Runnable resetAllHudPositions = () -> com.epic60869.sky2m.features.core.Sky2MHudOverviewScreen.confirmResetAll(Minecraft.getInstance().gui.screen());
+        @ConfigOption(name = "Edit HUDs", desc = "Move and resize every HUD (/s2 gui).")
+        @ConfigEditorButton(buttonText = "/s2 gui")
+        @ConfigAccordionId(id = 102)
+        public Runnable editHuds = Sky2MConfig::openHudEditor;
 
         @ConfigOption(name = "Export Settings Code", desc = "Copy all your Sky2M settings to the clipboard as one code to share (/s2 config export). Versions and other personal values are left out.")
         @ConfigEditorButton(buttonText = "COPY")
@@ -1916,9 +1922,27 @@ public final class Sky2MConfig extends Config {
         }
     }
 
+    /**
+     * Writes the bundled default {@code name} (assets/sky2m/defaults/, Sky2M's recommended settings and HUD positions)
+     * to {@code target} when it doesn't exist yet: only new players get it, existing configs are never touched.
+     */
+    public static void copyBundledDefault(Path target, String name) {
+        if (Files.exists(target)) return;
+        try (var in = Sky2MConfig.class.getResourceAsStream("/assets/sky2m/defaults/" + name)) {
+            if (in == null) return;
+            Files.createDirectories(target.getParent());
+            Files.copy(in, target);
+            System.out.println("[Sky2M] New install: starting from the default " + name);
+        } catch (Exception e) {
+            System.err.println("[Sky2M] Couldn't write the default " + name + ": " + e.getMessage());
+        }
+    }
+
     public static Sky2MConfig load(Path path) {
         try {
             migrateLegacy(path);
+            // A new player (no config, and none carried over from SkyBalls) starts from Sky2M's chosen defaults.
+            copyBundledDefault(path, "sky2m-mod.json");
             migrateConfigShape(path);
         } catch (Exception e) {
             System.err.println("[Sky2M] Legacy config migration failed: " + e.getMessage());

@@ -11,7 +11,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.screens.ConfirmScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
@@ -59,16 +58,6 @@ public final class Sky2MHudOverviewScreen extends Screen {
         mc.execute(() -> mc.gui.setScreen(new Sky2MHudOverviewScreen(parent, "")));
     }
 
-    /** "Reset all HUD positions?" over {@code back}, which it returns to either way. */
-    public static void confirmResetAll(Screen back) {
-        Minecraft mc = Minecraft.getInstance();
-        mc.execute(() -> mc.gui.setScreen(new ConfirmScreen(yes -> {
-            if (yes) Sky2MHuds.resetAllPlacements();
-            mc.gui.setScreen(back);
-        }, Component.literal("Reset all HUD positions?"),
-            Component.literal("Every Sky2M HUD goes back to its default position and scale. This can't be undone."))));
-    }
-
     private int left() { return 10; }
     private int top() { return 10; }
     private int panelWidth() { return width - 20; }
@@ -83,8 +72,8 @@ public final class Sky2MHudOverviewScreen extends Screen {
         int right = left() + panelWidth() - 8;
         addRenderableWidget(Button.builder(Component.translatable("gui.done"), b -> onClose())
             .bounds(right - 50, top() + 6, 50, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Reset all positions"), b -> confirmResetAll(this))
-            .bounds(right - 50 - 4 - 120, top() + 6, 120, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Open /s2 gui"), b -> minecraft.gui.setScreen(new Sky2MHudEditorScreen(this)))
+            .bounds(right - 50 - 4 - 90, top() + 6, 90, 20).build());
         search = new EditBox(font, left() + 8, top() + 28, Math.min(200, panelWidth() - 16), 18, Component.literal("Search"));
         search.setHint(Component.literal("Search HUDs").withStyle(ChatFormatting.DARK_GRAY));
         search.setValue(filter);
