@@ -2242,6 +2242,14 @@
       "othersY": 0.6,
       "othersZ": 0.6
     },
+    "playAsMob": {
+      "mob": "",
+      "showOwn": true,
+      "showOthers": true,
+      "inDungeons": false,
+      "useSize": true,
+      "animate": true
+    },
     "hitColour": {
       "enabled": false,
       "colour": "0:150:255:0:0",

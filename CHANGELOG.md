@@ -2,7 +2,38 @@
 
 All notable changes to Sky2M are listed here, newest first.
 
-## Unreleased
+## 1.0.3
+
+### Added
+- Clips (new Clips settings, off by default, Windows): press Save Clip (F8) or type `/s2 clip [name]` to save the last 10-120 seconds of the game as an MP4 in Videos\Sky2M Clips, with [Watch] and [Folder] links in chat. Choose the sound: only the game, the game + Discord, everything you hear, or none, plus your microphone, each with its own volume; and the quality (720p, 1080p, 1440p or the window's size) and frame rate. Recording is done by Sky2M Clips, a separate program (about 42 MB) using your graphics card's video encoder, so the mod stays small: the first time you open Sky2M after this update it asks once whether to download it, and it can be downloaded later from the Clips settings or with `/s2 clip download`. The download is checked before it runs, and it closes with the game.
+- Play as Mob, from Killer560's Mod: pick a look in `/s2 cosmetics` (Model), with `/s2 playasmob` or on shadowisabot.com, and every Sky2M player near you sees you as it: any mob (free for everyone, and works even when the Sky2M server is offline: your pick is saved in your settings), or a 3D model Sky2M staff gave you on the website (glTF/GLB, VRM, Blockbench or STL; downloaded once per version and checked). Models follow your head and swing their arms and legs as you walk. Settings in Misc > Visual > Play as Mob: Show My Look, Show Others' Looks, In Dungeons (off, so teammates aren't mistaken for mobs), Use Player Size and Animate Models. Staff can switch looks off for everyone.
+- F7 Extras (Dungeons > Floor 7 > F7 Extras, all off by default), from NoammAddons and Odin:
+  - Maxor's Crystals: a crystal respawn timer, how long you took to place your crystal (with your PB), and a "⚠ Crystal ⚠" reminder while you hold one in P1.
+  - Boss titles: "Crystal (1/2)" in place of Hypixel's crystal subtitles; titles when Maxor is stunned or dies, Storm is crushed or dies, Goldor dies, Necron dies, or Maxor or Storm is enraged.
+  - Storm Lightning Timer: replaces Storm's countdown titles with how long his lightning has left, then "Storm's Lightning Ended!".
+  - Gate Highlight: boxes your P3 section's gate until it's destroyed.
+  - Terminal Boxes: boxes the inactive terminals in your P3 section, and they flash when you click one.
+  - Leap Counter: on a leap spot (Simon Says, the early enters, the core, the relics), "2/4 Players Leaped" with an "Everyone Leaped!" alert.
+  - M7 Relic Spawn Timer: counts down from Necron's death to the relics spawning, in your class colour.
+- Tick Timers: Maxor Start, Storm Lightning and Goldor Start (time until terminals can be done) countdowns.
+- M7 Dragons and Relics: Relic Beacon, Relic Tracer, Arrow Stack Indicator (where to aim to stack arrows on a spawning dragon) and Arrows Hit (how many of your arrows hit your priority dragon in its skip window).
+- Terminals: Terminal Click Sound (mutes Hypixel's click) and Terminal Complete Sound.
+- Team Melody: Send Coords when you open Melody, and a Progress Alert title when a teammate's Melody progress comes in.
+- Terminal Progress: Replace Hypixel's Titles, Phase Done and Gate Titles options.
+
+### Changed
+- `/s2 cosmetics` is now a page in the settings' look: your supporter tier and an Emblem, a Cape and a Model card, each opening a list of what you have (and what's locked, with how to get it when staff say). The cape page previews capes as you hover them, and the Model page has a search.
+- The M7 dragon spawn timer can now be moved and resized in /s2 gui.
+
+### Fixed
+- Fix Auto Requeue still requeueing after someone left: Cancel If Someone Leaves now also counts teammates who leave, get kicked or disconnect during the run, not only in the seconds after it ends.
+- Fix Melody solver for the 3-row Melody: only the 3 real buttons can be clicked.
+- Fix Simon Says progress announcing "SS n/5": it's now "SS n/4", for the 4 rounds.
+- Fix the Storm PY timer counting 95 ticks: it's now 55, matching Hypixel's 2026 dungeon update.
+- Fix M7 splits, Boss Phases and area waypoints never starting the Wither King phase: they now start it on "[BOSS] Wither King: You... again?", since Necron's "All this, for nothing..." line is gone.
+- GitHub link for updates: the "New Sky2M Mod Version" message in chat now ends with a blue, underlined "GitHub Link" that opens Sky2M's GitHub page for your Minecraft version (2m3s/Sky2M-26.2), and General has a Sky2M GitHub button that opens it too.
+
+## 1.0.2 — 2026-10-16
 
 ### Added
 - Staff tools in game (for Sky2M staff): get a code on shadowisabot.com (Staff > Mod login) and type `/s2 stafflogin <code>`; you stay logged in on that computer for 30 days (`/s2 stafflogout` ends it). `/s2 staff` opens the tools: mute (for some minutes or permanently), ban (permanent, and they stop seeing Sky2M chat) and unmute players in Sky2M chat, with the list of who's muted and banned; admins and owners can also switch mod features off or on for everyone, with a message players see. The Sky2M server checks your staff role on every action.
@@ -49,6 +80,11 @@ All notable changes to Sky2M are listed here, newest first.
 - Bug reports (`/s2 bugreport`) can attach game info: your Sky2M and Minecraft versions, where you are on SkyBlock and the latest warnings and errors from your game log (never chat, and without your user folder name). On by default for bug reports, with an Attach game info button to turn it off.
 - Leap Menu: left-clicking with Spirit Leap or Infinileap in a dungeon opens the leap menu too, like right-clicking.
 - Shared name tags (Misc > Visual > Own Name Tag): the line above your head is shared with other Sky2M users, who see it above you. Add your own Custom Text (up to 40 characters), and turn on Show Collection Leaderboard with a Collection ID to show that collection's amount and your placement.
+- Settings search and category filters: use `/s2 settings [filter]` or `/s2 gui <filter>` to find settings quickly. The HUD editor now has All, Mining, Dungeons, Combat, Pets, Trackers and Other filters, so you can focus on the HUDs you want to arrange.
+- Session Tracker (`/s2 session`): one section per day instead of one per game session, with a Total tab and a tab for every profit tracker (all six slayers, Farming, Fishing, Foraging, Mining and Mythological Ritual). The Days list shows each day's total; click a day for its tracker breakdown. Daily history records the built-in profit trackers in the background even when their HUDs are off, keeps the day across game restarts, and recalculates values using the latest prices.
+- Slayer Boss Profit: see the profit or loss after a slayer boss, with a breakdown of drops, their values, quest cost and net result, plus a HUD summary.
+- Command Autofill improvements: more helpful in-game suggestions for supported Bazaar and auction/item commands, with normalized matching for spaces, underscores and hyphens.
+- Permanent stat leaderboards: `/s2 leaderboard collection` browses collection rankings, `/s2 leaderboard collection <item>` shows a collection's top players, and `/s2 leaderboard slayer xp <boss>` shows slayer XP standings. Existing event leaderboards and slayer kill-time PB boards remain available.
 
 ### Changed
 - `/pv`: the Weight tab is now a Fishing tab. Overview has the Fishing skill, items fished (normal, treasure, large treasure, trophy fish), sea creatures killed Trophy Fish (hunter rank, total caught and each fish's best tier, hover for every tier) and Trophy Frogs (each frog's best tier, hover for every tier), each drawn with Hypixel's own item for that tier. Gear shows the fishing rods, fishing armour and fishing equipment found in their inventory, ender chest, backpacks, wardrobe and vault. Bestiary shows the fishing bestiary (Water, Lava, Spooky Festival, Fishing Festival, Winter, Backwater Bayou) with tiers and kills.
@@ -71,6 +107,10 @@ All notable changes to Sky2M are listed here, newest first.
 - Party Finder Stats: the floor PBs follow the floor of the group you join or create in the Party Finder (F5/M5 when queued for M5), not F7/M7, and stats show sooner by asking both profile sources at once and taking the first answer.
 - `/pv` loads other players faster: when SkyBlockPV is slow, Sky2M's proxy is asked after 2.5 seconds (was 5) and whichever answers first is shown, instead of waiting for SkyBlockPV to finish. SkyBlockPV's fuller data still replaces it for your next look. The networth history keeps using SkyBlockPV first.
 - Chat Tabs are drawn under the command suggestions, like Current Chat Display, and clicks go to the suggestions while you type a command.
+- Zealot Tracker now prefers Hypixel's TAB-list pity counter for “Since last eye” when it is available, keeping the counter aligned with Hypixel's value even when local entity tracking misses kills.
+- Updated Zealot Tracker's eye-drop kill count handling so a Summoning Eye drop does not incorrectly reset the cumulative total-kills counter.
+- Improved Party Finder Stats and related party commands, including the player-stat display and kick-list handling.
+- Refined profit/session tracker presentation and tracking so session data is retained and displayed more consistently.
 
 ### Fixed
 - Items drawn with Hypixel's resource-pack textures (trophy fish and others) in the item list and `/pv` stayed plain paper for the rest of the session if they were first drawn before Hypixel's pack loaded. They now pick up the texture once the pack is there.
@@ -123,23 +163,6 @@ All notable changes to Sky2M are listed here, newest first.
 - Slayer PBs: Tarantula personal bests are cleared once (on this update and on the Sky2M leaderboard), since times saved before the phase fix could be a single phase (a 3.1s "PB").
 - Leaderboard GUI: collections and slayer XP lists load again. The Sky2M server now answers the mod's board-list request (it used to reply "Choose collection or slayer."), so the grouping under Farming/Mining/Combat/Foraging/Fishing works in the GUI and the `/s2 leaderboard collection` and `/s2 leaderboard slayer xp` chat browsing shows the boards again, without that confusing reply. The GUI also no longer sits on a permanent Loading when the server is slow: event boards, slayer kill times, the timeout note and Refresh keep working while the collection list is unavailable.
 - Leaderboard GUI: when a standings answer doesn't come, the screen quietly asks the server again twice before falling back to the "hasn't answered" note, and the server now says so in its log when it receives and answers a stat leaderboard request. `/s2 lbdebug status` also shows what the GUI has actually received (board list, a collection/slayer standings answer and event standings, each with age).
-
-## 1.0.2 — 2026-10-16
-
-### Added
-- Settings search and category filters: use `/s2 settings [filter]` or `/s2 gui <filter>` to find settings quickly. The HUD editor now has All, Mining, Dungeons, Combat, Pets, Trackers and Other filters, so you can focus on the HUDs you want to arrange.
-- Session Tracker (`/s2 session`): one section per day instead of one per game session, with a Total tab and a tab for every profit tracker (all six slayers, Farming, Fishing, Foraging, Mining and Mythological Ritual). The Days list shows each day's total; click a day for its tracker breakdown. Daily history records the built-in profit trackers in the background even when their HUDs are off, keeps the day across game restarts, and recalculates values using the latest prices.
-- Slayer Boss Profit: see the profit or loss after a slayer boss, with a breakdown of drops, their values, quest cost and net result, plus a HUD summary.
-- Command Autofill improvements: more helpful in-game suggestions for supported Bazaar and auction/item commands, with normalized matching for spaces, underscores and hyphens.
-- Permanent stat leaderboards: `/s2 leaderboard collection` browses collection rankings, `/s2 leaderboard collection <item>` shows a collection's top players, and `/s2 leaderboard slayer xp <boss>` shows slayer XP standings. Existing event leaderboards and slayer kill-time PB boards remain available.
-
-### Changed
-- Zealot Tracker now prefers Hypixel's TAB-list pity counter for “Since last eye” when it is available, keeping the counter aligned with Hypixel's value even when local entity tracking misses kills.
-- Updated Zealot Tracker's eye-drop kill count handling so a Summoning Eye drop does not incorrectly reset the cumulative total-kills counter.
-- Improved Party Finder Stats and related party commands, including the player-stat display and kick-list handling.
-- Refined profit/session tracker presentation and tracking so session data is retained and displayed more consistently.
-
-### Fixed
 - Slayer timers/PBs: a missing boss nametag no longer counts as a kill. Phase summaries finish on Hypixel's confirmed boss-slain/cocoon message, and kill PB timing uses an observed 0-health line or the confirmed kill message. This prevents Tarantula's Conjoined Brood transition from recording a tiny false phase/PB; phase state resets when a new slayer quest starts or fails.
 - Copy RNG Drops: rare crops and other Garden drops are no longer copied by the RNG-only toggle; use Copy Garden Drops for those.
 - Item Pickup Log: sack entries use repository-matched item IDs for better icons and no longer have the `[Sack]` name prefix. Inventory changes are ignored while container menus are open, preventing false pickup/drop entries from menus such as the Experimentation Table.

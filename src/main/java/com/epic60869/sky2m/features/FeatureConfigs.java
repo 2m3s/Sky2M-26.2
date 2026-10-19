@@ -898,6 +898,120 @@ public final class FeatureConfigs {
         @Accordion
         @ConfigOption(name = "Platform Highlight (3x3)", desc = "One big box over the floor 7 3x3 platform (53-55, 63, 113-115), from when Goldor starts, like NoFrills.")
         public PlatformHighlight platformHighlight = new PlatformHighlight();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "F7 Extras", desc = "Maxor's crystals, boss titles, the Storm lightning timer, the P3 gate and terminal boxes, the Leap Counter and the M7 relic spawn timer (from Odin and NoammAddons).")
+        public F7Extras extras = new F7Extras();
+    }
+
+    /** Dungeons > Floor 7 > F7 Extras (features from NoammAddons and Odin). */
+    public static final class F7Extras {
+        @ConfigOption(name = "Maxor's Crystals", desc = "P1 Energy Crystal timers and alerts.")
+        @ConfigEditorAccordion(id = 3010)
+        public boolean crystalsGroup = false;
+
+        @Expose
+        @ConfigOption(name = "Crystal Spawn Timer", desc = "When Maxor is stunned, count down the 34 server ticks until the Energy Crystals respawn, big in a HUD you can move in /s2 gui.")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 3010)
+        public boolean crystalSpawnTimer = false;
+
+        @Expose
+        @ConfigOption(name = "Crystal Place Timer", desc = "Chat line with how long you took to place an Energy Crystal after picking it up, with your PB.")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 3010)
+        public boolean crystalPlaceTimer = false;
+
+        @Expose
+        @ConfigOption(name = "Crystal Place Alert", desc = "In P1, a big \"⚠ Crystal ⚠\" in the HUD while you hold an Energy Crystal in your last hotbar slot that you haven't placed.")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 3010)
+        public boolean crystalPlaceAlert = false;
+
+        @ConfigOption(name = "Boss Titles", desc = "Titles for the F7/M7 boss fight.")
+        @ConfigEditorAccordion(id = 3011)
+        public boolean titlesGroup = false;
+
+        @Expose
+        @ConfigOption(name = "Crystal Titles", desc = "Hide \"The Energy Laser is charging up!\" and show \"Crystal (1/2)\" instead of Hypixel's crystal subtitles.")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 3011)
+        public boolean crystalTitles = false;
+
+        @Expose
+        @ConfigOption(name = "Wither Titles", desc = "Titles when Maxor is stunned and dies, Storm is crushed and dies, Goldor dies and Necron dies, and a coloured title when Maxor or Storm is enraged.")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 3011)
+        public boolean witherTitles = false;
+
+        @Expose
+        @ConfigOption(name = "Storm Lightning Timer", desc = "Hides Storm's lightning countdown titles (the numbers) and shows the time until his lightning ends, big in a HUD you can move in /s2 gui, then \"Storm's Lightning Ended!\".")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 3011)
+        public boolean lightningTimer = false;
+
+        @ConfigOption(name = "P3", desc = "The gate, terminal boxes and the Leap Counter.")
+        @ConfigEditorAccordion(id = 3012)
+        public boolean p3Group = false;
+
+        @Expose
+        @ConfigOption(name = "Gate Highlight", desc = "Box the gate of the P3 section you're in until it's destroyed.")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 3012)
+        public boolean gateHighlight = false;
+
+        @Expose
+        @ConfigOption(name = "Gate Colour", desc = "")
+        @ConfigEditorColour
+        @ConfigAccordionId(id = 3012)
+        public String gateColour = "0:255:255:85:255";
+
+        @Expose
+        @ConfigOption(name = "Terminal Boxes", desc = "Box the hitbox of each inactive terminal in your P3 section (NoammAddons' Terminal Highlight). Odin's Terminal Status shows the terminal's real hitbox the same way.")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 3012)
+        public boolean terminalBoxes = false;
+
+        @Expose
+        @ConfigOption(name = "Terminal Box Colour", desc = "")
+        @ConfigEditorColour
+        @ConfigAccordionId(id = 3012)
+        public String terminalColour = "0:255:85:255:255";
+
+        @Expose
+        @ConfigOption(name = "Flash On Click", desc = "Terminal boxes flash red for a moment when you click the terminal.")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 3012)
+        public boolean terminalFlash = true;
+
+        @Expose
+        @ConfigOption(name = "Boxes Through Walls", desc = "Show the gate and terminal boxes through walls.")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 3012)
+        public boolean throughWalls = false;
+
+        @Expose
+        @ConfigOption(name = "Leap Counter", desc = "When you stand on a leap spot (Simon Says, the early-enter spots, the core, the relics), a HUD with how many teammates have leaped to you, like \"2/4 Players Leaped\". Move it in /s2 gui.")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 3012)
+        public boolean leapCounter = false;
+
+        @Expose
+        @ConfigOption(name = "Everyone Leaped Alert", desc = "A title and a sound when everyone has leaped to your spot.")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 3012)
+        public boolean leapAlert = true;
+
+        @ConfigOption(name = "M7 Relics", desc = "The relic spawn timer.")
+        @ConfigEditorAccordion(id = 3013)
+        public boolean relicsGroup = false;
+
+        @Expose
+        @ConfigOption(name = "Relic Spawn Timer", desc = "M7: when Necron dies, count down the 61 server ticks until the relics spawn, in your class colour, big in a HUD you can move in /s2 gui (NoammAddons).")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 3013)
+        public boolean relicSpawnTimer = false;
     }
 
     private FeatureConfigs() {}
@@ -2622,9 +2736,11 @@ public final class FeatureConfigs {
         @Expose @ConfigOption(name = "Lag Protection Ticks", desc = "Server ticks (50ms each) before clicks go through.") @ConfigEditorSlider(minValue = 7, maxValue = 16, minStep = 1) public int lagProtectionTicks = 8;
         @Expose @ConfigOption(name = "Rubix Left Clicks Only", desc = "Only use left clicks for the rubix terminal instead of the fewest clicks.") @ConfigEditorBoolean public boolean rubixLeftClicksOnly = false;
         @Expose @ConfigOption(name = "Melody Solver", desc = "Show the melody solver.") @ConfigEditorBoolean public boolean melodySolver = false;
+        @Expose @ConfigOption(name = "Terminal Click Sound", desc = "Play a sound when you click a right slot in a terminal, and mute Hypixel's terminal click sound (Odin's Terminal Sounds).") @ConfigEditorBoolean public boolean clickSound = false;
+        @Expose @ConfigOption(name = "Terminal Complete Sound", desc = "Play a sound when you finish a terminal.") @ConfigEditorBoolean public boolean completeSound = false;
         @Expose @ConfigOption(name = "Odin Device Solvers", desc = "Odin's Simon Says, Arrow Align and Sharp Shooter (i4) solvers. Off: Skyblocker's. Set this to false if you want the NoammAddons path.") @ConfigEditorBoolean public boolean odinDevices = false;
         @Expose @ConfigOption(name = "SS Block Wrong Clicks", desc = "Simon Says: ignore clicks on any button but the next one. Hold shift to click anyway.") @ConfigEditorBoolean public boolean ssBlockWrong = true;
-        @Expose @ConfigOption(name = "SS Announce Progress", desc = "Send \"SS n/5\" to party chat when you click the last button of a round.") @ConfigEditorBoolean public boolean ssAnnounce = false;
+        @Expose @ConfigOption(name = "SS Announce Progress", desc = "Send \"SS n/4\" to party chat when you click the last button of a round.") @ConfigEditorBoolean public boolean ssAnnounce = false;
         @Expose @ConfigOption(name = "SS First", desc = "") @ConfigEditorColour public String ssFirstColor = "0:128:85:255:85";
         @Expose @ConfigOption(name = "SS Second", desc = "") @ConfigEditorColour public String ssSecondColor = "0:128:255:170:0";
         @Expose @ConfigOption(name = "SS Rest", desc = "") @ConfigEditorColour public String ssThirdColor = "0:128:255:85:85";
@@ -2756,7 +2872,25 @@ public final class FeatureConfigs {
         public boolean tickTimers = false;
 
         @Expose
-        @ConfigOption(name = "Storm PY Timer", desc = "Odin's Storm PY HUD: when Storm calls his lightning (\"ENERGY HEED MY CALL!\" / \"THUNDER LET ME BE YOUR CATALYST!\"), counts down 95 ticks to when to crush him under the purple pillar. Move it in /s2 gui.")
+        @ConfigOption(name = "Maxor Start", desc = "Tick Timers: count down the 83 server ticks from Maxor's first line until the fight starts (NoammAddons).")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 1702)
+        public boolean maxorStart = true;
+
+        @Expose
+        @ConfigOption(name = "Storm Lightning", desc = "Tick Timers: count down the 520 server ticks from Storm's first line until his lightning (Odin).")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 1702)
+        public boolean stormLightning = true;
+
+        @Expose
+        @ConfigOption(name = "Goldor Start", desc = "Tick Timers: count down the 64 server ticks from Storm's death until terminals and devices can be done (Odin's Start timer).")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 1702)
+        public boolean goldorStart = true;
+
+        @Expose
+        @ConfigOption(name = "Storm PY Timer", desc = "Odin's Storm PY HUD: when Storm calls his lightning (\"ENERGY HEED MY CALL!\" / \"THUNDER LET ME BE YOUR CATALYST!\"), counts down 55 ticks to when to crush him under the purple pillar. Move it in /s2 gui.")
         @ConfigEditorBoolean
         @ConfigAccordionId(id = 1702)
         public boolean pyTimer = false;
@@ -3222,6 +3356,10 @@ public final class FeatureConfigs {
         @Expose @ConfigOption(name = "Dragon Health", desc = "Each alive dragon's health on it.") @ConfigEditorBoolean public boolean health = false;
         @Expose @ConfigOption(name = "Relic Place Timer", desc = "Once all five relics are placed, a chat line per relic with who placed it and how long after the Wither King appeared, with your PB for your relic (NoammAddons' Place Timer).") @ConfigEditorBoolean public boolean relicTimer = false;
         @Expose @ConfigOption(name = "Ice Spray Tracker", desc = "Chat line with how many ticks after spawning each dragon was Ice Sprayed.") @ConfigEditorBoolean public boolean trackIceSpray = false;
+        @Expose @ConfigOption(name = "Relic Beacon", desc = "While you hold a relic, a beacon beam in the relic's colour on the cauldron it goes in (Odin's King Relic).") @ConfigEditorBoolean public boolean relicBeacon = false;
+        @Expose @ConfigOption(name = "Relic Tracer", desc = "While you hold a relic, a line to the cauldron it goes in (NoammAddons' Box Relics).") @ConfigEditorBoolean public boolean relicTracer = false;
+        @Expose @ConfigOption(name = "Arrow Stack Indicator", desc = "While a dragon spawns, a marker where to aim so your arrows land on its stack spot, allowing for the arrows' drop over the distance (NoammAddons).") @ConfigEditorBoolean public boolean arrowStack = false;
+        @Expose @ConfigOption(name = "Arrows Hit", desc = "When your priority dragon dies, a chat line with how many of your arrows hit it in its skip window (NoammAddons' Send Arrows Hit).") @ConfigEditorBoolean public boolean arrowsHit = false;
     }
 
     public enum DragonSoloPriority {
@@ -3877,7 +4015,7 @@ public final class FeatureConfigs {
         public int delaySeconds = 5;
 
         @Expose
-        @ConfigOption(name = "Cancel If Someone Leaves", desc = "Don't requeue when a party member leaves or disconnects before it happens.")
+        @ConfigOption(name = "Cancel If Someone Leaves", desc = "Don't requeue when a party member leaves, is kicked or disconnects during the run or before the requeue.")
         @ConfigEditorBoolean
         public boolean cancelOnLeave = true;
 
@@ -5598,6 +5736,16 @@ public final class FeatureConfigs {
         @ConfigOption(name = "Send Progress in Party Chat", desc = "Like Odin: when a row of your Melody is done, say \"Melody 2/4 - 50%\" in party chat, which Odin, NoammAddons and Sky2M users all read.")
         @ConfigEditorBoolean
         public boolean sendProgress = false;
+
+        @Expose
+        @ConfigOption(name = "Send Coords", desc = "Like Odin's Melody Send Coords: when you open Melody in P3, say where you are in party chat (\"x: 1, y: 2, z: 3\").")
+        @ConfigEditorBoolean
+        public boolean sendCoords = false;
+
+        @Expose
+        @ConfigOption(name = "Progress Alert", desc = "A title and a sound when a teammate's Melody progress comes in party chat, like \"Steve has 2/3 melody\" (NoammAddons' Melody Display).")
+        @ConfigEditorBoolean
+        public boolean alert = false;
     }
 
     /** Cross-Mod Bridge (Killer560's): share party dungeon data with Odin, NoammAddons and Devonian users. */
@@ -6389,6 +6537,21 @@ public final class FeatureConfigs {
         @ConfigOption(name = "Title", desc = "A small title each time someone finishes one: \"Name 3/7\" (green when the section is done).")
         @ConfigEditorBoolean
         public boolean title = false;
+
+        @Expose
+        @ConfigOption(name = "Replace Hypixel's Titles", desc = "With Title on, hide Hypixel's own \"Name activated a terminal! (3/7)\" subtitles so only Sky2M's shows (Odin's Terminal Titles).")
+        @ConfigEditorBoolean
+        public boolean replaceTitles = false;
+
+        @Expose
+        @ConfigOption(name = "Phase Done", desc = "With Title on, show \"Phase Done!\" when a section's last one is done.")
+        @ConfigEditorBoolean
+        public boolean phaseDone = false;
+
+        @Expose
+        @ConfigOption(name = "Gate Titles", desc = "With Title on, \"GATE!\" when the gate will open in 5 seconds and \"Gate Destroyed!\" when it's destroyed, instead of Hypixel's subtitles (NoammAddons' F7 Titles).")
+        @ConfigEditorBoolean
+        public boolean gateTitles = false;
 
         @Expose
         @ConfigOption(name = "Show Type", desc = "Say whether it was a terminal, lever or device after the name.")

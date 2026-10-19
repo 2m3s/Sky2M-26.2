@@ -42,6 +42,10 @@ public final class Sky2MConfig extends Config {
         @ConfigEditorBoolean
         public boolean whatsNewMessage = true;
 
+        @ConfigOption(name = "Sky2M GitHub", desc = "Open Sky2M's GitHub page for this Minecraft version, with the downloads and source code.")
+        @ConfigEditorButton(buttonText = "GITHUB")
+        public Runnable openGithub = () -> net.minecraft.util.Util.getPlatform().openUri(Sky2MUpdateChecker.GITHUB_URL);
+
         @Expose
         @ConfigOption(name = "SkyBlock Only", desc = "Pause every Sky2M feature outside SkyBlock (the Hypixel lobby, other games, other servers): HUDs, highlights, chat features, the custom crosshair and the rest. Singleplayer still works. Settings, commands and Sky2M chat keep working (Killer560's).")
         @ConfigEditorBoolean
@@ -819,6 +823,12 @@ public final class Sky2MConfig extends Config {
 
         @Expose
         @Accordion
+        @ConfigOption(name = "Play as Mob", desc = "Players drawn as the mob or 3D model they chose in /s2 cosmetics: you, and every other Sky2M player. Models are given out by Sky2M staff on shadowisabot.com; every mob is free. Only Sky2M players see looks.")
+        @ConfigAccordionId(id = 2306)
+        public PlayAsMob playAsMob = new PlayAsMob();
+
+        @Expose
+        @Accordion
         @ConfigOption(name = "Hit Colour", desc = "Change the colour of the flash when a mob or player gets hit, like Lunar Client's Hit Color.")
         @ConfigAccordionId(id = 2306)
         public HitColour hitColour = new HitColour();
@@ -1216,6 +1226,13 @@ public final class Sky2MConfig extends Config {
     @Expose
     @Category(name = "Misc", desc = "Item tooltips, inventory and storage helpers, HUDs, visual tweaks, Hypixel commands, Discord, pets and the Bazaar.")
     public Misc misc = new Misc();
+
+    @Expose
+    @Category(name = "Clips", desc = "Save the last few seconds of the game as a video with one key, with the sound you choose (Windows).")
+    public Clips clips = new Clips();
+
+    /** Save Clip's default key. */
+    private static final int CLIP_KEY = GLFW.GLFW_KEY_F8;
 
     public static final class TooltipScroll {
         @Expose
@@ -1678,6 +1695,110 @@ public final class Sky2MConfig extends Config {
         @Expose @ConfigOption(name = "Others Width", desc = "X scale (1 = normal).") @ConfigEditorSlider(minValue = 0.1f, maxValue = 3f, minStep = 0.05f) public float othersX = 0.6f;
         @Expose @ConfigOption(name = "Others Height", desc = "Y scale (1 = normal, negative = upside down).") @ConfigEditorSlider(minValue = -1f, maxValue = 3f, minStep = 0.05f) public float othersY = 0.6f;
         @Expose @ConfigOption(name = "Others Depth", desc = "Z scale (1 = normal).") @ConfigEditorSlider(minValue = 0.1f, maxValue = 3f, minStep = 0.05f) public float othersZ = 0.6f;
+    }
+
+    public static final class Clips {
+        /** The first-launch "download the clipping software?" question was answered. */
+        @Expose
+        public boolean askedDownload = false;
+
+        @Expose
+        @ConfigOption(name = "Enabled", desc = "Keep the last few seconds of the game recorded, and save them as a video with the Save Clip key (Windows only). Recording is done by Sky2M Clips, a separate program (about 42 MB) that Sky2M asks to download the first time; it uses your graphics card's video encoder, so it costs very little FPS.")
+        @ConfigEditorBoolean
+        public boolean enabled = false;
+
+        @Expose
+        @ConfigOption(name = "Save Clip Key", desc = "Saves the last Clip Length seconds as a video (also /s2 clip).")
+        @ConfigEditorKeybind(defaultKey = CLIP_KEY)
+        public int saveKey = CLIP_KEY;
+
+        @Expose
+        @ConfigOption(name = "Clip Length", desc = "How many seconds each clip keeps.")
+        @ConfigEditorSlider(minValue = 10f, maxValue = 120f, minStep = 5f)
+        public int seconds = 30;
+
+        @Expose
+        @ConfigOption(name = "Quality", desc = "The clip's height. Bigger looks sharper and makes bigger files.")
+        @ConfigEditorDropdown
+        public com.epic60869.sky2m.features.misc.clips.Clips.Quality quality = com.epic60869.sky2m.features.misc.clips.Clips.Quality.P1080;
+
+        @Expose
+        @ConfigOption(name = "Frame Rate", desc = "Frames per second in clips.")
+        @ConfigEditorDropdown
+        public com.epic60869.sky2m.features.misc.clips.Clips.Fps fps = com.epic60869.sky2m.features.misc.clips.Clips.Fps.FPS60;
+
+        @Expose
+        @ConfigOption(name = "Sound", desc = "What you hear in clips: only the game, the game and Discord (voice chat), everything your computer plays, or nothing.")
+        @ConfigEditorDropdown
+        public com.epic60869.sky2m.features.misc.clips.Clips.Sound sound = com.epic60869.sky2m.features.misc.clips.Clips.Sound.GAME;
+
+        @Expose
+        @ConfigOption(name = "Microphone", desc = "Also record your microphone (your default recording device).")
+        @ConfigEditorBoolean
+        public boolean mic = false;
+
+        @Expose
+        @ConfigOption(name = "Game Volume", desc = "The game's volume in clips (100 = as it is).")
+        @ConfigEditorSlider(minValue = 0f, maxValue = 200f, minStep = 5f)
+        public int gameVolume = 100;
+
+        @Expose
+        @ConfigOption(name = "Discord Volume", desc = "Discord's volume in clips, with Game + Discord.")
+        @ConfigEditorSlider(minValue = 0f, maxValue = 200f, minStep = 5f)
+        public int discordVolume = 100;
+
+        @Expose
+        @ConfigOption(name = "Everything Volume", desc = "The volume of everything your computer plays, with Everything You Hear.")
+        @ConfigEditorSlider(minValue = 0f, maxValue = 200f, minStep = 5f)
+        public int desktopVolume = 100;
+
+        @Expose
+        @ConfigOption(name = "Microphone Volume", desc = "Your microphone's volume in clips.")
+        @ConfigEditorSlider(minValue = 0f, maxValue = 200f, minStep = 5f)
+        public int micVolume = 100;
+
+        @ConfigOption(name = "Clips Folder", desc = "Open the folder clips are saved in (Videos\\Sky2M Clips).")
+        @ConfigEditorButton(buttonText = "OPEN")
+        public Runnable openFolder = () -> com.epic60869.sky2m.features.misc.clips.Clips.openFolder();
+
+        @ConfigOption(name = "Download Sky2M Clips", desc = "Download (or download again) the Sky2M Clips program from Sky2M's GitHub. It is checked against the copy this version of Sky2M expects before it runs.")
+        @ConfigEditorButton(buttonText = "DOWNLOAD")
+        public Runnable download = () -> com.epic60869.sky2m.features.misc.clips.Clips.download();
+    }
+
+    public static final class PlayAsMob {
+        @ConfigOption(name = "Choose Your Look", desc = "Pick a mob, or a model Sky2M staff gave you, in /s2 cosmetics (Model). Every Sky2M player near you sees it. Also on shadowisabot.com and with /s2 playasmob.")
+        @ConfigEditorButton(buttonText = "CHOOSE")
+        public Runnable choose = () -> com.epic60869.sky2m.features.sbc.SbcCosmetics.openScreen("model");
+
+        /** The mob you picked ("" for none): mobs are free, so they work without the Sky2M server too. */
+        @Expose
+        public String mob = "";
+
+        @Expose
+        @ConfigOption(name = "Show My Look", desc = "Draw yourself as the mob or model you chose (third person and your inventory preview). Off shows your normal skin to you only; other Sky2M players still see your look.")
+        @ConfigEditorBoolean
+        public boolean showOwn = true;
+
+        @Expose
+        @ConfigOption(name = "Show Others' Looks", desc = "Draw other Sky2M players as the mob or model they chose.")
+        @ConfigEditorBoolean
+        public boolean showOthers = true;
+
+        @Expose
+        @ConfigOption(name = "In Dungeons", desc = "Also draw other players' looks in dungeons. Off by default, so a teammate drawn as a mob isn't mistaken for an enemy.")
+        @ConfigEditorBoolean
+        public boolean inDungeons = false;
+
+        @Expose
+        @ConfigOption(name = "Use Player Size", desc = "Your Player Size (Scale Yourself, Scale Others) also stretches mobs. Models always follow it.")
+        @ConfigEditorBoolean
+        public boolean useSize = true;
+
+        @Expose
+        @ConfigOption(name = "Animate Models", desc = "Turn the head and swing the arms and legs of models as players look around and walk (bones named head, left/right arm and left/right leg).")
+        @ConfigEditorBoolean
+        public boolean animate = true;
     }
 
     public static final class HitColour {

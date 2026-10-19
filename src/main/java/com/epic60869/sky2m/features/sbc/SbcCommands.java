@@ -78,6 +78,7 @@ public final class SbcCommands {
         return ClientCommands.literal(root)
             .then(ClientCommands.literal("help").executes(c -> help()))
             .then(ClientCommands.literal("cosmetics").executes(c -> run(SbcCosmetics::openScreen)))
+            .then(ClientCommands.literal("playasmob").executes(c -> run(() -> SbcCosmetics.openScreen("model"))))
             .then(ClientCommands.literal("settings")
                 .executes(c -> {
                     SbcSettingsSync.list();

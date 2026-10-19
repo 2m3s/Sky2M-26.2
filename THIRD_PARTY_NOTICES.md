@@ -330,6 +330,7 @@ Sky2M's Ordered Waypoints (`features/mining/OrderedWaypoints.java`) are ported f
 
 Several Sky2M features are ported from Killer560's Mod (https://github.com/Killer560-OG/killer560s-mod, commit 3744aa3). Only the mod's legit behaviour is ported; each ported file names its source in its class comment.
 
+- Play as Mob: `features/misc/playasmob/PlayAsMobs.java`, `PlayAsMobRender.java` and the Sky2MPlayAsMobDispatcherMixin mixin (mobskin/, at commit 7e34368), with the Model page of `SbcCosmeticsScreen` written for Sky2M after mobskin/MobPickerScreen; Sky2M's 3D models (`CustomModels`, `GltfModels`, `GeoModels`, `ServerModels`) are its own
 - Trail: `features/misc/Trail.java` (trail/)
 - Revert Master Stars: `features/misc/RevertMasterStars.java`, the idea of revertmasterstars/ (itself from QUOI's RevertMasterStars), written anew
 - GIF Player and DVD Screensaver: `features/misc/gif/` (gifplayer/, dvd/)

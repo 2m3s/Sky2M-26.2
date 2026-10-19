@@ -36,6 +36,7 @@ public final class SbcStaffScreen extends Screen {
         FEATURES.put("friends", "Friends");
         FEATURES.put("cosmetics", "Cosmetics (emblems, symbols)");
         FEATURES.put("cosmetics.capes", "Capes");
+        FEATURES.put("cosmetics.models", "Play as Mob looks (mobs, models)");
         FEATURES.put("calendar", "SkyBlock event calendar");
         FEATURES.put("pestHighlight", "Pest highlight");
         FEATURES.put("itemCooldowns", "Item cooldowns");

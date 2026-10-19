@@ -27,6 +27,8 @@ import java.util.concurrent.TimeUnit;
  * Each new version is only announced once per game session.
  */
 public final class Sky2MUpdateChecker {
+    /** The Sky2M GitHub page for this Minecraft version, linked from the update message and the settings. */
+    public static final String GITHUB_URL = "https://github.com/2m3s/Sky2M-26.2";
     private static final String LATEST_URL = "https://api.github.com/repos/2m3s/Sky2M-26.2/releases/latest";
     private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("Sky2M");
     private static final long CHECK_EVERY_MS = 60_000L;
@@ -105,9 +107,17 @@ public final class Sky2MUpdateChecker {
                 .append(Component.literal(latest).withStyle(Style.EMPTY.withColor(ChatFormatting.GREEN).withBold(false)))
                 .append(Component.literal("  [Download]").withStyle(Style.EMPTY.withColor(ChatFormatting.AQUA).withBold(false).withUnderlined(true)
                     .withClickEvent(new ClickEvent.OpenUrl(URI.create(url)))
-                    .withHoverEvent(new HoverEvent.ShowText(Component.literal("Open the Sky2M " + latest + " release on GitHub")))));
+                    .withHoverEvent(new HoverEvent.ShowText(Component.literal("Open the Sky2M " + latest + " release on GitHub")))))
+                .append(githubLink());
             mc.gui.hud.getChat().addClientSystemMessage(message);
         });
+    }
+
+    /** "GitHub Link" in blue and underlined, opening this version's Sky2M GitHub page. */
+    public static Component githubLink() {
+        return Component.literal("  ").append(Component.literal("GitHub Link").withStyle(Style.EMPTY.withColor(ChatFormatting.BLUE).withBold(false).withUnderlined(true)
+            .withClickEvent(new ClickEvent.OpenUrl(URI.create(GITHUB_URL)))
+            .withHoverEvent(new HoverEvent.ShowText(Component.literal("Open Sky2M for Minecraft " + GITHUB_URL.substring(GITHUB_URL.lastIndexOf('-') + 1) + " on GitHub")))));
     }
 
     /**

@@ -124,6 +124,7 @@ public final class Sky2MMod implements ClientModInitializer {
         com.epic60869.sky2m.features.misc.HideStatusEffects.init();
         com.epic60869.sky2m.features.misc.KeepTerrainLoaded.init(configDir);
         com.epic60869.sky2m.features.misc.Trail.init();
+        com.epic60869.sky2m.features.misc.clips.Clips.init();
         com.epic60869.sky2m.features.misc.gif.GifPlayer.init();
         com.epic60869.sky2m.features.misc.gif.DvdScreensaver.init();
         com.epic60869.sky2m.features.misc.crosshair.CustomCrosshair.init();
