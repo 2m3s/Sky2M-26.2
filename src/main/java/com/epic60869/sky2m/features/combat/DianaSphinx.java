@@ -58,7 +58,7 @@ public final class DianaSphinx {
         ScreenEvents.AFTER_INIT.register((client, screen, width, height) -> {
             if (!(screen instanceof ChatScreen)) return;
             ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> {
-                if (event.button() == 0 && correctIndex >= 0 && enabled()) solve();
+                if (event.button() == com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT && correctIndex >= 0 && enabled()) solve();
                 return true;
             });
         });

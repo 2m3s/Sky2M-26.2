@@ -181,7 +181,7 @@ public final class Sky2MChangelogScreen extends Screen {
 
     @Override
     public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent click, boolean doubled) {
-        if (maxScroll() > 0 && click.button() == 0) {
+        if (maxScroll() > 0 && click.button() == com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT) {
             int[] bar = barBounds();
             if (click.x() >= bar[0] - 2 && click.x() <= bar[0] + 5 && click.y() >= viewTop() && click.y() <= viewBottom()) {
                 draggingBar = true;

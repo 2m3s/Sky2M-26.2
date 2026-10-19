@@ -144,7 +144,7 @@ public final class ReportsViewScreen extends Screen {
 
     @Override
     public boolean mouseClicked(MouseButtonEvent click, boolean doubled) {
-        if (status.isEmpty() && click.button() == 0 && click.y() >= listY && click.y() < listY + listH) {
+        if (status.isEmpty() && click.button() == com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT && click.y() >= listY && click.y() < listY + listH) {
             for (Entry e : layout()) {
                 if (click.y() < e.y() || click.y() >= e.y() + ROW) continue;
                 String id = e.report().id();

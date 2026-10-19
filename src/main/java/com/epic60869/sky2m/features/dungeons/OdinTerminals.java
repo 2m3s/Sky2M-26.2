@@ -433,7 +433,7 @@ public final class OdinTerminals {
         if (x < 0 || y < 0 || x >= grid[2] || y >= grid[3]) return;
         int slot = noammSlotAt(type, x, y);
         if (slot >= type.windowSize) return;
-        int button = mouseButton == 1 ? 1 : 0;
+        int button = mouseButton == com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_RIGHT ? 1 : 0;
         switch (handler.type()) {
             case NUMBERS -> {
                 // Only the next number, like NoammAddons.
