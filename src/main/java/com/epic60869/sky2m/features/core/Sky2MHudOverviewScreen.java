@@ -155,7 +155,7 @@ public final class Sky2MHudOverviewScreen extends Screen {
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (super.mouseClicked(event, doubleClick)) return true;
-        if (event.button() != 0 || event.y() < rowsTop() - 2 || event.y() >= tableBottom()) return false;
+        if (event.button() != com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT || event.y() < rowsTop() - 2 || event.y() >= tableBottom()) return false;
         List<Sky2MHuds.Element> shown = shown();
         int index = scroll + (int) ((event.y() - rowsTop() + 2) / ROW);
         if (index < 0 || index >= shown.size() || index >= scroll + visibleRows()) return false;

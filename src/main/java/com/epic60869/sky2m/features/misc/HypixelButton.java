@@ -157,7 +157,7 @@ public final class HypixelButton {
             button.extractRenderState(graphics, mouseX, mouseY, delta);
         });
         ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> {
-            if (event.button() != 0 || !button.isMouseOver(event.x(), event.y())) return true;
+            if (event.button() != com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT || !button.isMouseOver(event.x(), event.y())) return true;
             button.playDownSound(Minecraft.getInstance().getSoundManager());
             press.accept(s);
             return false;

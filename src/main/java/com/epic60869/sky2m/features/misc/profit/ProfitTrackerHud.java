@@ -393,6 +393,7 @@ final class ProfitTrackerHud {
     // ------------------------------------------------------------------------------------------------ in menus
 
     static void renderInScreen(GuiGraphicsExtractor g, int mouseX, int mouseY) {
+        if (com.epic60869.sky2m.features.misc.storage.StorageOverlay.hidesOtherHuds()) return;
         areas.clear();
         bounds = null;
         ProfitTracker.Preset preset = ProfitTracker.shownPreset();
@@ -420,6 +421,7 @@ final class ProfitTrackerHud {
 
     /** A click on one of the tracker's controls; true if it was one (the menu doesn't get it). */
     static boolean click(double mouseX, double mouseY) {
+        if (com.epic60869.sky2m.features.misc.storage.StorageOverlay.hidesOtherHuds()) return false;
         ProfitTracker.Preset preset = boundsPreset;
         if (preset == null || bounds == null) return false;
         FeatureConfigs.ProfitTrackerSettings c = config(preset);
@@ -475,6 +477,7 @@ final class ProfitTrackerHud {
 
     /** Scrolls the tracker's items when the mouse is over it; true if it did. */
     static boolean scroll(double mouseX, double mouseY, double amount) {
+        if (com.epic60869.sky2m.features.misc.storage.StorageOverlay.hidesOtherHuds()) return false;
         ProfitTracker.Preset preset = boundsPreset;
         if (preset == null || bounds == null || amount == 0) return false;
         if (mouseX < bounds[0] || mouseX >= bounds[0] + bounds[2] || mouseY < bounds[1] || mouseY >= bounds[1] + bounds[3]) return false;

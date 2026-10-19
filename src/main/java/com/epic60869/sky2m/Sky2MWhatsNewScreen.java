@@ -15,7 +15,8 @@ import java.util.List;
 
 /**
  * What's New: each feature added since your last version, with its description, an ON/OFF toggle for its setting
- * and a Settings button that opens the settings searched for it. Scrolls like /s2 log.
+ * and a Settings button that opens the settings searched for it. Features, changes and fixes each have their own tab
+ * instead of one long list. Scrolls like /s2 log.
  */
 public final class Sky2MWhatsNewScreen extends Screen {
     private static final int PANEL = 0xC0101216;
@@ -27,9 +28,26 @@ public final class Sky2MWhatsNewScreen extends Screen {
     private static final int TOGGLE_W = 34;
     private static final int SETTINGS_W = 50;
 
-    /** A feature card, a change card ({@code change} set), or the "Changes & fixes" heading (both null). */
+    /** A feature card, or a change card ({@code change} set). */
     private record Card(Sky2MWhatsNew.Feature feature, Sky2MWhatsNew.Change change, List<FormattedCharSequence> lines, int height) {}
-    private static final int HEADING_H = 16;
+
+    private enum Tab {
+        FEATURES("Features", "new features"),
+        CHANGES("Changes", "changes"),
+        FIXES("Fixes", "fixes");
+
+        final String label;
+        final String nothing;
+
+        Tab(String label, String nothing) {
+            this.label = label;
+            this.nothing = nothing;
+        }
+    }
+
+    private static final int TAB_W = 96;
+    private static final int TAB_H = 18;
+    private Tab tab;
 
     private final List<Sky2MWhatsNew.Feature> features;
     private final List<Sky2MWhatsNew.Change> changes;
@@ -44,15 +62,43 @@ public final class Sky2MWhatsNewScreen extends Screen {
         this.features = features;
         this.changes = changes;
         this.installed = installed;
+        // Open on the first tab with something in it.
+        this.tab = !features.isEmpty() ? Tab.FEATURES : !changesOf(Tab.CHANGES).isEmpty() ? Tab.CHANGES
+            : !changesOf(Tab.FIXES).isEmpty() ? Tab.FIXES : Tab.FEATURES;
+    }
+
+    /** The changes a tab lists: Fixes has the "Fixed" entries, Changes the "Changed" and "Removed" ones. */
+    private List<Sky2MWhatsNew.Change> changesOf(Tab which) {
+        if (which == Tab.FEATURES) return List.of();
+        boolean fixes = which == Tab.FIXES;
+        return changes.stream().filter(c -> c.kind().equalsIgnoreCase("Fixed") == fixes).toList();
+    }
+
+    private int count(Tab which) {
+        return which == Tab.FEATURES ? features.size() : changesOf(which).size();
     }
 
     @Override
     protected void init() {
         panelW = Math.min(width - 32, 480);
         panelX = (width - panelW) / 2;
-        panelY = 40;
+        panelY = 40 + TAB_H + 6;
         panelH = Math.max(80, height - panelY - 36);
-        boolean anyToggle = features.stream().anyMatch(f -> f.toggle() != null);
+        Tab[] tabs = Tab.values();
+        int tabsX = width / 2 - (tabs.length * TAB_W + (tabs.length - 1) * 4) / 2;
+        for (int i = 0; i < tabs.length; i++) {
+            Tab t = tabs[i];
+            Button button = Button.builder(Component.literal(t.label + " (" + count(t) + ")"), b -> {
+                    tab = t;
+                    scroll = 0;
+                    rebuildWidgets();
+                })
+                .bounds(tabsX + i * (TAB_W + 4), 40, TAB_W, TAB_H).build();
+            // The open tab's button is greyed out, so it reads as selected.
+            button.active = t != tab;
+            addRenderableWidget(button);
+        }
+        boolean anyToggle = tab == Tab.FEATURES && features.stream().anyMatch(f -> f.toggle() != null);
         if (anyToggle) {
             addRenderableWidget(Button.builder(Component.literal("All On"), b -> setAll(true))
                 .bounds(panelX, 14, 60, 20).build());
@@ -71,7 +117,7 @@ public final class Sky2MWhatsNewScreen extends Screen {
         cards.clear();
         int textW = panelW - PAD * 4 - TOGGLE_W - SETTINGS_W - 8;
         int total = 0;
-        for (Sky2MWhatsNew.Feature feature : features) {
+        for (Sky2MWhatsNew.Feature feature : tab == Tab.FEATURES ? features : List.<Sky2MWhatsNew.Feature>of()) {
             // The description without the name and settings path it starts with.
             String text = feature.text();
             int colon = text.indexOf(": ");
@@ -81,11 +127,9 @@ public final class Sky2MWhatsNewScreen extends Screen {
             cards.add(new Card(feature, null, lines, h));
             total += h + 4;
         }
-        if (!changes.isEmpty()) {
-            cards.add(new Card(null, null, List.of(), HEADING_H));
-            total += HEADING_H + 4;
-            int changeW = panelW - PAD * 4 - 60;
-            for (Sky2MWhatsNew.Change change : changes) {
+        if (tab != Tab.FEATURES) {
+            int changeW = panelW - PAD * 4 - (tab == Tab.CHANGES ? 60 : 8);
+            for (Sky2MWhatsNew.Change change : changesOf(tab)) {
                 List<FormattedCharSequence> lines = font.split(FormattedText.of(change.text()), changeW);
                 int h = PAD / 2 + lines.size() * LINE + PAD / 2;
                 cards.add(new Card(null, change, lines, h));
@@ -123,7 +167,7 @@ public final class Sky2MWhatsNewScreen extends Screen {
         g.outline(panelX, panelY, panelW, panelH, PANEL_BORDER);
 
         if (cards.isEmpty()) {
-            g.centeredText(font, Component.literal("Nothing new since your last version.").withStyle(ChatFormatting.GRAY),
+            g.centeredText(font, Component.literal("No " + tab.nothing + " since your last version.").withStyle(ChatFormatting.GRAY),
                 width / 2, panelY + panelH / 2 - 4, 0xFFFFFFFF);
         } else {
             scroll = Mth.clamp(scroll, 0, maxScroll());
@@ -183,19 +227,21 @@ public final class Sky2MWhatsNewScreen extends Screen {
         }
     }
 
-    /** The "Changes & fixes" heading, or one change: its kind in colour, then the text. */
+    /** One change: on the Changes tab its kind ("Changed"/"Removed") in colour first, then the text. */
     private void drawChange(GuiGraphicsExtractor g, Card card, int y) {
         int x = panelX + PAD;
-        if (card.change() == null) {
-            g.text(font, Component.literal("Changes & fixes").withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD), x, y + 4, 0xFFFFFFFF, true);
-            return;
+        int textX = x + PAD;
+        if (tab == Tab.CHANGES) {
+            String kind = card.change().kind();
+            ChatFormatting colour = kind.equalsIgnoreCase("Removed") ? ChatFormatting.RED : ChatFormatting.YELLOW;
+            g.text(font, Component.literal(kind).withStyle(colour), x + PAD, y + PAD / 2, 0xFFFFFFFF, false);
+            textX += 52;
+        } else {
+            g.text(font, Component.literal("•").withStyle(ChatFormatting.GREEN), x + PAD - 6, y + PAD / 2, 0xFFFFFFFF, false);
         }
-        String kind = card.change().kind();
-        ChatFormatting colour = kind.equalsIgnoreCase("Fixed") ? ChatFormatting.GREEN : kind.equalsIgnoreCase("Removed") ? ChatFormatting.RED : ChatFormatting.YELLOW;
-        g.text(font, Component.literal(kind).withStyle(colour), x + PAD, y + PAD / 2, 0xFFFFFFFF, false);
         int ty = y + PAD / 2;
         for (FormattedCharSequence line : card.lines()) {
-            g.text(font, line, x + PAD + 52, ty, 0xFFC8C8C8, false);
+            g.text(font, line, textX, ty, 0xFFC8C8C8, false);
             ty += LINE;
         }
     }

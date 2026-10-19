@@ -106,7 +106,7 @@ public abstract class Sky2MChatScreenMixin {
     /** Side Chat: clicking a message's clickable part, like in chat. */
     @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
     private void sky2m$sideChatClick(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick, CallbackInfoReturnable<Boolean> cir) {
-        if (event.button() != 0) return;
+        if (event.button() != com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT) return;
         net.minecraft.network.chat.Style style = com.epic60869.sky2m.features.misc.SideChat.styleAt(event.x(), event.y());
         if (style == null) return;
         boolean insert = insertionClickMode();

@@ -329,7 +329,7 @@ public final class SearchOverlay extends Screen {
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-        if (event.button() == 0) {
+        if (event.button() == com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT) {
             int x = left();
             double mx = event.x(), my = event.y();
             if (mode == Mode.AUCTION) {

@@ -122,7 +122,7 @@ public final class Sky2MPerfScreen extends Screen {
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (super.mouseClicked(event, doubleClick)) return true;
         int rowsTop = tableTop() + 16;
-        if (event.button() != 0 || event.y() < rowsTop - 2 || event.y() >= tableBottom()) return false;
+        if (event.button() != com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT || event.y() < rowsTop - 2 || event.y() >= tableBottom()) return false;
         List<Sky2MPerf.Stat> stats = Sky2MPerf.stats();
         int index = scroll + (int) ((event.y() - rowsTop + 2) / ROW);
         if (index < 0 || index >= stats.size() || stats.get(index).kind() != Sky2MPerf.Kind.HUD) return false;

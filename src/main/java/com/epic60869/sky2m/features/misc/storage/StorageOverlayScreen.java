@@ -316,7 +316,7 @@ public class StorageOverlayScreen extends Screen {
         if (getScrollPanelInner().contains(mouseX, mouseY)) {
             StoragePageSlot[] clicked = new StoragePageSlot[1];
             layoutedForEach(StorageData.data(), (rect, page, inventory) -> {
-                if (rect.contains(mouseX, mouseY) && !page.equals(activePage) && click.button() == 0) clicked[0] = page;
+                if (rect.contains(mouseX, mouseY) && !page.equals(activePage) && click.button() == com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT) clicked[0] = page;
             });
             if (clicked[0] != null) {
                 clicked[0].navigateTo();

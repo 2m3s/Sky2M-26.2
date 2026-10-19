@@ -774,14 +774,14 @@ public final class Sky2MLeaderboardScreen extends Screen {
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (super.mouseClicked(event, doubleClick)) return true;
-        if (event.button() != 0 && event.button() != 1) return false;
+        if (event.button() != com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT && event.button() != com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_RIGHT) return false;
         // The search field's border and icon, which the borderless EditBox inside it doesn't cover.
-        if (event.button() == 0 && Sky2MGuiStyle.inSearch(searchBox, event.x(), event.y())) {
+        if (event.button() == com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT && Sky2MGuiStyle.inSearch(searchBox, event.x(), event.y())) {
             setFocused(searchBox);
             return true;
         }
         // Tabs, filters and buttons, where they were drawn last frame.
-        if (event.button() == 0) {
+        if (event.button() == com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT) {
             for (Hit hit : List.copyOf(hits)) {
                 if (inside(hit, event.x(), event.y())) {
                     Sky2MGuiStyle.click();
@@ -791,7 +791,7 @@ public final class Sky2MLeaderboardScreen extends Screen {
             }
         }
         // The rival picker's buttons: rival on this board, or undo.
-        if (event.button() == 0 && selected != null) {
+        if (event.button() == com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT && selected != null) {
             for (PickButton b : pickButtons) {
                 if (event.x() >= b.x0() && event.x() < b.x1() && event.y() >= b.y0() && event.y() < b.y1()) {
                     Sky2MRivals.toggle(b.player(), selected.key(), rivalBoardName());
@@ -807,7 +807,7 @@ public final class Sky2MLeaderboardScreen extends Screen {
             int visible = Math.max(1, (tableBottom() - tableTop + 2) / TABLE_ROW);
             if (row >= 0 && row < rows.size() && row < tableScroll + visible && !rows.get(row).self()) {
                 String name = rows.get(row).player();
-                if (event.button() == 0) Sky2MRivals.toggle(name, selected.key(), rivalBoardName());
+                if (event.button() == com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT) Sky2MRivals.toggle(name, selected.key(), rivalBoardName());
                 else if (Sky2MRivals.isRival(name, selected.key())) Sky2MRivals.remove(name, null);
                 return true;
             }
@@ -817,7 +817,7 @@ public final class Sky2MLeaderboardScreen extends Screen {
         int index = listScroll + (int) ((event.y() - y) / LIST_ROW);
         if (index < 0 || index >= boards.size() || boards.get(index).header() != null) return false;
         Board b = boards.get(index);
-        if (event.button() == 1) {
+        if (event.button() == com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_RIGHT) {
             toggleOverHead(b);
             return true;
         }

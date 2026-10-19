@@ -257,6 +257,7 @@ public final class ZealotCounter {
     }
 
     private static void renderInInventory(GuiGraphicsExtractor graphics) {
+        if (com.epic60869.sky2m.features.misc.storage.StorageOverlay.hidesOtherHuds()) return;
         if (!enabled()) return;
         List<Component> lines = lines(true);
         int[] pos = Sky2MHuds.screenPosition("zealots", lines);
@@ -266,6 +267,7 @@ public final class ZealotCounter {
 
     /** Switches between total and session when the matching "[...]" on the mode line is clicked. */
     private static boolean clickModeSwitch(double mouseX, double mouseY) {
+        if (com.epic60869.sky2m.features.misc.storage.StorageOverlay.hidesOtherHuds()) return false;
         if (!enabled()) return false;
         List<Component> lines = lines(true);
         int[] pos = Sky2MHuds.screenPosition("zealots", lines);

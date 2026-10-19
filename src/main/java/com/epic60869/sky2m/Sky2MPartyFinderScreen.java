@@ -440,7 +440,7 @@ public final class Sky2MPartyFinderScreen extends Screen {
 
         @Override
         public void onClick(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick) {
-            step.accept(event.button() == 1 ? -1 : 1);
+            step.accept(event.button() == com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_RIGHT ? -1 : 1);
         }
     }
 

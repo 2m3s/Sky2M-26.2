@@ -248,7 +248,7 @@ public final class ScreenshotGallery extends Screen {
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (super.mouseClicked(event, doubleClick)) return true;
-        if (event.button() != 0 || event.y() < gridTop() || event.y() >= gridBottom()) return false;
+        if (event.button() != com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT || event.y() < gridTop() || event.y() >= gridBottom()) return false;
         int cols = columns(), rowH = THUMB_H + 14 + GAP;
         int col = (int) ((event.x() - gridLeft()) / (THUMB_W + GAP));
         int row = (int) ((event.y() - gridTop()) / rowH) + scroll;

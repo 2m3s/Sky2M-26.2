@@ -76,16 +76,22 @@ public final class SlayerBossProfit {
         final java.util.Set<Integer> seenItems = new java.util.HashSet<>();
         /** When the first of the boss's drops showed on the ground, or 0. */
         long groundAt;
-        /** The spawn cost paid, or -1 when it wasn't seen. */
-        final long cost;
+        /** The boss's quest ({@link SlayerQuestCost#questOfLastBoss}): its cost is looked up each time, since the fee
+         *  can be measured a few seconds after a quick kill or an instant restart. */
+        final int quest;
         boolean posted;
 
-        Kill(String boss, long at, Map<String, Integer> baseline, Map<String, Long> observed, long cost) {
+        Kill(String boss, long at, Map<String, Integer> baseline, Map<String, Long> observed, int quest) {
             this.boss = boss;
             this.at = at;
             this.baseline = baseline;
             this.observed = observed;
-            this.cost = cost;
+            this.quest = quest;
+        }
+
+        /** The spawn cost paid, or -1 while it isn't known. */
+        long cost() {
+            return SlayerQuestCost.costOf(quest);
         }
     }
 
@@ -313,8 +319,7 @@ public final class SlayerBossProfit {
     static void onKill(String boss) {
         if (!enabled() || baseline == null) return;
         if (kill != null) close();
-        long cost = SlayerQuestCost.costOfLastBoss();
-        kill = new Kill(boss, System.currentTimeMillis(), baseline, new LinkedHashMap<>(observedGains), cost);
+        kill = new Kill(boss, System.currentTimeMillis(), baseline, new LinkedHashMap<>(observedGains), SlayerQuestCost.questOfLastBoss());
         hudUntil = Long.MAX_VALUE;
         // Items that were lying around when the boss spawned aren't its drops (ones dropped since are, even if they
         // landed a moment before Hypixel's kill message).
@@ -399,7 +404,7 @@ public final class SlayerBossProfit {
     /** Stops counting drops for the kill; its last result stays on the HUD. */
     private static void close() {
         refresh();
-        postChat();
+        postChat(true);
         if (last != null) last = new Result(last.boss(), last.at(), last.lines(), last.drops(), last.cost(), false, last.listLoaded());
         kill = null;
     }
@@ -456,20 +461,31 @@ public final class SlayerBossProfit {
         }
         lines.sort((a, b) -> Double.compare(b.value(), a.value()));
         double drops = lines.stream().mapToDouble(Line::value).sum();
-        last = new Result(k.boss, k.at, List.copyOf(lines), drops, k.cost, true, listLoaded(k.boss));
+        last = new Result(k.boss, k.at, List.copyOf(lines), drops, k.cost(), true, listLoaded(k.boss));
     }
 
     // ---------------------------------------------------------------- chat
 
     private static void postChat() {
+        postChat(false);
+    }
+
+    /** @param closing the kill is being closed: post now, without waiting for prices or the fee any more */
+    private static void postChat(boolean closing) {
         Kill k = kill;
         Sky2MConfig.BossProfit c = config();
         if (k == null || k.posted || last == null) return;
         // Without prices every drop would show "no price": wait for them (they're asked for at the quest start), up
         // to 10 seconds after the kill.
-        if (!Sky2MPriceTooltip.pricesLoaded() && System.currentTimeMillis() - k.at < 10_000L) {
+        if (!closing && !Sky2MPriceTooltip.pricesLoaded() && System.currentTimeMillis() - k.at < 10_000L) {
             Sky2MPriceTooltip.warmup();
             return;
+        }
+        // The quest's fee is still being read off the purse (a quick kill or an instant restart): wait for it, up to 5
+        // seconds after the kill, so the profit has the cost taken out instead of counting it as 0.
+        if (!closing && k.cost() < 0 && SlayerQuestCost.measuring(k.quest) && System.currentTimeMillis() - k.at < 5_000L) return;
+        if (last.cost() != k.cost()) {
+            last = new Result(last.boss(), last.at(), last.lines(), last.drops(), k.cost(), last.counting(), last.listLoaded());
         }
         k.posted = true;
         settleHud();

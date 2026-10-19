@@ -133,7 +133,7 @@ final class ProfitItemEditScreen extends Screen {
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (super.mouseClicked(event, doubleClick)) return true;
-        if (event.button() != 0) return false;
+        if (event.button() != com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT) return false;
         // The field's border, which the borderless EditBox inside it doesn't cover.
         if (Sky2MGuiStyle.inField(box, event.x(), event.y())) {
             setFocused(box);

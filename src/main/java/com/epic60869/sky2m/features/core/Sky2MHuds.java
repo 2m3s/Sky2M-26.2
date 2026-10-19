@@ -163,6 +163,7 @@ public final class Sky2MHuds {
     }
 
     private static void renderAll(GuiGraphicsExtractor graphics) {
+        if (com.epic60869.sky2m.features.misc.storage.StorageOverlay.hidesOtherHuds()) return;
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
         // Hidden while the Inquisitor Gamble plays, so a tracker doesn't show the Chimera first.
