@@ -276,7 +276,7 @@ public final class GardenVisitors {
     public static void init(Path configDir) {
         file = configDir.resolve("sky2m").resolve("garden-visitors.json");
         load();
-        SkyHanniRepo.load("Garden", GardenVisitors::readRepo);
+        SkyHanniRepo.loadAsync("Garden", GardenVisitors::readRepo);
 
         ClientPlayConnectionEvents.JOIN.register((handler, sender, mc) -> {
             visitors.clear();
@@ -1323,11 +1323,16 @@ public final class GardenVisitors {
     private static boolean blockMessage(Component component) {
         VisitorConfig config = config();
         if (config == null) return false;
+        // Every chat line comes through here: the text is only read when one of the three options can use it.
+        boolean inGarden = Sky2MLocation.inGarden();
+        boolean gardenChat = inGarden && (config.hideChat || config.compactRewardChat);
+        if (!config.hypixelArrivedMessage && !gardenChat) return false;
         String text = ChatFormatting.stripFormatting(component.getString());
         if (config.hypixelArrivedMessage && ARRIVED.matcher(text).matches()) return true;
+        if (!gardenChat) return false;
         String legacy = SbcItems.legacy(component);
-        if (Sky2MLocation.inGarden() && config.hideChat && hideVisitorMessage(legacy)) return true;
-        return Sky2MLocation.inGarden() && config.compactRewardChat && compactChat(component, legacy.replace("§r", ""));
+        if (config.hideChat && hideVisitorMessage(legacy)) return true;
+        return config.compactRewardChat && compactChat(component, legacy.replace("§r", ""));
     }
 
     private static boolean hideVisitorMessage(String legacy) {

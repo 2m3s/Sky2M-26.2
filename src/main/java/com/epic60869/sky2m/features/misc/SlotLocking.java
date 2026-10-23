@@ -139,7 +139,18 @@ public final class SlotLocking {
         String title = net.minecraft.ChatFormatting.stripFormatting(screen.getTitle().getString());
         if (title == null) return false;
         title = title.toLowerCase(java.util.Locale.ROOT).trim();
-        return title.contains("sell") || title.contains("merchant") || title.contains("shop") || title.contains("trades");
+        return title.contains("sell") || title.contains("merchant") || title.contains("shop") || title.contains("trades")
+            || title.contains("bazaar") || title.contains("buy back") || title.contains("buyback")
+            || title.contains("create bin auction") || title.contains("create auction");
+    }
+
+    /** True if any item in the player's own inventory (including the offhand) is protected. */
+    private static boolean anyProtectedInInventory() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null) return false;
+        var inv = mc.player.getInventory();
+        for (int i = 0; i < inv.getContainerSize(); i++) if (isProtected(inv.getItem(i))) return true;
+        return false;
     }
 
     /**
@@ -155,9 +166,25 @@ public final class SlotLocking {
         if (isNpcShopScreen(screen)) {
             ItemStack clicked = slot == null ? ItemStack.EMPTY : slot.getItem();
             ItemStack carried = screen.getMenu().getCarried();
-            if (isProtected(clicked) || isProtected(carried)) {
+            boolean blocked = isProtected(clicked) || isProtected(carried);
+            // Number-key / offhand swap: the hotbar (or offhand) item being swapped into the shop.
+            if (!blocked && input == ContainerInput.SWAP) {
+                Minecraft mc = Minecraft.getInstance();
+                if (mc.player != null && (button >= 0 && button < 9 || button == 40)) {
+                    blocked = isProtected(mc.player.getInventory().getItem(button));
+                }
+            }
+            // Bulk-sell buttons ("Sell Inventory Now", "Sell Sacks Now") sell everything, protected items included.
+            if (!blocked && !clicked.isEmpty() && screen.getMenu().slots.contains(slot)) {
+                String name = ChatFormatting.stripFormatting(clicked.getHoverName().getString());
+                if (name != null) {
+                    name = name.toLowerCase(java.util.Locale.ROOT);
+                    if ((name.contains("sell inventory") || name.contains("sell all")) && anyProtectedInInventory()) blocked = true;
+                }
+            }
+            if (blocked) {
                 say(Component.literal("★ ").withStyle(ChatFormatting.GOLD)
-                    .append(Component.literal("That item is protected and cannot be sold or traded here. Use /s2 protect to unprotect it.").withStyle(ChatFormatting.RED)));
+                    .append(Component.literal("That item is protected. Use /s2 protect to unprotect it.").withStyle(ChatFormatting.RED)));
                 return true;
             }
         }

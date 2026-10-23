@@ -127,7 +127,6 @@ public final class BossPhases {
     }
 
     public static void init() {
-        load();
         Sky2MChat.onChat(message -> onChat(message.text()));
         ServerTickCallback.EVENT.register(() -> serverTicks++);
         ClientTickEvents.END_CLIENT_TICK.register(mc -> {
@@ -138,7 +137,7 @@ public final class BossPhases {
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
             for (String root : Compat.COMMAND_ROOTS) dispatcher.register(ClientCommands.literal(root)
                 .then(ClientCommands.literal("resetbossrecords").executes(context -> {
-                    records.clear();
+                    records().clear();
                     save();
                     Sky2MAlerts.chat(Component.literal("Boss phase records cleared.").withStyle(ChatFormatting.GRAY));
                     return 1;
@@ -173,7 +172,9 @@ public final class BossPhases {
 
     private static void onChat(String text) {
         FeatureConfigs.BossPhases config = config();
-        if (config == null || !config.enabled && !config.alertTitle && !config.alertSound && !config.partyMessage) return;
+        // The ADG role guide needs the phase changes too, so it keeps the tracking running without Boss Phases being on.
+        boolean adg = AdgRoles.wantsPhases();
+        if (config == null || !adg && !config.enabled && !config.alertTitle && !config.alertSound && !config.partyMessage) return;
         if (!Sky2MLocation.inDungeon()) return;
         long now = System.currentTimeMillis();
 
@@ -190,7 +191,7 @@ public final class BossPhases {
         String currentFloor = Sky2MLocation.dungeonFloor();
         if (currentFloor.length() != 2) return;
         Boss candidate = BOSSES.get(currentFloor.charAt(1));
-        if (candidate == null || !candidate.enabled().test(config)) return;
+        if (candidate == null || !candidate.enabled().test(config) && !(adg && currentFloor.endsWith("7"))) return;
         if (boss != null && boss != candidate) reset();
         floor = currentFloor;
 
@@ -230,6 +231,8 @@ public final class BossPhases {
         phaseStart = now;
         phaseClean = true;
         String name = boss.phases().get(next).name();
+        BossNotes.onPhase(floor, name);
+        AdgRoles.onPhase(floor, name);
         if (name.equals("Livid")) lividStart = serverTicks;
         if (name.equals("Storm")) stormStart = serverTicks;
         if (name.equals("Terminals 1")) { goldorStart = serverTicks; stormStart = -1; }
@@ -266,7 +269,7 @@ public final class BossPhases {
     }
 
     private static Long record(String name) {
-        Map<String, Long> floorRecords = records.get(floor);
+        Map<String, Long> floorRecords = records().get(floor);
         return floorRecords == null ? null : floorRecords.get(name);
     }
 
@@ -274,7 +277,7 @@ public final class BossPhases {
         if (ms < 500) return;
         Long old = record(name);
         if (old != null && ms >= old) return;
-        records.computeIfAbsent(floor, k -> new HashMap<>()).put(name, ms);
+        records().computeIfAbsent(floor, k -> new HashMap<>()).put(name, ms);
         save();
         if (old != null && config.recordMessages) {
             Sky2MAlerts.chat(Component.literal("New record! ").withStyle(ChatFormatting.LIGHT_PURPLE, ChatFormatting.BOLD)
@@ -361,6 +364,17 @@ public final class BossPhases {
     }
 
     // ----- Storage -----
+
+    private static boolean recordsLoaded;
+
+    /** The saved records, read from disk on first use rather than at start-up. */
+    private static Map<String, Map<String, Long>> records() {
+        if (!recordsLoaded) {
+            recordsLoaded = true;
+            load();
+        }
+        return records;
+    }
 
     private static void load() {
         try {

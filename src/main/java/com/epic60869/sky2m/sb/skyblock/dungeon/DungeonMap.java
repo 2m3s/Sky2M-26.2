@@ -59,8 +59,10 @@ public class DungeonMap {
 
 	private static void extract(GuiGraphicsExtractor graphics) {
 		DungeonsConfig.DungeonMap dungeonMap = SkyblockerConfigManager.get().dungeons.dungeonMap;
-		if (shouldProcess() && dungeonMap.enableMap && !replaced.getAsBoolean()) {
-			extract(graphics, dungeonMap.mapX, dungeonMap.mapY, dungeonMap.mapScaling, dungeonMap.fancyMap);
+		// Sky2M: Dungeons > Dungeon Map > Map Style picks the look (Skyblocker, Stella, Devonian); the Dungeon Sim always draws it.
+		if (replaced.getAsBoolean()) return;
+		if (com.epic60869.sky2m.features.dungeons.mapstyle.DungeonMapStyles.inSim() || (shouldProcess() && dungeonMap.enableMap)) {
+			com.epic60869.sky2m.features.dungeons.mapstyle.DungeonMapStyles.render(graphics, dungeonMap.mapX, dungeonMap.mapY, dungeonMap.mapScaling);
 		}
 	}
 

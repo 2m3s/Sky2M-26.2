@@ -55,6 +55,37 @@ public final class FeatureConfigs {
         @ConfigEditorBoolean
         @ConfigAccordionId(id = 301)
         public boolean legionDisplay = false;
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "Boss Damage Indicator", desc = "Health, DPS, time left, hits and heal messages for the boss you are fighting.")
+        public com.epic60869.sky2m.features.combat.extra.CombatExtraConfig.BossIndicator bossIndicator = new com.epic60869.sky2m.features.combat.extra.CombatExtraConfig.BossIndicator();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "Ashfang", desc = "Ashfang's blazes, Blazing Souls, Gravity Orbs, freeze cooldown and next reset (SkyHanni).")
+        public com.epic60869.sky2m.features.combat.extra.CombatExtraConfig.Ashfang ashfang = new com.epic60869.sky2m.features.combat.extra.CombatExtraConfig.Ashfang();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "Ghost Counter", desc = "Ghost kills and drop profit in the Mist of the Dwarven Mines (SkyHanni).")
+        public com.epic60869.sky2m.features.combat.extra.CombatExtraConfig.GhostCounter ghostCounter = new com.epic60869.sky2m.features.combat.extra.CombatExtraConfig.GhostCounter();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "End Dragons", desc = "Dragon profit tracker, weight and Superior Dragon notification (SkyHanni).")
+        public com.epic60869.sky2m.features.combat.extra.CombatExtraConfig.Dragons dragons = new com.epic60869.sky2m.features.combat.extra.CombatExtraConfig.Dragons();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "Ender Node Tracker", desc = "Ender Nodes mined and their loot in the End (SkyHanni).")
+        public com.epic60869.sky2m.features.combat.extra.CombatExtraConfig.EnderNodes enderNodes = new com.epic60869.sky2m.features.combat.extra.CombatExtraConfig.EnderNodes();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "Area Bosses", desc = "Highlight, spawn alert and timer for Boss Corleone, Arachne's Keepers and Zealot Bruisers.")
+        public com.epic60869.sky2m.features.combat.extra.CombatExtraConfig.AreaBosses areaBosses = new com.epic60869.sky2m.features.combat.extra.CombatExtraConfig.AreaBosses();
+
         @Expose
         @Accordion
         @ConfigOption(name = "Cocoon Alert", desc = "Alert when you cocoon a mob.")
@@ -79,6 +110,11 @@ public final class FeatureConfigs {
         @Accordion
         @ConfigOption(name = "Low Health & Mana", desc = "A warning when your health or mana drops below a percentage.")
         public LowStats lowStats = new LowStats();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "Kuudra", desc = "Supply and pile waypoints, pre-spot alerts, phase splits, chest profit, Fresh Tools, Kuudra's health and the Perk Menu cleaner.")
+        public com.epic60869.sky2m.features.combat.kuudra.KuudraConfig kuudra = new com.epic60869.sky2m.features.combat.kuudra.KuudraConfig();
     }
 
     /** SkyHanni's BestiaryConfig (LGPL-2.1). The overlay is moved and resized in /s2 gui. */
@@ -728,7 +764,7 @@ public final class FeatureConfigs {
         public LeapMenu leapMenu = new LeapMenu();
 
         @Expose
-        @Category(name = "Positional Messages", desc = "Party messages sent when you reach a spot (/s2 posmsg), plus built-in waypoints like Py Stand Here.")
+        @Category(name = "Positional Messages", desc = "Party messages sent when you reach a spot (/s2 posmsg), and the ADG role guide for F7/M7.")
         public PositionalMessages positionalMessages = new PositionalMessages();
 
         @Expose
@@ -742,6 +778,14 @@ public final class FeatureConfigs {
         @Expose
         @Category(name = "Chest Profit", desc = "What dungeon reward chests are worth after their cost, at the end of a run and at Croesus.")
         public ChestProfit chestProfit = new ChestProfit();
+
+        @Expose
+        @Category(name = "Dungeon Extras", desc = "Secret waypoint types, door room labels, Spring Boots, creation cooldown, Croesus overlay, hide clutter, clean end, solo class and milestone messages, quick close and shard score message.")
+        public com.epic60869.sky2m.features.dungeons.extras.DungeonExtras.Config dungeonExtras = new com.epic60869.sky2m.features.dungeons.extras.DungeonExtras.Config();
+
+        @Expose
+        @Category(name = "Run Recap", desc = "Death recap, class cooldown HUD, shareable run summary card and boss phase notes.")
+        public com.epic60869.sky2m.features.dungeons.DungeonRecapExtras.Config recapExtras = new com.epic60869.sky2m.features.dungeons.DungeonRecapExtras.Config();
     }
 
     /** Odin's Blessing Display: which blessings to list, and their colours. */
@@ -1058,6 +1102,30 @@ public final class FeatureConfigs {
         @ConfigOption(name = "RNG Drop Totem Animation", desc = "Skyblocker's special effect: RNG drops pop up like a Totem of Undying, with particles and a sound, whatever they are worth (no threshold). Plays for slayer, Diana and fishing RNG items, dyes, and every PRAY TO RNGESUS DROP! or RNG METER DROP! chat message (the item you were filling the RNG Meter for), not for every item listed in the RNG Meter menu.")
         @ConfigEditorBoolean
         public boolean totemAnimation = false;
+
+        @Expose
+        @ConfigOption(name = "Drop Chat Message", desc = "SkyHanni's drop tracker message: \"+Drop: Gold Bottle Cap (16.1M)\" in chat for every rare drop you get, with the item and what it is worth.")
+        @ConfigEditorBoolean
+        public boolean dropMessage = false;
+
+        @Expose
+        @ConfigOption(name = "RNG Drop Title", desc = "Show RNG drops (PRAY TO RNGESUS, RNG METER, slayer, Diana and fishing RNG items, dyes) as a big title in the middle of the screen that fades, like SkyHanni, with the item and its value.")
+        @ConfigEditorBoolean
+        public boolean rngTitle = false;
+
+        /** Remembered by the /s2 rng screen. */
+        @Expose
+        public String rngMagicFind = "";
+        @Expose
+        public String rngPetLuck = "";
+        @Expose
+        public String rngOverbloom = "";
+        @Expose
+        public String rngLooting = "";
+        @Expose
+        public String rngLuck = "";
+        @Expose
+        public String rngSearch = "";
     }
 
     public static final class Slayer {
@@ -1286,6 +1354,11 @@ public final class FeatureConfigs {
 
     public static final class Garden {
         @Expose
+        @ConfigOption(name = "Greenhouse Preview", desc = "Enables /s2 greenhouse paste: copy a layout link from SkyMutations and preview the greenhouse layout (crops and mutation spots) in a screen, like Skyblocker's greenhouse paste. /s2 greenhouse reopens it.")
+        @ConfigEditorBoolean
+        public boolean greenhousePreview = true;
+
+        @Expose
         @ConfigOption(name = "Yaw and Pitch", desc = "HUD showing your yaw, pitch and facing direction.")
         @ConfigEditorBoolean
         public boolean yawPitch = false;
@@ -1324,6 +1397,33 @@ public final class FeatureConfigs {
         @ConfigOption(name = "Mute Overflow Drop Sound", desc = "Don't play the nether portal sound with \"OVERFLOW! Your ... has just dropped a ...!\" (e.g. a Tool Exp Capsule).")
         @ConfigEditorBoolean
         public boolean muteOverflowDropSound = true;
+
+        @Expose
+        @ConfigOption(name = "Composter Reminder", desc = "Title and chat reminder in the Garden when your composter is out of Organic Matter or Fuel (read from the tab list Composter widget).")
+        @ConfigEditorBoolean
+        public boolean composterReminder = false;
+
+        @Expose
+        @ConfigOption(name = "Composter Low Amount", desc = "Also remind when Organic Matter or Fuel drops below this amount. 0 = only when the composter is out.")
+        @ConfigEditorSlider(minValue = 0, maxValue = 20000, minStep = 500)
+        public float composterLowAmount = 0;
+
+        @Expose
+        @ConfigOption(name = "Safari Ticket Reminder", desc = "Remind you once per SkyBlock day (every 20 minutes) to get and use your Safari ticket.")
+        @ConfigEditorBoolean
+        public boolean safariTicketReminder = false;
+    }
+
+    public static final class FishingCatchStreak {
+        @Expose
+        @ConfigOption(name = "Catch Streak", desc = "HUD showing the time since your last sea creature catch and how many you caught in a row. The streak resets when the time window runs out. Needs §eSkyBlock Settings -> Personal -> Fishing Settings -> Sea Creature Chat§7. Move it in /s2 gui.")
+        @ConfigEditorBoolean
+        public boolean enabled = false;
+
+        @Expose
+        @ConfigOption(name = "Catch Streak Window (seconds)", desc = "How long you can go without a catch before the streak resets.")
+        @ConfigEditorSlider(minValue = 5, maxValue = 600, minStep = 5)
+        public float windowSeconds = 60;
     }
 
     /** SkyHanni's PestTimerConfig (LGPL-2.1). */
@@ -1560,8 +1660,16 @@ public final class FeatureConfigs {
         public FishingRareDrops rareDrops = new FishingRareDrops();
 
         @Expose
+        @Category(name = "Rare Sea Creatures", desc = "Rare sea creature alert template and sound, party message templates, lootshare range, boss health bars and the rare SC display, from Riccio Fishing Utils.")
+        public com.epic60869.sky2m.features.fishing.RareSc.Config rareSc = new com.epic60869.sky2m.features.fishing.RareSc.Config();
+
+        @Expose
         @Category(name = "Catch Messages", desc = "Shorter sea creature catch messages with rarity colours.")
         public FishingCatchMessages catchMessages = new FishingCatchMessages();
+
+        @Expose
+        @Category(name = "Catch Streak", desc = "A HUD with the time since your last catch and your catch streak.")
+        public FishingCatchStreak catchStreak = new FishingCatchStreak();
 
         @Expose
         @Category(name = "Alerts", desc = "Trophy discoveries, deployables, maxed pets, hotspots, wormholes, the Fishing Festival and lootshare.")
@@ -1570,6 +1678,18 @@ public final class FeatureConfigs {
         @Expose
         @Category(name = "Hook & Bobber", desc = "SkyHanni's Fishing Bobber Timer and Fishing Hook Display (Hypixel's reel-in countdown, bigger and on your screen).")
         public com.epic60869.sky2m.features.fishing.FishingHookTimer.Config hookTimer = new com.epic60869.sky2m.features.fishing.FishingHookTimer.Config();
+
+        @Expose
+        @Category(name = "Fishing Extras", desc = "Failed cast and no fishing armor alerts, Jawbus death sound, hotspot highlight, time to kill with personal bests, and time and catches since the last rare catch (Riccio Fishing Utils).")
+        public com.epic60869.sky2m.features.fishing.FishingExtras.Config extras = new com.epic60869.sky2m.features.fishing.FishingExtras.Config();
+
+        @Expose
+        @Category(name = "Trackers & Timers", desc = "Totem of Corruption, Sea Creature Tracker, Golden Fish Timer, sea creature health, Barn Fishing Timer, Shark Counter and Odger (SkyHanni).")
+        public com.epic60869.sky2m.features.fishing.FishingMore.Config more = new com.epic60869.sky2m.features.fishing.FishingMore.Config();
+
+        @Expose
+        @Category(name = "Visuals", desc = "Lava drawn as water, hide other players' bobbers and the bobber fix (SkyHanni, SkyOcean).")
+        public com.epic60869.sky2m.features.fishing.FishingVisuals.Config visuals = new com.epic60869.sky2m.features.fishing.FishingVisuals.Config();
     }
 
     public static final class FishingSeaCreatures {
@@ -2247,23 +2367,50 @@ public final class FeatureConfigs {
         @ConfigOption(name = "Sweep Display", desc = "HUD showing your Sweep stat and how many logs you will cut.")
         @ConfigEditorBoolean
         public boolean sweepDisplay = false;
+
+        /** SkyHanni's ForagingBeaconConfig (LGPL-2.1). */
+        @Expose
+        @ConfigOption(name = "Beacon Solver", desc = "In the Moonglade Beacon menus, highlights the controls that match and shows how many clicks the others are off.")
+        @ConfigEditorBoolean
+        public boolean beaconSolver = false;
+
+        @Expose
+        @ConfigOption(name = "Beacon Middle Click", desc = "Click Moonglade Beacon controls with a middle click to speed up interactions.")
+        @ConfigEditorBoolean
+        public boolean beaconMiddleClick = true;
+
+        @Expose
+        @ConfigOption(name = "Beacon Prevent Over-Clicking", desc = "Prevents clicking a Moonglade Beacon control that already matches. Hold Control to bypass.")
+        @ConfigEditorBoolean
+        public boolean beaconPreventOverClicking = true;
+
+        /** SkyHanni's ForagingBeaconWarning (LGPL-2.1). */
+        @Expose
+        @ConfigOption(name = "Beacon Ready Alert", desc = "Shows a title and chat message when the Moonglade Beacon cooldown in the tab list is over.")
+        @ConfigEditorBoolean
+        public boolean beaconReadyAlert = false;
+
+        @Expose
+        @ConfigOption(name = "Foraging Extras", desc = "Foraging Tracker, Tree Progress, Clean Tree View, tutorial quest helper, Birries and Hideonleaf highlights, Mute Phantoms, coupon profit and the Honeyhive reminder (SkyHanni).")
+        @Accordion
+        public com.epic60869.sky2m.features.foraging.ForagingExtras.Config extras = new com.epic60869.sky2m.features.foraging.ForagingExtras.Config();
     }
 
     public static final class Enchanting {
         @Expose
         @ConfigOption(name = "Chronomatron Solver", desc = "Highlight the Chronomatron pattern.")
         @ConfigEditorBoolean
-        public boolean chronomatron = false;
+        public boolean chronomatron = true;
 
         @Expose
         @ConfigOption(name = "Superpairs Solver", desc = "Show revealed Superpairs cards.")
         @ConfigEditorBoolean
-        public boolean superpairs = false;
+        public boolean superpairs = true;
 
         @Expose
         @ConfigOption(name = "Ultrasequencer Solver", desc = "Highlight the Ultrasequencer order.")
         @ConfigEditorBoolean
-        public boolean ultrasequencer = false;
+        public boolean ultrasequencer = true;
 
         @Expose
         @ConfigOption(name = "Ultrasequencer Numbers", desc = "Show the click order as numbers on every Ultrasequencer slot, instead of only highlighting the next one.")
@@ -2366,6 +2513,11 @@ public final class FeatureConfigs {
         @ConfigOption(name = "Enabled", desc = "Show the dungeon map.")
         @ConfigEditorBoolean
         public boolean enabled = false;
+
+        @Expose
+        @ConfigOption(name = "Map Style", desc = "Which mod's dungeon map to draw: Skyblocker's, Stella's or Devonian's. The Dungeon Sim draws the same style.")
+        @ConfigEditorDropdown
+        public com.epic60869.sky2m.features.dungeons.mapstyle.DungeonMapStyle style = com.epic60869.sky2m.features.dungeons.mapstyle.DungeonMapStyle.SKYBLOCKER;
 
         @Expose
         @ConfigOption(name = "Fancy Map", desc = "Show player heads and room colours on the map.")
@@ -2861,6 +3013,12 @@ public final class FeatureConfigs {
         @ConfigAccordionId(id = 1701)
         public boolean splitTickTime = true;
 
+        @Expose
+        @ConfigOption(name = "Show ETA", desc = "Show an estimated finish time under the split HUD, from your average split times for this floor in Run History (or your personal bests).")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 1701)
+        public boolean splitEta = true;
+
         @ConfigOption(name = "Tick Timers", desc = "Tick timers, the Storm PY timer and the max debuff alert.")
         @ConfigEditorAccordion(id = 1702)
         public boolean tickTimersGroup = false;
@@ -3270,12 +3428,32 @@ public final class FeatureConfigs {
         public boolean onlyInBoss = true;
 
         @Expose
-        @ConfigOption(name = "Built-in Waypoints", desc = "Show Sky2M's hard-coded waypoints on F7 and M7: Py Stand Here (95, 165.5, 94.4), Mage Stop (34, 169, 65), Arch Stand Here (102-104, 168, 49), Healer Stand Here After Lighting (58, 169, 66), Tank Stand Here (109, 170, 93) and SS: the block at 109, 120, 93 is highlighted and standing at 108, 120, 93 sends \"At SS\" to party chat once each time you step on it.")
+        @ConfigOption(name = "ADG Role Guide", desc = "On F7 and M7, shows your class's ADG role for each phase (clear, Maxor, Storm, terminal sections, Goldor, Necron, relics, dragons) as a title and a short checklist in chat. Print the full guide with /s2 adg [class] [phase].")
         @ConfigEditorBoolean
-        public boolean builtInWaypoints = true;
+        public boolean adgRoles = true;
 
         @Expose
-        @ConfigOption(name = "Your Class", desc = "Which class's built-in waypoints to show. Auto reads it from the tab list; pick one if it isn't detected.")
+        @ConfigOption(name = "ADG Titles", desc = "Show the role's key action as a title at the start of each phase.")
+        @ConfigEditorBoolean
+        public boolean adgTitles = true;
+
+        @Expose
+        @ConfigOption(name = "ADG Chat Checklist", desc = "Print the role's steps for the phase in chat when it starts.")
+        @ConfigEditorBoolean
+        public boolean adgChat = true;
+
+        @Expose
+        @ConfigOption(name = "ADG Phase HUD", desc = "A small movable HUD that keeps what you should be doing in the current phase on screen (title and key action) until the next phase. Move it in /s2 gui.")
+        @ConfigEditorBoolean
+        public boolean adgHud = true;
+
+        @Expose
+        @ConfigOption(name = "ADG HUD Shows Steps", desc = "Also list the role's steps for the phase in the HUD, not just the key action.")
+        @ConfigEditorBoolean
+        public boolean adgHudSteps = false;
+
+        @Expose
+        @ConfigOption(name = "Your Class", desc = "Which class's ADG role guide to show. Auto reads it from the tab list; pick one if it isn't detected.")
         @ConfigEditorDropdown
         public ClassOverride classOverride = ClassOverride.AUTO;
 
@@ -4348,6 +4526,20 @@ public final class FeatureConfigs {
         public boolean summaryOnLaunch = true;
 
         @Expose
+        @ConfigOption(name = "Recap on Leaving", desc = "When you leave a world or server, show a one-message recap of the session (playtime, profit, coins, drops) the next time you join. /s2 recap shows it any time.")
+        @ConfigEditorBoolean
+        public boolean recapOnLeave = false;
+
+        @Expose
+        @ConfigOption(name = "Share Sessions to Website", desc = "Upload your finished tracker sessions (activity, time, profit, top drops) to the Sky2M server so they can show on your shadowisabot.com player page. Needs /s2 link first. Nothing is public until you switch it on at shadowisabot.com/link. /s2 link delete removes everything stored.")
+        @ConfigEditorBoolean
+        public boolean shareToWebsite = false;
+
+        /** Whether the one-time explanation of Share Sessions to Website was shown. */
+        @Expose
+        public boolean shareNoticeShown = false;
+
+        @Expose
         @ConfigOption(name = "Sessions Kept", desc = "How many past daily sections /s2 session keeps.")
         @ConfigEditorSlider(minValue = 1, maxValue = 100, minStep = 1)
         public int keep = 50;
@@ -4714,7 +4906,7 @@ public final class FeatureConfigs {
         }
 
         @Expose
-        @ConfigOption(name = "Enabled", desc = "A panel of every SkyBlock item, attribute, enchantment, mob, NPC, pet, potion and rune beside your inventory and SkyBlock menus, like SkyBlock Item List. Click an item for its recipes (crafting, Forge, Kat, NPC shops, mob drops), search, and type sums in the search bar. Items come from the NotEnoughUpdates repo (about 22 MB, downloaded once).")
+        @ConfigOption(name = "Enabled", desc = "A panel of every SkyBlock item, attribute, enchantment, mob, NPC, pet, potion and rune beside your inventory and SkyBlock menus, like SkyBlock Item List. Click an item for its recipes (crafting, Forge, Kat, NPC shops, mob drops), search, type sums in the search bar, and double-click the search bar to highlight matching items in the menu you have open. Items come from the NotEnoughUpdates repo (about 22 MB, downloaded once).")
         @ConfigEditorBoolean
         public boolean enabled = false;
 
@@ -5124,6 +5316,11 @@ public final class FeatureConfigs {
         @ConfigOption(name = "Runs Kept", desc = "How many runs to keep; the oldest go first.")
         @ConfigEditorSlider(minValue = 50, maxValue = 2000, minStep = 50)
         public int maxRuns = 500;
+
+        @Expose
+        @ConfigOption(name = "Record Route", desc = "Record your path through each run (and Dungeon Sim run) so it can be replayed on the map: Replay in a run's details, or /s2 replay.")
+        @ConfigEditorBoolean
+        public boolean recordRoute = true;
     }
 
     /** Custom Scoreboard, like j10a1n15's Custom Scoreboard mod (LGPL), written for Sky2M. */
@@ -5789,6 +5986,11 @@ public final class FeatureConfigs {
         @ConfigOption(name = "Title Screen Button", desc = "A \"Dungeon Sim\" button on the title screen, in the top left, that opens the Sim's menu.")
         @ConfigEditorBoolean
         public boolean titleButton = false;
+
+        @Expose
+        @ConfigOption(name = "1.8.9 AOTV Eye Line", desc = "Aspect of the Void / Instant Transmission teleports along your eye line like 1.8.9: the line starts at your eye (1.62 above the feet) and you land with your eyes in the block it reaches. Off: the old model, which walked the line from your feet.")
+        @ConfigEditorBoolean
+        public boolean aotvEyeLine = true;
     }
     // ------------------------------------------------------------------------------------------------ 1.0.5 additions
 
@@ -6420,6 +6622,11 @@ public final class FeatureConfigs {
         @ConfigOption(name = "Quality On Slot", desc = "Like SkyblockAddons: the item quality (base stat boost, 0 to 50%) of dungeon items in the corner of their slot, coloured by how good it is.")
         @ConfigEditorBoolean
         public boolean slot = false;
+
+        @Expose
+        @ConfigOption(name = "Quality As Stack Size", desc = "SkyHanni's and SkyOcean's way: draw the quality like a stack count, in the bottom right corner of the slot at normal size, instead of small in the top left. Needs Quality On Slot.")
+        @ConfigEditorBoolean
+        public boolean stackSize = false;
 
         @Expose
         @ConfigOption(name = "Quality In Tooltip", desc = "The item quality and the floor it dropped on in the tooltip of dungeon items.")

@@ -23,7 +23,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * Misc > Play as Mob inside {@code LivingEntityRenderer.submit}: Player Size on mobs (right after the
  * renderer's own {@code scale}, where Sky2MPlayerSizeMixin stretches the player), and an imported model drawn in place
- * of your player model, with the layers on it (armour, held items, cape) left out.
+ * of your player model, with the layers on it (armour, held items, cape) left out; CustomModels draws the held items in
+ * the model's own hands.
  */
 @Mixin(LivingEntityRenderer.class)
 public abstract class Sky2MPlayAsMobRendererMixin {

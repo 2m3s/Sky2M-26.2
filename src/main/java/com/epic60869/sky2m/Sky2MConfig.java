@@ -199,6 +199,12 @@ public final class Sky2MConfig extends Config {
         public com.epic60869.sky2m.features.misc.SideChat.Config sideChat = new com.epic60869.sky2m.features.misc.SideChat.Config();
 
         @Expose
+        @Accordion
+        @ConfigOption(name = "Chat Rules & Player Format", desc = "Your own hide/replace/notify chat rules, leaving the level, rank or emblem out of player chat messages, and holding a key to peek at the whole chat.")
+        @ConfigAccordionId(id = 201)
+        public com.epic60869.sky2m.features.qol.ChatRules.Config chatRules = new com.epic60869.sky2m.features.qol.ChatRules.Config();
+
+        @Expose
         @ConfigOption(name = "Keep Chat Scroll Position", desc = "While you are scrolled up in chat, new messages, compacted repeats and chat tabs don't move what you are reading. Chat goes back to the bottom when you scroll down to it, close chat or send a message.")
         @ConfigEditorBoolean
         @ConfigAccordionId(id = 201)
@@ -209,6 +215,12 @@ public final class Sky2MConfig extends Config {
         @ConfigEditorBoolean
         @ConfigAccordionId(id = 201)
         public boolean clickableNames = false;
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "Social Tools", desc = "Party shortcut commands (/rp, /pa, /pback, /pkick), waypoints from coordinates in chat, and profile icons next to chat names.")
+        @ConfigAccordionId(id = 201)
+        public com.epic60869.sky2m.features.social.SocialConfig social = new com.epic60869.sky2m.features.social.SocialConfig();
 
         @ConfigOption(name = "Emojis", desc = "Emoji shortcodes, emoji autocomplete and SkyBlock item emojis in chat.")
         @ConfigEditorAccordion(id = 202)
@@ -264,9 +276,21 @@ public final class Sky2MConfig extends Config {
 
         @Expose
         @Accordion
+        @ConfigOption(name = "SkyHanni Farming", desc = "SkyHanni's farming HUD (crop milestones, crops per minute, coins per hour, Garden level), Jacob's Contest, true Farming Fortune, optimal angles and speed, plot borders, pest traps, pest profit and spray display.")
+        @ConfigAccordionId(id = 801)
+        public com.epic60869.sky2m.features.garden.skyhanni.SkyHanniGardenConfig skyhanniGarden = new com.epic60869.sky2m.features.garden.skyhanni.SkyHanniGardenConfig();
+
+        @Expose
+        @Accordion
         @ConfigOption(name = "Crop Fever Effects", desc = "SkyOcean's crop fever effects: a jackpot sound, music, the screen cycling through colours and coins raining down while you have the CROP FEVER.")
         @ConfigAccordionId(id = 801)
         public com.epic60869.sky2m.features.FeatureConfigs.CropFever cropFever = new com.epic60869.sky2m.features.FeatureConfigs.CropFever();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "Garden Helpers", desc = "SkyHanni's composter overlay, Anita shop profit, DNA Analyzer and Phantomleaf solvers, Stereo Harmony and Atmospheric Filter displays and farming weight display.")
+        @ConfigAccordionId(id = 801)
+        public com.epic60869.sky2m.features.garden.helpers.HelperConfig gardenHelpers = new com.epic60869.sky2m.features.garden.helpers.HelperConfig();
 
         @ConfigOption(name = "Farming Tools", desc = "The farming RNG HUD and mouse lock.")
         @ConfigEditorAccordion(id = 802)
@@ -308,6 +332,56 @@ public final class Sky2MConfig extends Config {
 
         @Expose
         @Accordion
+        @ConfigOption(name = "Dwarven Mines Solvers", desc = "Fetchur, Puzzler and the Mines of Divan Metal Detector.")
+        public com.epic60869.sky2m.features.mining.dwarven.DwarvenConfig.Solvers dwarvenSolvers = new com.epic60869.sky2m.features.mining.dwarven.DwarvenConfig.Solvers();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "Crystal Nucleus Tracker", desc = "Your Crystal Nucleus runs and their loot.")
+        public com.epic60869.sky2m.features.mining.dwarven.DwarvenConfig.Nucleus nucleus = new com.epic60869.sky2m.features.mining.dwarven.DwarvenConfig.Nucleus();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "Glacite Cold", desc = "Cold overlay, cold alert and Ascension Rope reminder.")
+        public com.epic60869.sky2m.features.mining.dwarven.DwarvenConfig.Glacite glaciteCold = new com.epic60869.sky2m.features.mining.dwarven.DwarvenConfig.Glacite();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "Precision Mining & Flowstate", desc = "Precision Mining highlighter and the Flowstate helper with personal best.")
+        public com.epic60869.sky2m.features.mining.dwarven.DwarvenConfig.Precision precision = new com.epic60869.sky2m.features.mining.dwarven.DwarvenConfig.Precision();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "Heart of the Mountain & Forest", desc = "HOTM and HOTF perk levels on the icons, powder cost tooltips and perk highlights.")
+        public com.epic60869.sky2m.features.mining.dwarven.DwarvenConfig.Hotx hotx = new com.epic60869.sky2m.features.mining.dwarven.DwarvenConfig.Hotx();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "Mining Events", desc = "Mining events HUD and alerts for events, goblins, scrap and mineshafts.")
+        public com.epic60869.sky2m.features.mining.dwarven.DwarvenConfig.Events miningEvents = new com.epic60869.sky2m.features.mining.dwarven.DwarvenConfig.Events();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "Retextures", desc = "Retextured blocks of the mining islands.")
+        public com.epic60869.sky2m.features.mining.dwarven.DwarvenConfig.Retexture retexture = new com.epic60869.sky2m.features.mining.dwarven.DwarvenConfig.Retexture();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "Glacite Mineshaft", desc = "Corpse finder and profit, entrance and ladder waypoints, cave-in timer and pity.")
+        public com.epic60869.sky2m.features.mining.extras.MiningExtrasConfig.GlaciteMineshaft glaciteMineshaft = new com.epic60869.sky2m.features.mining.extras.MiningExtrasConfig.GlaciteMineshaft();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "Powder Tracker", desc = "Mithril, Gemstone and Glacite powder gained this session and per hour.")
+        public com.epic60869.sky2m.features.mining.extras.MiningExtrasConfig.PowderTracker powderTracker = new com.epic60869.sky2m.features.mining.extras.MiningExtrasConfig.PowderTracker();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "Fossil Excavator", desc = "Excavator solver and excavation profit tracker in the Fossil Research Center.")
+        public com.epic60869.sky2m.features.mining.extras.MiningExtrasConfig.FossilExcavator fossilExcavator = new com.epic60869.sky2m.features.mining.extras.MiningExtrasConfig.FossilExcavator();
+
+        @Expose
+        @Accordion
         @ConfigOption(name = "Ordered Waypoints", desc = "SkyHanni's ordered waypoints (/sho): routes that show one waypoint after another.")
         public com.epic60869.sky2m.features.FeatureConfigs.OrderedWaypoints orderedWaypoints = new com.epic60869.sky2m.features.FeatureConfigs.OrderedWaypoints();
     }
@@ -321,6 +395,10 @@ public final class Sky2MConfig extends Config {
         @Expose
         @Category(name = "Enderman", desc = "Voidgloom Seraph: Yang Glyph and Nukekubi skull highlights, phase numbers, hidden particles and a line to your boss.")
         public com.epic60869.sky2m.features.FeatureConfigs.EndermanSlayer enderman = new com.epic60869.sky2m.features.FeatureConfigs.EndermanSlayer();
+
+        @Expose
+        @Category(name = "Vampire", desc = "Riftstalker Bloodfiend: effigy waypoints, mania, stake and twinclaws indicators, ichor highlight.")
+        public com.epic60869.sky2m.features.combat.extra.CombatExtraConfig.VampireSlayer vampire = new com.epic60869.sky2m.features.combat.extra.CombatExtraConfig.VampireSlayer();
 
         @ConfigOption(name = "Boss Fight", desc = "Boss phase HUD, boss and miniboss highlights, egg hits and the miniboss alert.")
         @ConfigEditorAccordion(id = 501)
@@ -523,6 +601,16 @@ public final class Sky2MConfig extends Config {
         public BazaarNotificationsSettings bazaar = new BazaarNotificationsSettings();
 
         @Expose
+        @Accordion
+        @ConfigOption(name = "Visual Tweaks", desc = "Fullbright, fog distance, hiding clouds, lightning and fire, dead and far-away mobs, other players' armor and particles (some per island), and a disconnect fix. Only changes your own screen.")
+        public com.epic60869.sky2m.features.qol.VisualTweaks.Config visualTweaks = new com.epic60869.sky2m.features.qol.VisualTweaks.Config();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "SkyBlock Level Guide", desc = "Highlight tasks you have not finished in the SkyBlock Guide menus, like SkyHanni.")
+        public com.epic60869.sky2m.features.qol.LevelGuide.Config levelGuide = new com.epic60869.sky2m.features.qol.LevelGuide.Config();
+
+        @Expose
         @ConfigOption(name = "Update Notifications", desc = "Tell you in chat when a newer Sky2M version is out (\"New Sky2M Mod Version 1.2.3 --> 1.2.5\"), with a download link.")
         @ConfigEditorBoolean
         public boolean updateNotifications = true;
@@ -541,6 +629,12 @@ public final class Sky2MConfig extends Config {
         @ConfigOption(name = "Item Price Tooltip", desc = "Add prices to SkyBlock item tooltips, like Skyblocker, and what you paid for items you bought on the auction house.")
         @ConfigAccordionId(id = 2301)
         public PriceTooltip priceTooltip = new PriceTooltip();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "Economy", desc = "Item value breakdown, Bazaar best sell method and daily sales, trade value, bits, reforge and anvil helpers.")
+        @ConfigAccordionId(id = 2301)
+        public com.epic60869.sky2m.features.economy.EconomyConfig economy = new com.epic60869.sky2m.features.economy.EconomyConfig();
 
         @Expose
         @Accordion
@@ -705,6 +799,30 @@ public final class Sky2MConfig extends Config {
         @ConfigOption(name = "Speed Display", desc = "SkyblockAddons' Speed Percentage: your speed as a percentage on a HUD.")
         @ConfigAccordionId(id = 2303)
         public SpeedDisplay speedDisplay = new SpeedDisplay();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "Status Bars", desc = "Health, mana, defense, XP and speed as movable bars (Skyblocker, SkyHanni).")
+        @ConfigAccordionId(id = 2303)
+        public com.epic60869.sky2m.features.qol.QolConfigs.StatusBars statusBars = new com.epic60869.sky2m.features.qol.QolConfigs.StatusBars();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "Tab List Extras", desc = "A compact tab list and a tab widgets HUD (Skyblocker).")
+        @ConfigAccordionId(id = 2303)
+        public com.epic60869.sky2m.features.qol.QolConfigs.TabListExtras tabListExtras = new com.epic60869.sky2m.features.qol.QolConfigs.TabListExtras();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "More Slot Labels", desc = "Pet, attribute shard, minion, collection and bestiary levels on slots (SkyHanni).")
+        @ConfigAccordionId(id = 2303)
+        public com.epic60869.sky2m.features.qol.QolConfigs.SlotLabels slotLabels = new com.epic60869.sky2m.features.qol.QolConfigs.SlotLabels();
+
+        @Expose
+        @Accordion
+        @ConfigOption(name = "Radial Menu", desc = "Hold a key for a wheel of commands (Skyblocker).")
+        @ConfigAccordionId(id = 2303)
+        public com.epic60869.sky2m.features.qol.QolConfigs.RadialMenu radialMenu = new com.epic60869.sky2m.features.qol.QolConfigs.RadialMenu();
 
         @Expose
         @Accordion
@@ -1216,6 +1334,10 @@ public final class Sky2MConfig extends Config {
     public com.epic60869.sky2m.features.hunting.HuntingConfig hunting = new com.epic60869.sky2m.features.hunting.HuntingConfig();
 
     @Expose
+    @Category(name = "Events", desc = "Hoppity's Hunt egg waypoints, Chocolate Factory advice, Carnival helpers, The Great Spook and winter event tools.")
+    public com.epic60869.sky2m.features.events.EventsConfig events = new com.epic60869.sky2m.features.events.EventsConfig();
+
+    @Expose
     @Category(name = "Skill Progress", desc = "SkyHanni's Skill Progress: the progress display and bar, ETA display, all skills display, overflow levels and custom goals.")
     public com.epic60869.sky2m.features.FeatureConfigs.SkillProgress skills = new com.epic60869.sky2m.features.FeatureConfigs.SkillProgress();
 
@@ -1446,9 +1568,19 @@ public final class Sky2MConfig extends Config {
         public boolean pingSound = false;
 
         @Expose
-        @ConfigOption(name = "Hide Other Players' Commands", desc = "Hide Sky2M command result messages when they belong to another player. Your own command results remain visible.")
+        @ConfigOption(name = "Hide Other Players' Commands", desc = "Hide other players' ! commands (like !nw or !lvl) and the bot's answers to them in /s2c. Your own commands and answers stay visible.")
         @ConfigEditorBoolean
         public boolean hideOtherCommands = true;
+
+        @Expose
+        @ConfigOption(name = "! Chat Commands", desc = "Use the Sky2M ! commands (!nw, !lvl, !mp, !skill, !lb, !help, ...) in /s2c. Off: nothing is sent to the command bot, ! messages go out as normal chat, and the bot's command answers are not shown.")
+        @ConfigEditorBoolean
+        public boolean botCommands = true;
+
+        @Expose
+        @ConfigOption(name = "Calendar In Chat", desc = "Show the Sky2M calendar reminders (\"Reminder: Dark Auction starts in 5 minutes\") in /s2c. Click one to open /s2 calendar. Off hides them.")
+        @ConfigEditorBoolean
+        public boolean calendarInChat = true;
     }
 
     public static final class MiningCommissions {
@@ -1646,6 +1778,16 @@ public final class Sky2MConfig extends Config {
         @ConfigOption(name = "Price Paid", desc = "Remember what you paid for items you buy on the auction house and show it in their tooltip, like NoFrills.")
         @ConfigEditorBoolean
         public boolean pricePaid = false;
+
+        @Expose
+        @ConfigOption(name = "Show in Item List", desc = "Show the prices when you hover items in Sky2M's Item List and its recipe cards (works outside SkyBlock too).")
+        @ConfigEditorBoolean
+        public boolean itemList = true;
+
+        @Expose
+        @ConfigOption(name = "Bazaar, Auction House & Pets Menus", desc = "Also price the items in the Bazaar, Auction House and Pets menus that have no item data of their own (pets by name, rarity and level; Bazaar buttons by name), and on an auction compare its price with the lowest BIN.")
+        @ConfigEditorBoolean
+        public boolean menus = true;
     }
 
     public static final class CollectionTooltips {
@@ -1698,12 +1840,15 @@ public final class Sky2MConfig extends Config {
     }
 
     public static final class Clips {
-        /** The first-launch "download the clipping software?" question was answered. */
+        /**
+         * The "download the Sky2M Clipping mod?" question was answered. A new name (it was askedDownload, for the old
+         * recorder program) so everyone is asked again about the mod.
+         */
         @Expose
-        public boolean askedDownload = false;
+        public boolean askedClippingMod = false;
 
         @Expose
-        @ConfigOption(name = "Enabled", desc = "Keep the last few seconds of the game recorded, and save them as a video with the Save Clip key (Windows only). Recording is done by Sky2M Clips, a separate program (about 42 MB) that Sky2M asks to download the first time; it uses your graphics card's video encoder, so it costs very little FPS.")
+        @ConfigOption(name = "Enabled", desc = "Keep the last few seconds of the game recorded, and save them as a video with the Save Clip key (Windows only). Recording is done by the Sky2M Clipping mod, which Sky2M offers to download into your mods folder (restart after); it uses your graphics card's video encoder, so it costs very little FPS. Needs the OpenGL graphics backend.")
         @ConfigEditorBoolean
         public boolean enabled = false;
 
@@ -1728,7 +1873,7 @@ public final class Sky2MConfig extends Config {
         public com.epic60869.sky2m.features.misc.clips.Clips.Fps fps = com.epic60869.sky2m.features.misc.clips.Clips.Fps.FPS60;
 
         @Expose
-        @ConfigOption(name = "Sound", desc = "What you hear in clips: only the game, the game and Discord (voice chat), everything your computer plays, or nothing.")
+        @ConfigOption(name = "Sound", desc = "What you hear in clips. Sky2M Clipping records everything your computer plays, so Game only and Game + Discord record that too; No sound records none.")
         @ConfigEditorDropdown
         public com.epic60869.sky2m.features.misc.clips.Clips.Sound sound = com.epic60869.sky2m.features.misc.clips.Clips.Sound.GAME;
 
@@ -1761,7 +1906,7 @@ public final class Sky2MConfig extends Config {
         @ConfigEditorButton(buttonText = "OPEN")
         public Runnable openFolder = () -> com.epic60869.sky2m.features.misc.clips.Clips.openFolder();
 
-        @ConfigOption(name = "Download Sky2M Clips", desc = "Download (or download again) the Sky2M Clips program from Sky2M's GitHub. It is checked against the copy this version of Sky2M expects before it runs.")
+        @ConfigOption(name = "Download Sky2M Clipping", desc = "Download the Sky2M Clipping mod for this Minecraft version from its GitHub releases into your mods folder. Restart the game after.")
         @ConfigEditorButton(buttonText = "DOWNLOAD")
         public Runnable download = () -> com.epic60869.sky2m.features.misc.clips.Clips.download();
     }
@@ -2434,6 +2579,13 @@ public final class Sky2MConfig extends Config {
             JsonObject bridge = childObject(childObject(root, "dungeons"), "crossModBridge");
             for (String key : new String[]{"enabled", "odin", "noamm", "devonian"}) bridge.addProperty(key, true);
             general.addProperty("defaultsVersion", 3);
+            changed = true;
+        }
+        if (defaults < 4) {
+            // Experimental Table solvers were saved as off (class defaults were false while the shipped defaults say on).
+            JsonObject table = childObject(misc, "experimentalTable");
+            for (String key : new String[]{"chronomatron", "superpairs", "ultrasequencer"}) table.addProperty(key, true);
+            general.addProperty("defaultsVersion", 4);
             changed = true;
         }
 

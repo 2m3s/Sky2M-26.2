@@ -30,6 +30,9 @@ public final class RunHistoryScreen extends Screen {
         super(Component.literal("Run History"));
     }
 
+    private Run replayRun;
+    private boolean replayExists;
+
     private int left() {
         return (width - W) / 2;
     }
@@ -138,6 +141,16 @@ public final class RunHistoryScreen extends Screen {
     private void details(GuiGraphicsExtractor g, int left, int top, int mouseX, int mouseY) {
         Run run = open;
         button(g, left + 4, top + 4, 50, 14, "◀ Back", false, mouseX, mouseY, () -> open = null);
+        if (replayRun != run) { // one disk check per opened run, not one per frame
+            replayRun = run;
+            replayExists = RouteReplay.has(run.startedAt);
+        }
+        if (replayExists) {
+            button(g, left + 58, top + 4, 60, 14, "▶ Replay", false, mouseX, mouseY, () -> {
+                RouteReplay.Replay replay = RouteReplay.load(run.startedAt);
+                if (replay != null) minecraft.gui.setScreen(new RouteReplayScreen(replay, this));
+            });
+        }
         button(g, left + W - 74, top + 4, 70, 14, confirmDelete ? "Sure?" : "Delete", confirmDelete, mouseX, mouseY, () -> {
             if (!confirmDelete) {
                 confirmDelete = true;

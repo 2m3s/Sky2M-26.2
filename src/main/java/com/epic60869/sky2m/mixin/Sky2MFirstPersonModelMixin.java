@@ -1,0 +1,32 @@
+package com.epic60869.sky2m.mixin;
+
+import com.epic60869.sky2m.features.misc.playasmob.PlayAsMobRender;
+import com.llamalad7.mixinextras.injector.v2.WrapWithCondition;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.renderer.ItemInHandRenderer;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.entity.player.AvatarRenderer;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.HumanoidArm;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.At;
+
+/** Draw the selected model's arm in first person while Minecraft continues to render and swing held items. */
+@Mixin(ItemInHandRenderer.class)
+public abstract class Sky2MFirstPersonModelMixin {
+    @WrapWithCondition(method = "renderPlayerArm",
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/entity/player/AvatarRenderer;renderRightHand(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;ILnet/minecraft/resources/Identifier;Z)V"),
+            require = 0)
+    private boolean sky2m$customRightArm(AvatarRenderer<?> renderer, PoseStack pose, SubmitNodeCollector collector,
+                                         int light, Identifier skin, boolean sleeve) {
+        return !PlayAsMobRender.renderFirstPersonArm(HumanoidArm.RIGHT, pose, collector, light);
+    }
+
+    @WrapWithCondition(method = "renderPlayerArm",
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/entity/player/AvatarRenderer;renderLeftHand(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;ILnet/minecraft/resources/Identifier;Z)V"),
+            require = 0)
+    private boolean sky2m$customLeftArm(AvatarRenderer<?> renderer, PoseStack pose, SubmitNodeCollector collector,
+                                        int light, Identifier skin, boolean sleeve) {
+        return !PlayAsMobRender.renderFirstPersonArm(HumanoidArm.LEFT, pose, collector, light);
+    }
+}

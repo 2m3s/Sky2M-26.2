@@ -311,9 +311,12 @@ public final class SkillApi {
         };
     }
 
+    /** Compiled once: the action bar comes through here many times a second. */
+    private static final Pattern DOUBLE_SPACE = Pattern.compile(" {2}");
+
     private static void onActionBarUpdate(String actionBar) {
         if (SkillProgress.config() == null) return;
-        for (String component : actionBar.split(" {2}")) {
+        for (String component : DOUBLE_SPACE.split(actionBar)) {
             component = component.trim();
             if (component.isEmpty()) continue;
             Matcher matcher = SKILL_PERCENT.matcher(component);

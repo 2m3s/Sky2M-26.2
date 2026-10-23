@@ -162,7 +162,7 @@ public final class SbcCosmetics {
      * compact tab rebuilds lines from legacy colour codes and prints an RGB colour as "<#55CCFF>" text instead.
      */
     private static Component bare(UUID uuid, boolean legacy) {
-        if (!Sbc.config().cosmetics.symbols || !Flags.isEnabled("cosmetics")) return null;
+        if (!Sbc.config().cosmetics.symbols || !Flags.isEnabled("cosmetics.emblems")) return null;
         Entry entry = entry(uuid);
         if (entry == null || (entry.tier() == null && entry.badge() == null)) return null;
         MutableComponent out = Component.empty();
@@ -256,7 +256,7 @@ public final class SbcCosmetics {
         Path dir = Minecraft.getInstance().gameDirectory.toPath().resolve("config").resolve("sky2m").resolve(folder);
         String hash = hash(url);
         Path file = dir.resolve(hash + ".png");
-        Thread thread = new Thread(() -> {
+        IMAGE_POOL.execute(() -> {
             try {
                 byte[] bytes;
                 if (Files.exists(file)) {
@@ -283,10 +283,15 @@ public final class SbcCosmetics {
                 LOADING.remove(url);
                 System.err.println("[Sky2M] " + what + " download failed (" + url + "): " + e.getMessage());
             }
-        }, "Sky2M " + what.toLowerCase(java.util.Locale.ROOT) + " download");
-        thread.setDaemon(true);
-        thread.start();
+        });
     }
+
+    /** Cape and emblem downloads share two threads instead of one thread each. */
+    private static final java.util.concurrent.ExecutorService IMAGE_POOL = java.util.concurrent.Executors.newFixedThreadPool(2, r -> {
+        Thread thread = new Thread(r, "Sky2M cosmetic image download");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     static String hash(String url) {
         try {

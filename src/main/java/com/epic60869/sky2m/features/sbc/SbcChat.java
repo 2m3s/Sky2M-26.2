@@ -332,6 +332,12 @@ public final class SbcChat {
         if (message.isBlank() && !packet.has("item")) return null;
         if (message.length() > 2000) message = message.substring(0, 2000);
         packet.addProperty("message", message);
+        // /s2c use <room>: plain messages go to that room (rooms have no replies).
+        String room = SbcRooms.activeRoom();
+        if (!room.isEmpty()) {
+            packet.addProperty("room", room);
+            replyTo = 0;
+        }
         if (replyTo > 0) {
             packet.addProperty("replyTo", replyTo);
             replyTo = 0;

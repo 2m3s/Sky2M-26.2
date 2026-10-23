@@ -199,7 +199,7 @@ final class ItemListCard {
             item(g, font, c.stack(), c.amount(), cx + 1, cy + 1);
             if (over) {
                 hoveredId = c.id();
-                List<Component> tip = new ArrayList<>(Screen.getTooltipFromItem(Minecraft.getInstance(), c.stack()));
+                List<Component> tip = new ArrayList<>(com.epic60869.sky2m.Sky2MPriceTooltip.itemListTooltip(c.stack()));
                 if (c.amount() > 1) tip.add(Component.literal("Amount: " + String.format(Locale.ROOT, "%,.0f", c.amount())).withStyle(ChatFormatting.DARK_GRAY));
                 tip.addAll(c.extra());
                 g.setComponentTooltipForNextFrame(font, tip, mouseX, mouseY);

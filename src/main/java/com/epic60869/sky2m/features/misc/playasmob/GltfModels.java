@@ -126,6 +126,16 @@ final class GltfModels {
                 int up = parent[node];
                 int inherited = up < 0 ? 0 : boneOf[up];
                 int anim = CustomModels.animFor(str(nodes.get(node).getAsJsonObject(), "name"));
+                // An arm or leg inside the same arm or leg is its lower half (Mixamo's RightArm > RightForeArm,
+                // RightUpLeg > RightLeg): it bends at the elbow or knee.
+                int lower = switch (anim) {
+                    case CustomModels.ANIM_RIGHT_ARM -> CustomModels.ANIM_RIGHT_ELBOW;
+                    case CustomModels.ANIM_LEFT_ARM -> CustomModels.ANIM_LEFT_ELBOW;
+                    case CustomModels.ANIM_RIGHT_LEG -> CustomModels.ANIM_RIGHT_KNEE;
+                    case CustomModels.ANIM_LEFT_LEG -> CustomModels.ANIM_LEFT_KNEE;
+                    default -> ANIM_NONE;
+                };
+                if (lower != ANIM_NONE && hasAncestorAnim(node, anim, parent, animOf)) anim = lower;
                 if (anim != ANIM_NONE && hasAncestorAnim(node, anim, parent, animOf)) anim = ANIM_NONE;
                 animOf[node] = anim;
                 if (anim == ANIM_NONE) {
@@ -134,6 +144,14 @@ final class GltfModels {
                     Vector3f pivot = world[node].getTranslation(new Vector3f());
                     boneOf[node] = builder.bone(inherited, new float[]{pivot.x, pivot.y, pivot.z}, new float[3], anim);
                 }
+            }
+
+            // Hand bones, for held items: the first per side from the root down.
+            for (int node : order) {
+                int side = CustomModels.handSide(str(nodes.get(node).getAsJsonObject(), "name"));
+                if (side == 0) continue;
+                Vector3f at = world[node].getTranslation(new Vector3f());
+                builder.hand(side == 2, boneOf[node], new float[]{at.x, at.y, at.z});
             }
 
             JsonArray meshes = arr(root, "meshes");
@@ -159,7 +177,7 @@ final class GltfModels {
                     primitive(primitives.get(p).getAsJsonObject(), m, boneOf[node], skinJoints, boneOf, builder, materialCount);
                 }
             }
-            return builder.build(textures, 1f, true, baseTurn());
+            return builder.build(textures, 1f, true, baseTurn(), true);
         }
 
         /** glTF faces +Z, a player -Z. VRM 0.x avatars are the exception: they face -Z already. */
@@ -227,16 +245,40 @@ final class GltfModels {
             float[] pos = floatAccessor(attributes.get("POSITION").getAsInt());
             int vertexCount = pos.length / 3;
             float[] uv = attributes.has("TEXCOORD_0") ? floatAccessor(attributes.get("TEXCOORD_0").getAsInt()) : null;
-            int[] dominant = null;
+            // Skinned vertices: up to 4 of the model's bones each, with weights adding up to 1. Joints that aren't
+            // animated bones themselves (spine, hands...) count as the animated bone they sit in.
+            int[][] vertexBones = null;
+            float[][] vertexWeights = null;
             if (skinJoints != null && attributes.has("JOINTS_0") && attributes.has("WEIGHTS_0")) {
                 float[] joints = floatAccessorRaw(attributes.get("JOINTS_0").getAsInt());
                 float[] weights = floatAccessor(attributes.get("WEIGHTS_0").getAsInt());
-                dominant = new int[vertexCount];
-                for (int v = 0; v < vertexCount && v * 4 + 3 < joints.length && v * 4 + 3 < weights.length; v++) {
-                    int best = 0;
-                    for (int k = 1; k < 4; k++) if (weights[v * 4 + k] > weights[v * 4 + best]) best = k;
-                    int joint = (int) joints[v * 4 + best];
-                    dominant[v] = joint >= 0 && joint < skinJoints.length ? skinJoints[joint] : -1;
+                vertexBones = new int[vertexCount][];
+                vertexWeights = new float[vertexCount][];
+                for (int v = 0; v < vertexCount; v++) {
+                    int[] bones = new int[4];
+                    float[] ws = new float[4];
+                    int used = 0;
+                    float total = 0f;
+                    for (int k = 0; k < 4 && v * 4 + k < joints.length && v * 4 + k < weights.length; k++) {
+                        float w = weights[v * 4 + k];
+                        int joint = (int) joints[v * 4 + k];
+                        if (w <= 0f || joint < 0 || joint >= skinJoints.length) continue;
+                        int node = skinJoints[joint];
+                        int bone = node >= 0 && node < boneOf.length ? boneOf[node] : 0;
+                        int at = 0;
+                        while (at < used && bones[at] != bone) at++;
+                        if (at == used) bones[used++] = bone;
+                        ws[at] += w;
+                        total += w;
+                    }
+                    if (used == 0 || total <= 0f) {
+                        bones[0] = nodeBone;
+                        ws[0] = 1f;
+                    } else {
+                        for (int k = 0; k < used; k++) ws[k] /= total;
+                    }
+                    vertexBones[v] = bones;
+                    vertexWeights[v] = ws;
                 }
             }
             int[] indices;
@@ -262,12 +304,27 @@ final class GltfModels {
                     corners[k] = new float[]{v.x, v.y, v.z};
                     uvs[k] = uv != null && idx * 2 + 1 < uv.length ? new float[]{uv[idx * 2], uv[idx * 2 + 1]} : new float[2];
                 }
-                int bone = nodeBone;
-                if (dominant != null) {
-                    int joint = dominant[indices[i]];
-                    bone = joint >= 0 && joint < boneOf.length ? boneOf[joint] : 0;
+                if (vertexBones == null) {
+                    builder.face(nodeBone, texture, corners, uvs);
+                    continue;
                 }
-                builder.face(bone, texture, corners, uvs);
+                int[][] cornerBones = {vertexBones[indices[i]], vertexBones[indices[i + 1]], vertexBones[indices[i + 2]]};
+                float[][] cornerWeights = {vertexWeights[indices[i]], vertexWeights[indices[i + 1]], vertexWeights[indices[i + 2]]};
+                // A face wholly in one bone is drawn rigidly, which is cheaper; the rest blend.
+                int bone = cornerBones[0][0];
+                boolean rigid = true;
+                float best = -1f;
+                for (int k = 0; k < 3; k++) {
+                    if (cornerWeights[k][0] < 0.999f || cornerBones[k][0] != cornerBones[0][0]) rigid = false;
+                    for (int j = 0; j < 4; j++) {
+                        if (cornerWeights[k][j] > best) {
+                            best = cornerWeights[k][j];
+                            bone = cornerBones[k][j];
+                        }
+                    }
+                }
+                if (rigid) builder.face(bone, texture, corners, uvs);
+                else builder.face(bone, texture, corners, uvs, cornerBones, cornerWeights);
             }
         }
 

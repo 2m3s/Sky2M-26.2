@@ -41,11 +41,11 @@ public final class Sky2MNopoFeatures {
     private static Path configDir;
     private static boolean initialized;
 
-    private static final Set<String> EMOJIS = new HashSet<>();
+    private static volatile Set<String> EMOJIS = new HashSet<>();
     private static final Pattern EMOJI_PATTERN = Pattern.compile(":([A-Za-z0-9_+\\-]+):");
-    private static final Map<String, String> EMOJI_SYMBOLS = new LinkedHashMap<>();
-    private static final Map<String, String> EMOJI_CANONICAL = new HashMap<>();
-    private static final Map<String, String> EMOJI_UNICODE = new HashMap<>();
+    private static volatile Map<String, String> EMOJI_SYMBOLS = new LinkedHashMap<>();
+    private static volatile Map<String, String> EMOJI_CANONICAL = new HashMap<>();
+    private static volatile Map<String, String> EMOJI_UNICODE = new HashMap<>();
     private static final Map<String, SlayerData> SLAYERS = new LinkedHashMap<>();
     private static final Map<String, List<Long>> CROP_TIMES = new LinkedHashMap<>();
     private static String currentSlayer = null;
@@ -91,10 +91,14 @@ public final class Sky2MNopoFeatures {
         configDir = dir;
         PetHeldItems.init(dir, () -> currentPet);
         loadJson();
-        loadDefaultEmojiSymbols();
-        loadEmojis();
-        loadBuiltInEmojiAliases();
-        com.epic60869.sky2m.features.core.Sky2MChat.onGameMessage((message, overlay) -> { handleSlayer(message); handleRareCrop(message); });
+        // The emoji tables (a JSON resource) are built on the repo thread and swapped in when done.
+        com.epic60869.sky2m.custom.RepoItems.runAsync(Sky2MNopoFeatures::buildEmojiTables);
+        com.epic60869.sky2m.features.core.Sky2MChat.onGameMessage((message, overlay) -> {
+            // Slayer starts and rare drops are chat lines; the action bar (many a second) never holds them.
+            if (overlay) return;
+            handleSlayer(message);
+            handleRareCrop(message);
+        });
         registerOverflowPets();
         registerPetHud();
         initialized = true;
@@ -282,10 +286,8 @@ public final class Sky2MNopoFeatures {
             return;
         }
 
-        List<PlayerInfo> entries = new ArrayList<>(mc.getConnection().getOnlinePlayers());
-        try {
-            entries.sort(Sky2MPlayerTabOverlayAccessor.getOrdering());
-        } catch (Throwable ignored) {}
+        // The tab manager already holds the ordered list (and only rebuilds it when the tab changes).
+        List<PlayerInfo> entries = Sky2MTabWidgetManager.players();
 
         /*
          * Read the actual ordered TAB rows directly. The generic widget parser is
@@ -737,9 +739,22 @@ public final class Sky2MNopoFeatures {
         }
     }
 
-    private static void loadEmojis() {
-        EMOJIS.clear();
-        EMOJI_CANONICAL.clear();
+    private static void buildEmojiTables() {
+        Set<String> emojis = new HashSet<>();
+        Map<String, String> symbols = new LinkedHashMap<>();
+        Map<String, String> canonical = new HashMap<>();
+        Map<String, String> unicode = new HashMap<>();
+        loadDefaultEmojiSymbols(emojis, symbols);
+        emojis.clear();
+        loadEmojis(emojis, canonical);
+        loadBuiltInEmojiAliases(emojis, canonical, unicode, symbols);
+        EMOJI_SYMBOLS = symbols;
+        EMOJI_CANONICAL = canonical;
+        EMOJI_UNICODE = unicode;
+        EMOJIS = emojis;
+    }
+
+    private static void loadEmojis(Set<String> EMOJIS, Map<String, String> EMOJI_CANONICAL) {
         try (InputStream in = Sky2MNopoFeatures.class.getResourceAsStream("/assets/sky2m/emojis.json")) {
             if (in == null) return;
             JsonObject root = JsonParser.parseReader(new InputStreamReader(in, StandardCharsets.UTF_8)).getAsJsonObject();
@@ -760,7 +775,7 @@ public final class Sky2MNopoFeatures {
         }
     }
 
-    private static void loadBuiltInEmojiAliases() {
+    private static void loadBuiltInEmojiAliases(Set<String> EMOJIS, Map<String, String> EMOJI_CANONICAL, Map<String, String> EMOJI_UNICODE, Map<String, String> EMOJI_SYMBOLS) {
         String[][] aliases = {
             {"tada","🎉"},{"rocket","🚀"},{"100","💯"},{"broken_heart","💔"},
             {"orange_heart","🧡"},{"yellow_heart","💛"},{"green_heart","💚"},{"blue_heart","💙"},
@@ -782,39 +797,41 @@ public final class Sky2MNopoFeatures {
         for (var e : EMOJI_SYMBOLS.entrySet()) EMOJI_UNICODE.putIfAbsent(e.getKey(), e.getValue());
     }
 
-    private static void addDefaultEmoji(String name, String symbol) {
-        EMOJIS.add(name);
-        EMOJI_SYMBOLS.put(name, symbol);
+    private static void addDefaultEmoji(Set<String> emojis, Map<String, String> symbols, String name, String symbol) {
+        emojis.add(name);
+        symbols.put(name, symbol);
     }
 
-    private static void loadDefaultEmojiSymbols() {
-        addDefaultEmoji("wave", "👋");
-        addDefaultEmoji("smile", "😄");
-        addDefaultEmoji("grin", "😁");
-        addDefaultEmoji("joy", "😂");
-        addDefaultEmoji("heart", "❤️");
-        addDefaultEmoji("fire", "🔥");
-        addDefaultEmoji("sob", "😭");
-        addDefaultEmoji("cry", "😢");
-        addDefaultEmoji("angry", "😠");
-        addDefaultEmoji("laughing", "😆");
-        addDefaultEmoji("rofl", "🤣");
-        addDefaultEmoji("wink", "😉");
-        addDefaultEmoji("thinking", "🤔");
-        addDefaultEmoji("eyes", "👀");
-        addDefaultEmoji("thumbsup", "👍");
-        addDefaultEmoji("+1", "👍");
-        addDefaultEmoji("thumbsdown", "👎");
-        addDefaultEmoji("-1", "👎");
-        addDefaultEmoji("clap", "👏");
-        addDefaultEmoji("pray", "🙏");
-        addDefaultEmoji("ok_hand", "👌");
-        addDefaultEmoji("sunglasses", "😎");
+    private static void loadDefaultEmojiSymbols(Set<String> emojis, Map<String, String> symbols) {
+        addDefaultEmoji(emojis, symbols, "wave", "👋");
+        addDefaultEmoji(emojis, symbols, "smile", "😄");
+        addDefaultEmoji(emojis, symbols, "grin", "😁");
+        addDefaultEmoji(emojis, symbols, "joy", "😂");
+        addDefaultEmoji(emojis, symbols, "heart", "❤️");
+        addDefaultEmoji(emojis, symbols, "fire", "🔥");
+        addDefaultEmoji(emojis, symbols, "sob", "😭");
+        addDefaultEmoji(emojis, symbols, "cry", "😢");
+        addDefaultEmoji(emojis, symbols, "angry", "😠");
+        addDefaultEmoji(emojis, symbols, "laughing", "😆");
+        addDefaultEmoji(emojis, symbols, "rofl", "🤣");
+        addDefaultEmoji(emojis, symbols, "wink", "😉");
+        addDefaultEmoji(emojis, symbols, "thinking", "🤔");
+        addDefaultEmoji(emojis, symbols, "eyes", "👀");
+        addDefaultEmoji(emojis, symbols, "thumbsup", "👍");
+        addDefaultEmoji(emojis, symbols, "+1", "👍");
+        addDefaultEmoji(emojis, symbols, "thumbsdown", "👎");
+        addDefaultEmoji(emojis, symbols, "-1", "👎");
+        addDefaultEmoji(emojis, symbols, "clap", "👏");
+        addDefaultEmoji(emojis, symbols, "pray", "🙏");
+        addDefaultEmoji(emojis, symbols, "ok_hand", "👌");
+        addDefaultEmoji(emojis, symbols, "sunglasses", "😎");
     }
 
     public static Component replaceChatEmojis(Component message) {
         Sky2MConfig config = Sky2MConfig.current();
         if (config == null || !config.chat.chatEmoji) return message;
+        // An emoji is ":name:": most lines have no colon, and don't need rebuilding.
+        if (message.getString().indexOf(':') < 0) return message;
 
         final MutableComponent result = Component.empty();
         message.visit((style, value) -> {

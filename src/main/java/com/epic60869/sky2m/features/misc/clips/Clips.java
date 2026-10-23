@@ -3,6 +3,9 @@ package com.epic60869.sky2m.features.misc.clips;
 import com.epic60869.sky2m.Sky2MConfig;
 import com.epic60869.sky2m.custom.util.Compat;
 import com.epic60869.sky2m.features.core.Sky2MAlerts;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
@@ -10,7 +13,11 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.toasts.SystemToast;
 import net.minecraft.client.gui.screens.ChatScreen;
+import net.minecraft.client.gui.screens.ConfirmScreen;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
@@ -19,29 +26,48 @@ import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.Method;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.time.Duration;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.zip.ZipFile;
 
 /**
- * Sky2M owns the Clips settings and save key. Recording is provided by the separate Sky2M Clipping Fabric mod,
- * discovered through the "sky2m-clipping" Fabric entrypoint. No external executable is launched or downloaded.
- *
+ * Sky2M owns the Clips settings and save key. Recording is provided by the separate Sky2M Clipping Fabric mod
+ * (github.com/2m3s/Sky2m-Clipping), discovered through the "sky2m-clipping" Fabric entrypoint.
+ * <p>
+ * Players without it are asked once, on the title screen, whether to download it: Yes fetches the JAR for this
+ * Minecraft version from the latest GitHub release into the mods folder and asks them to restart the game.
+ * <p>
  * Clipping entrypoint contract:
  *   configure(Map<String, Object> settings)
  *   save(String name) -> CompletableFuture<Map<String, Object>> (result includes path and optional seconds)
- *   status() -> Map<String, Object> (recording and optional encoder)
+ *   status() -> Map<String, Object> (recording, and optional encoder and status)
  *   shutdown()
  */
 public final class Clips {
     private static final Logger LOGGER = LoggerFactory.getLogger("sky2m-clips");
     private static final String CLIPPING_ENTRYPOINT = "sky2m-clipping";
+    private static final String CLIPPING_MOD_ID = "sky2m-clipping";
     private static final String RELEASES_URL = "https://github.com/2m3s/Sky2m-Clipping/releases";
+    private static final String LATEST_RELEASE_API = "https://api.github.com/repos/2m3s/Sky2m-Clipping/releases/latest";
+    private static final long MAX_DOWNLOAD = 50L * 1024 * 1024;
+    private static final SystemToast.SystemToastId TOAST = new SystemToast.SystemToastId(8000L);
     private static final Path DEFAULT_FOLDER = Path.of(
         System.getProperty("user.home", "."), "Videos", "Sky2M Clips"
     );
@@ -81,6 +107,10 @@ public final class Clips {
     private static String lastConfig = "";
     private static volatile boolean recording;
     private static volatile String encoder = "";
+    private static volatile String clippingStatus = "";
+    private static volatile boolean downloading;
+    /** The JAR downloaded this session; the mod only loads after a restart. */
+    private static volatile Path downloaded;
 
     private Clips() {}
 
@@ -114,6 +144,7 @@ public final class Clips {
     private static void tick() {
         Sky2MConfig.Clips cfg = config();
         if (cfg == null) return;
+        if (!cfg.askedClippingMod) askOnTitleScreen(cfg);
         if (!cfg.enabled) {
             if (clipping != null) stop();
             return;
@@ -128,11 +159,9 @@ public final class Clips {
         if (++tick % 20 == 0) {
             Object api = findClipping();
             if (api == null) {
-                if (!askedThisSession) {
+                if (!askedThisSession && !downloading && downloaded == null) {
                     askedThisSession = true;
-                    say(Component.literal("Sky2M Clipping mod isn't installed. Install the Sky2M-Clipping.jar from GitHub Releases, then restart Minecraft. ")
-                        .withStyle(ChatFormatting.YELLOW)
-                        .append(link("[Open releases]", ChatFormatting.AQUA, new ClickEvent.OpenUrl(java.net.URI.create(RELEASES_URL)), RELEASES_URL)));
+                    askToDownload();
                 }
             } else {
                 if (clipping != api) {
@@ -149,6 +178,36 @@ public final class Clips {
         keyWasDown = down;
     }
 
+    /**
+     * On the title screen, asks whether to download the Sky2M Clipping mod - every player once, including ones who
+     * answered the old recorder-program question. Yes downloads it and turns Clips on; No leaves it (it can still be
+     * downloaded from /s2 > Clips or /s2 clip download). It is only asked again if the game closed before they answered.
+     */
+    private static void askOnTitleScreen(Sky2MConfig.Clips cfg) {
+        Minecraft mc = Minecraft.getInstance();
+        if (promptShown || !(mc.gui.screen() instanceof TitleScreen title)) return;
+        if (!windows() || findClipping() != null) {
+            answered(cfg);
+            return;
+        }
+        promptShown = true;
+        mc.gui.setScreen(new ConfirmScreen(yes -> {
+            answered(cfg);
+            mc.gui.setScreen(title);
+            if (yes) download();
+        }, Component.literal("Sky2M Clipping"),
+            Component.literal("Would you like to automatically download the clipping mod?\n\n"
+                + "Sky2M Clipping saves the last few seconds of the game as a video with one key, and has an in-game clip editor. "
+                + "It goes in your mods folder and starts after you restart the game. If you say no, you can download it later in /s2 > Clips."),
+            Component.literal("Yes, download"), Component.literal("No")));
+    }
+
+    private static void answered(Sky2MConfig.Clips cfg) {
+        cfg.askedClippingMod = true;
+        Sky2MConfig c = Sky2MConfig.current();
+        if (c != null) Sky2MConfig.saveCurrent(c);
+    }
+
     private static Object findClipping() {
         try {
             List<Object> entries = FabricLoader.getInstance().getEntrypoints(CLIPPING_ENTRYPOINT, Object.class);
@@ -157,14 +216,6 @@ public final class Clips {
             LOGGER.debug("Sky2M Clipping entrypoint isn't available", e);
             return null;
         }
-    }
-
-    private static boolean keyDown(int key) {
-        long window = Minecraft.getInstance().getWindow().handle();
-        if (key >= GLFW.GLFW_MOUSE_BUTTON_1 && key <= GLFW.GLFW_MOUSE_BUTTON_LAST)
-            return GLFW.glfwGetMouseButton(window, key) == GLFW.GLFW_PRESS;
-        return key >= GLFW.GLFW_KEY_SPACE && key <= GLFW.GLFW_KEY_LAST
-            && GLFW.glfwGetKey(window, key) == GLFW.GLFW_PRESS;
     }
 
     private static Map<String, Object> configMap(Sky2MConfig.Clips cfg) {
@@ -208,6 +259,8 @@ public final class Clips {
                 if (r instanceof Boolean b) recording = b;
                 Object e = map.get("encoder");
                 if (e != null) encoder = e.toString();
+                Object s = map.get("status");
+                if (s != null) clippingStatus = s.toString();
             }
         } catch (Exception e) {
             LOGGER.debug("Couldn't read clipping status", e);
@@ -255,9 +308,11 @@ public final class Clips {
         }
         Object api = clipping != null ? clipping : findClipping();
         if (api == null) {
-            say(Component.literal("Sky2M Clipping mod isn't installed. Install its JAR from GitHub Releases and restart Minecraft.")
-                .withStyle(ChatFormatting.YELLOW));
-            download();
+            if (downloaded != null) {
+                say(Component.literal("Sky2M Clipping is downloaded: restart Minecraft to start recording.").withStyle(ChatFormatting.YELLOW));
+            } else {
+                askToDownload();
+            }
             return;
         }
         try {
@@ -310,27 +365,179 @@ public final class Clips {
         } catch (Exception e) {
             LOGGER.debug("Couldn't create clips folder", e);
         }
-        net.minecraft.util.Util.getPlatform().openPath(folder());
+        openPath(folder());
     }
 
     private static void status() {
         Sky2MConfig.Clips cfg = config();
         String text;
         if (cfg == null || !cfg.enabled) text = "Clips are off.";
-        else if (clipping == null && findClipping() == null) text = "Sky2M Clipping mod isn't installed.";
-        else if (!recording) text = "Sky2M Clipping is loaded" + (encoder.isBlank() ? "." : " (" + encoder + ").");
-        else text = "Recording" + (encoder.isBlank() ? "" : " with " + encoder) + ".";
+        else if (clipping == null && findClipping() == null)
+            text = downloaded != null ? "Sky2M Clipping is downloaded: restart Minecraft to use it." : "Sky2M Clipping mod isn't installed.";
+        else if (recording) text = "Recording" + (encoder.isBlank() ? "" : " with " + encoder) + ".";
+        else text = "Sky2M Clipping: " + (clippingStatus.isBlank() ? "loaded" : clippingStatus) + ".";
         say(Component.literal(text).withStyle(ChatFormatting.GRAY));
     }
 
-    /** Opens the JAR release page; downloading an executable is intentionally no longer supported. */
+    private static void askToDownload() {
+        say(Component.literal("Clips need the Sky2M Clipping mod. ")
+            .withStyle(ChatFormatting.YELLOW)
+            .append(link("[Download]", ChatFormatting.GREEN, new ClickEvent.RunCommand("/s2 clip download"),
+                "Download Sky2M Clipping for Minecraft " + minecraftVersion() + " into your mods folder"))
+            .append(Component.literal(" "))
+            .append(link("[GitHub]", ChatFormatting.AQUA, new ClickEvent.OpenUrl(URI.create(RELEASES_URL)), RELEASES_URL)));
+    }
+
+    private static String minecraftVersion() {
+        return FabricLoader.getInstance().getModContainer("minecraft")
+            .map(m -> m.getMetadata().getVersion().getFriendlyString()).orElse("");
+    }
+
+    /**
+     * Downloads the Sky2M Clipping JAR for this Minecraft version from the latest GitHub release into the mods folder,
+     * checks it (size, GitHub's SHA-256 when it gives one, and that it really is the sky2m-clipping mod), turns Clips
+     * on, and asks the player to restart. Nothing in the mods folder is touched if anything fails.
+     */
     public static void download() {
-        net.minecraft.util.Util.getPlatform().openUri(RELEASES_URL);
-        say(Component.literal("Install Sky2M-Clipping.jar from GitHub Releases into your Minecraft mods folder, then restart the game.")
-            .withStyle(ChatFormatting.YELLOW));
+        if (downloading) return;
+        if (!windows()) {
+            say(Component.literal("Clips only works on Windows.").withStyle(ChatFormatting.RED));
+            return;
+        }
+        if (findClipping() != null) {
+            say(Component.literal("Sky2M Clipping is already installed.").withStyle(ChatFormatting.GREEN));
+            return;
+        }
+        downloading = true;
+        String mcVersion = minecraftVersion();
+        notify("Sky2M Clipping", "Downloading the clipping mod...");
+        Thread t = new Thread(() -> {
+            Path mods = FabricLoader.getInstance().getGameDir().resolve("mods");
+            Path part = null;
+            try {
+                HttpClient http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL)
+                    .connectTimeout(Duration.ofSeconds(15)).build();
+                HttpResponse<String> api = http.send(HttpRequest.newBuilder(URI.create(LATEST_RELEASE_API))
+                    .timeout(Duration.ofSeconds(30)).header("User-Agent", "Sky2M")
+                    .header("Accept", "application/vnd.github+json").GET().build(), HttpResponse.BodyHandlers.ofString());
+                if (api.statusCode() != 200) throw new IllegalStateException("GitHub said HTTP " + api.statusCode());
+                JsonObject asset = findAsset(JsonParser.parseString(api.body()).getAsJsonObject(), mcVersion);
+                if (asset == null) throw new IllegalStateException("the latest release has no JAR for Minecraft " + mcVersion);
+                String name = asset.get("name").getAsString();
+                if (!name.matches("[A-Za-z0-9._+-]+\\.jar")) throw new IllegalStateException("unexpected file name " + name);
+                String url = asset.get("browser_download_url").getAsString();
+                String digest = asset.has("digest") && !asset.get("digest").isJsonNull() ? asset.get("digest").getAsString() : "";
+
+                Files.createDirectories(mods);
+                part = mods.resolve(name + ".part");
+                HttpResponse<InputStream> response = http.send(HttpRequest.newBuilder(URI.create(url))
+                    .timeout(Duration.ofMinutes(5)).header("User-Agent", "Sky2M").GET().build(), HttpResponse.BodyHandlers.ofInputStream());
+                if (response.statusCode() != 200) throw new IllegalStateException("download said HTTP " + response.statusCode());
+                MessageDigest sha = MessageDigest.getInstance("SHA-256");
+                long total = 0;
+                try (InputStream in = response.body(); OutputStream out = Files.newOutputStream(part)) {
+                    byte[] buffer = new byte[65536];
+                    int n;
+                    while ((n = in.read(buffer)) > 0) {
+                        total += n;
+                        if (total > MAX_DOWNLOAD) throw new IllegalStateException("the download is far bigger than expected");
+                        sha.update(buffer, 0, n);
+                        out.write(buffer, 0, n);
+                    }
+                }
+                String hash = HexFormat.of().formatHex(sha.digest());
+                if (digest.startsWith("sha256:") && !digest.substring(7).equalsIgnoreCase(hash))
+                    throw new IllegalStateException("the download doesn't match GitHub's checksum");
+                checkIsClippingMod(part);
+                Path jar = mods.resolve(name);
+                Files.move(part, jar, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                downloaded = jar;
+                LOGGER.info("Downloaded Sky2M Clipping to {} (SHA-256 {})", jar, hash);
+                Minecraft.getInstance().execute(Clips::downloadDone);
+            } catch (Exception e) {
+                LOGGER.error("Sky2M Clipping download failed", e);
+                String message = rootMessage(e);
+                Minecraft.getInstance().execute(() -> {
+                    notify("Sky2M Clipping", "Download failed: " + message);
+                    say(Component.literal("Couldn't download Sky2M Clipping: " + message + " ").withStyle(ChatFormatting.RED)
+                        .append(link("[GitHub]", ChatFormatting.AQUA, new ClickEvent.OpenUrl(URI.create(RELEASES_URL)), RELEASES_URL)));
+                });
+                if (part != null) {
+                    try {
+                        Files.deleteIfExists(part);
+                    } catch (Exception ignored) {
+                    }
+                }
+            } finally {
+                downloading = false;
+            }
+        }, "Sky2M clipping download");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    /** The release asset built for this Minecraft version: sky2m-clipping-<version>+<mc>.jar. */
+    private static JsonObject findAsset(JsonObject release, String mcVersion) {
+        if (!release.has("assets")) return null;
+        for (JsonElement e : release.getAsJsonArray("assets")) {
+            JsonObject asset = e.getAsJsonObject();
+            String name = asset.get("name").getAsString();
+            if (name.startsWith("sky2m-clipping-") && name.endsWith("+" + mcVersion + ".jar")) return asset;
+        }
+        return null;
+    }
+
+    private static void checkIsClippingMod(Path jar) throws Exception {
+        try (ZipFile zip = new ZipFile(jar.toFile())) {
+            var entry = zip.getEntry("fabric.mod.json");
+            if (entry == null) throw new IllegalStateException("the download isn't a Fabric mod");
+            try (InputStream in = zip.getInputStream(entry)) {
+                JsonObject json = JsonParser.parseString(new String(in.readAllBytes(), StandardCharsets.UTF_8)).getAsJsonObject();
+                if (!json.has("id") || !CLIPPING_MOD_ID.equals(json.get("id").getAsString()))
+                    throw new IllegalStateException("the download isn't the Sky2M Clipping mod");
+            }
+        }
+    }
+
+    private static void downloadDone() {
+        Sky2MConfig.Clips cfg = config();
+        if (cfg != null && !cfg.enabled) {
+            cfg.enabled = true;
+            Sky2MConfig c = Sky2MConfig.current();
+            if (c != null) Sky2MConfig.saveCurrent(c);
+        }
+        say(Component.literal("Sky2M Clipping downloaded into your mods folder. Restart Minecraft to start recording clips.")
+            .withStyle(ChatFormatting.GREEN));
+        Minecraft mc = Minecraft.getInstance();
+        Screen back = mc.gui.screen();
+        mc.gui.setScreen(new ConfirmScreen(quit -> {
+            if (quit) mc.stop();
+            else mc.gui.setScreen(back);
+        }, Component.literal("Sky2M Clipping downloaded"),
+            Component.literal("Restart Minecraft to start recording clips. Clips are turned on in /s2 > Clips."),
+            Component.literal("Quit game"), Component.literal("Later")));
+    }
+
+    private static void notify(String title, String message) {
+        Minecraft mc = Minecraft.getInstance();
+        mc.execute(() -> SystemToast.addOrUpdate(mc.gui.toastManager(), TOAST, Component.literal(title), Component.literal(message)));
     }
 
     private static void say(Component message) {
         Sky2MAlerts.chat(message);
+    }
+
+    // ---------------------------------------------------------------- Minecraft 26.2 specifics
+
+    private static boolean keyDown(int key) {
+        long window = Minecraft.getInstance().getWindow().handle();
+        if (key >= GLFW.GLFW_MOUSE_BUTTON_1 && key <= GLFW.GLFW_MOUSE_BUTTON_LAST)
+            return GLFW.glfwGetMouseButton(window, key) == GLFW.GLFW_PRESS;
+        return key >= GLFW.GLFW_KEY_SPACE && key <= GLFW.GLFW_KEY_LAST
+            && GLFW.glfwGetKey(window, key) == GLFW.GLFW_PRESS;
+    }
+
+    private static void openPath(Path path) {
+        net.minecraft.util.Util.getPlatform().openPath(path);
     }
 }

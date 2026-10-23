@@ -1,0 +1,134 @@
+{
+  "class": "healer",
+  "name": "Healer",
+  "sections": [
+    {
+      "id": "clear",
+      "title": "Bloodrush, then split",
+      "subtitle": "Open the doors for Archer and Mage",
+      "lines": [
+        "In the clear your first job is to bloodrush with the Archer and the Mage.",
+        "Your job is just to open the doors so the Arch and Mage can clear the room effectively and then leap to you.",
+        "Once you finish br, leave secrets for the Mage.",
+        "Aim to leave them 4-6 secrets but never make them backtrack through fairy room.",
+        "Example: if it's fairy, then a 1 secret 1x1, then blood, just leave the Mage that 1 secret.",
+        "Example: if it's Dino, then Scaffolding, then fairy, leave the mage either just dino or both dino and scaffolding depending on how good the Mage is.",
+        "After you split the secrets, take an open split or follow whoever has the biggest split secreting in from behind.",
+        "If there are unopened puzzles it is best to clear your own split.",
+        "If all puzzles are opened then helping with secrets is completely fine."
+      ]
+    },
+    {
+      "id": "maxor",
+      "title": "Do Predev",
+      "subtitle": "Set up devices 2 and 3 one click from done",
+      "lines": [
+        "Your job is Predev, which is when you dig into the terminals phase early.",
+        "Set up the 2nd and 3rd devices so they are 1 click away from being completed.",
+        "Leap to the bers once you finish Predev."
+      ]
+    },
+    {
+      "id": "storm",
+      "title": "Pillar, then wait at ss",
+      "subtitle": "Stand under the yellow pillar for lightning",
+      "lines": [
+        "Once you leap up to the Bers, stand under the yellow pillar for lightning.",
+        "Run forward to the front of yellow so the mage can leap to you and hit storm.",
+        "Leap to the bers.",
+        "Wait at ss for the terminals phase to start.",
+        "Healer's role in terms is: ss / ll ee3 / 2 dev / 4 bl."
+      ]
+    },
+    {
+      "id": "s1",
+      "title": "Simon says (ss)",
+      "subtitle": "Do simon says, leap Mage for ee2",
+      "lines": [
+        "Healer's role in terms is: ss / ll ee3 / 2 dev / 4 bl.",
+        "Do simon says.",
+        "Then leap to the Mage for ee2."
+      ]
+    },
+    {
+      "id": "s2",
+      "title": "Left lever, mine to ee3",
+      "subtitle": "Bonzo to the left lever, mine through gate",
+      "lines": [
+        "Jump and bonzo to the left lever.",
+        "Blow the gate and mine through it for ee3."
+      ]
+    },
+    {
+      "id": "s3",
+      "title": "Move to 2, get the dev",
+      "subtitle": "Do the dev after your terminal",
+      "lines": [
+        "After 3 leaps move to 2.",
+        "Then get the dev after your terminal.",
+        "If the bers beats you to the device just leap to the Mage for core."
+      ]
+    },
+    {
+      "id": "s4",
+      "title": "Run to 4, both levers",
+      "subtitle": "Sprint to 4, then leap Mage into core",
+      "lines": [
+        "Run as quickly as you can to 4.",
+        "Do both levers.",
+        "Then leap to the Mage to get back into core."
+      ]
+    },
+    {
+      "id": "goldor",
+      "title": "Dig into Necron early",
+      "subtitle": "Run back to gold and bedrock pad, dig down",
+      "lines": [
+        "Run backwards through the Goldor tunnel to the gold and bedrock pad.",
+        "Dig down into the Necron phase early.",
+        "Mine out the 3x3 of blocks as shown to make the central platform not be destroyed by Necron."
+      ]
+    },
+    {
+      "id": "necron",
+      "title": "Last breath after he moves",
+      "subtitle": "Fire Last Breath after Necron moves sideways",
+      "lines": [
+        "When necron drops you, leap to the mage or run to the front of the platform with the mage.",
+        "Charge your last breath.",
+        "Fire after Necron moves laterally (he always moves either left or right at the start).",
+        "This boosts the Archer and Mage's dps as soon as possible.",
+        "Then bonzo to middle.",
+        "Once the 70m phase begins, dig down into the dragons phase.",
+        "Face towards the altar and wait for everyone to leap to you."
+      ]
+    },
+    {
+      "id": "relics",
+      "title": "Black cat, cow hat, purple",
+      "subtitle": "Leap to Bers, tap d to place Purple relic",
+      "lines": [
+        "Swap to black cat and a cow hat.",
+        "Spam click.",
+        "Immediately leap to the Bers as soon as possible.",
+        "Tap d to place the Purple relic."
+      ]
+    },
+    {
+      "id": "dragons",
+      "title": "Debuff the dragons",
+      "subtitle": "Prefire last breath, ice spray, lethality",
+      "lines": [
+        "As healer you are purely a debuff class.",
+        "Stand middle with your teammates.",
+        "Swap in your last breath, ice spray wand, soul whip or flaming flay, and twilight arrow poison (and flints if your ping is >50).",
+        "When you see the title run to the dragon.",
+        "Begin prefiring your last breath under the statue.",
+        "Then with .15 to spawn jump and ice spray at the peak of your jump.",
+        "Swap to your soul whip / flaming flay and apply lethality.",
+        "Continue this for the final 3 dragons.",
+        "Make sure you have enough twilight for all of them."
+      ]
+    }
+  ]
+}

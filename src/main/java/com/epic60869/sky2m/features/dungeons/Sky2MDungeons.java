@@ -54,6 +54,8 @@ public final class Sky2MDungeons {
         DungeonScore.init();
         ScoreCalculator.init();
         SelfClass.init();
+        com.epic60869.sky2m.features.dungeons.extras.DungeonExtras.init();
+        DungeonRecapExtras.init();
         OdinTerminals.init();
         OdinDevices.init();
         DungeonMap.init();

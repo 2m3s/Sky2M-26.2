@@ -55,7 +55,7 @@ public final class EnchantParser {
     }
 
     public static void init() {
-        SkyHanniRepo.load("Enchants", json -> repo = Repo.read(json));
+        SkyHanniRepo.loadAsync("Enchants", json -> repo = Repo.read(json));
         ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> {
             EnchantParsingConfig config = config();
             if (config == null || (!config.colorParsing && !config.hideEnchantDescriptions)) return;

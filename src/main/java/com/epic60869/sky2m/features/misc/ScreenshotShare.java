@@ -126,6 +126,9 @@ public final class ScreenshotShare {
             return say(Component.literal("Couldn't find that screenshot.").withStyle(ChatFormatting.RED));
         }
         Host host = host(config());
+        if (host == Host.SKY2M && !com.epic60869.sky2m.features.sbc.Flags.isEnabled("screenshots")) {
+            return say(Component.literal(com.epic60869.sky2m.features.sbc.Flags.message("screenshots")).withStyle(ChatFormatting.RED));
+        }
         say(Component.literal("Uploading " + name + "...").withStyle(ChatFormatting.GRAY));
         // On the Sky2M host, the website's Screenshots page shows it with your name and head: the logged-in Sky2M
         // connection gets a one-time token that goes with the upload (waiting up to 6 seconds; it uploads anyway).

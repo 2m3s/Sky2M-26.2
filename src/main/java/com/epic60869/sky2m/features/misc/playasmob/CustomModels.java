@@ -11,9 +11,13 @@ import com.mojang.math.Axis;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
+import net.minecraft.client.renderer.entity.state.ArmedEntityRenderState;
+import net.minecraft.client.renderer.item.ItemStackRenderState;
+import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.HumanoidArm;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.slf4j.Logger;
@@ -43,7 +47,10 @@ import java.util.Set;
  * <p>
  * Drawn in place of a player model inside {@code LivingEntityRenderer.submit} ({@code Sky2MPlayAsMobRendererMixin}),
  * so the player's position, body turn, size, light and hurt flash all apply. Bones named head, left/right arm and
- * left/right leg follow the player's head and swing as they walk.
+ * left/right leg follow the player's head and swing as they walk; glTF and VRM models also bend at knee and elbow bones
+ * (shin, forearm...), are smoothly skinned (each vertex can follow up to four bones) and walk like a person rather than
+ * a Minecraft player. The items you hold are drawn in the model's hands: at a hand bone (right_hand, Mixamo's
+ * RightHand, VRM's J_Bip_R_Hand...) or, without one, at the end of the arm, turning with it.
  */
 public final class CustomModels {
 
@@ -55,14 +62,17 @@ public final class CustomModels {
     private static final float PLAYER_HEIGHT = 1.8f;
 
     static final int ANIM_NONE = 0, ANIM_HEAD = 1, ANIM_RIGHT_ARM = 2, ANIM_LEFT_ARM = 3, ANIM_RIGHT_LEG = 4,
-            ANIM_LEFT_LEG = 5;
+            ANIM_LEFT_LEG = 5, ANIM_RIGHT_ELBOW = 6, ANIM_LEFT_ELBOW = 7, ANIM_RIGHT_KNEE = 8, ANIM_LEFT_KNEE = 9;
 
     /** One bone: rotates its faces and child bones around {@code pivot}. Index 0 is the root. */
     record Bone(int parent, float px, float py, float pz, float rx, float ry, float rz, int anim) {
     }
 
-    /** A quad (triangles repeat their last corner): 4 positions, 4 uvs, a normal, its bone. */
-    record Face(int bone, float[] pos, float[] uv, float nx, float ny, float nz) {
+    /**
+     * A quad (triangles repeat their last corner): 4 positions, 4 uvs, a normal, its bone. A skinned face also has, per
+     * corner, up to 4 bones and their weights ({@code skinBones}/{@code skinWeights}, 16 each); otherwise they are null.
+     */
+    record Face(int bone, float[] pos, float[] uv, float nx, float ny, float nz, int[] skinBones, float[] skinWeights) {
     }
 
     public static final class Model {
@@ -76,9 +86,15 @@ public final class CustomModels {
         final boolean centre;
         /** How far the format's own front is turned from a player's (glTF faces +Z, a player -Z), in radians. */
         final float baseTurn;
+        /** Walks like a person (glTF, VRM) rather than with a Minecraft player's big stiff swing (Blockbench mobs). */
+        final boolean humanWalk;
+        /** Where held items go: the right and left hand in model space and the bone each moves with (-1: no hand). */
+        final float[] rightHand, leftHand;
+        final int rightHandBone, leftHandBone;
 
         Model(List<Bone> bones, Identifier[] textures, List<List<Face>> facesByTexture, float[] bounds, float unit,
-              boolean centre, float baseTurn) {
+              boolean centre, float baseTurn, boolean humanWalk, float[] rightHand, int rightHandBone, float[] leftHand,
+              int leftHandBone) {
             this.bones = bones;
             this.textures = textures;
             this.facesByTexture = facesByTexture;
@@ -91,6 +107,11 @@ public final class CustomModels {
             this.unit = unit;
             this.centre = centre;
             this.baseTurn = baseTurn;
+            this.humanWalk = humanWalk;
+            this.rightHand = rightHand;
+            this.rightHandBone = rightHandBone;
+            this.leftHand = leftHand;
+            this.leftHandBone = leftHandBone;
         }
     }
 
@@ -171,6 +192,13 @@ public final class CustomModels {
                     model.centre ? -(model.minZ + model.maxZ) / 2f : 0f);
         }
 
+        if (cfg.animate && model.humanWalk) {
+            // A person rises as their legs pass each other and dips at the widest stride: twice per step.
+            float walkSpeed = Math.min(1f, state.walkAnimationSpeed);
+            float bob = BOB * walkSpeed * (1f - Math.abs((float) Math.cos(state.walkAnimationPos * 0.6662f)));
+            pose.translate(0f, bob / s, 0f);
+        }
+
         Matrix4f[] boneMats = boneMatrices(model, state, cfg.animate, turn);
         for (int t = 0; t < model.textures.length; t++) {
             List<Face> faces = model.facesByTexture.get(t);
@@ -178,7 +206,30 @@ public final class CustomModels {
             collector.submitCustomGeometry(pose, RenderTypes.entityTranslucent(model.textures[t]), (p, vc) -> {
                 Vector3f v = new Vector3f();
                 Vector3f n = new Vector3f();
+                Vector3f moved = new Vector3f();
+                Vector3f sum = new Vector3f();
+                Vector3f nsum = new Vector3f();
                 for (Face f : faces) {
+                    if (f.skinBones() != null) {
+                        // Linear blend skinning: each corner is moved by its bones, by weight, so joints bend smoothly.
+                        for (int i = 0; i < 4; i++) {
+                            sum.zero();
+                            nsum.zero();
+                            for (int k = 0; k < 4; k++) {
+                                float w = f.skinWeights()[i * 4 + k];
+                                if (w <= 0f) continue;
+                                Matrix4f bm = boneMats[f.skinBones()[i * 4 + k]];
+                                bm.transformPosition(moved.set(f.pos()[i * 3], f.pos()[i * 3 + 1], f.pos()[i * 3 + 2]));
+                                sum.fma(w, moved);
+                                bm.transformDirection(moved.set(f.nx(), f.ny(), f.nz()));
+                                nsum.fma(w, moved);
+                            }
+                            if (nsum.lengthSquared() > 1.0e-12f) nsum.normalize();
+                            vc.addVertex(p, sum.x, sum.y, sum.z).setColor(0xFFFFFFFF).setUv(f.uv()[i * 2], f.uv()[i * 2 + 1])
+                                    .setOverlay(overlay).setLight(light).setNormal(p, nsum.x, nsum.y, nsum.z);
+                        }
+                        continue;
+                    }
                     Matrix4f m = boneMats[f.bone()];
                     m.transformDirection(n.set(f.nx(), f.ny(), f.nz()));
                     for (int i = 0; i < 4; i++) {
@@ -189,12 +240,124 @@ public final class CustomModels {
                 }
             });
         }
+        heldItem(model, state.rightHandItemState, false, boneMats, s, turn, pose, collector, light, state.outlineColor);
+        heldItem(model, state.leftHandItemState, true, boneMats, s, turn, pose, collector, light, state.outlineColor);
+        pose.popPose();
+    }
+
+    /** Draws just this model's textured arm in the first-person hand pose used by Minecraft's item renderer. */
+    public static boolean drawFirstPersonArm(Model model, boolean left, PoseStack pose,
+                                             SubmitNodeCollector collector, int light) {
+        int armAnim = left ? ANIM_LEFT_ARM : ANIM_RIGHT_ARM;
+        int elbowAnim = left ? ANIM_LEFT_ELBOW : ANIM_RIGHT_ELBOW;
+        AvatarRenderState rest = new AvatarRenderState();
+        Matrix4f[] bones = boneMatrices(model, rest, false, model.baseTurn);
+        Matrix4f front = new Matrix4f().rotateY(model.baseTurn);
+        List<Face> armFaces = new ArrayList<>();
+        float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE, minZ = Float.MAX_VALUE;
+        float maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE, maxZ = -Float.MAX_VALUE;
+        Vector3f point = new Vector3f();
+        for (List<Face> faces : model.facesByTexture) for (Face face : faces) {
+            if (face.bone() < 0 || face.bone() >= model.bones.size()) continue;
+            int anim = model.bones.get(face.bone()).anim();
+            if (anim != armAnim && anim != elbowAnim) continue;
+            armFaces.add(face);
+            Matrix4f transform = new Matrix4f(front).mul(bones[face.bone()]);
+            for (int i = 0; i < 4; i++) {
+                transform.transformPosition(point.set(face.pos()[i * 3], face.pos()[i * 3 + 1], face.pos()[i * 3 + 2]));
+                minX = Math.min(minX, point.x); maxX = Math.max(maxX, point.x);
+                minY = Math.min(minY, point.y); maxY = Math.max(maxY, point.y);
+                minZ = Math.min(minZ, point.z); maxZ = Math.max(maxZ, point.z);
+            }
+        }
+        if (armFaces.isEmpty() || maxX - minX < 1.0e-4f || maxY - minY < 1.0e-4f || maxZ - minZ < 1.0e-4f) return false;
+
+        float xRange = maxX - minX, yRange = maxY - minY, zRange = maxZ - minZ;
+        Matrix4f[] transforms = new Matrix4f[bones.length];
+        for (int i = 0; i < bones.length; i++) transforms[i] = new Matrix4f(front).mul(bones[i]);
+        List<List<float[]>> vertices = new ArrayList<>(model.textures.length);
+        for (int i = 0; i < model.textures.length; i++) vertices.add(new ArrayList<>());
+        List<List<float[]>> normals = new ArrayList<>(model.textures.length);
+        for (int i = 0; i < model.textures.length; i++) normals.add(new ArrayList<>());
+        for (int t = 0; t < model.facesByTexture.size(); t++) {
+            for (Face face : model.facesByTexture.get(t)) {
+                int anim = face.bone() >= 0 && face.bone() < model.bones.size() ? model.bones.get(face.bone()).anim() : ANIM_NONE;
+                if (anim != armAnim && anim != elbowAnim) continue;
+                Matrix4f transform = transforms[face.bone()];
+                float[][] mapped = new float[4][3];
+                for (int i = 0; i < 4; i++) {
+                    transform.transformPosition(point.set(face.pos()[i * 3], face.pos()[i * 3 + 1], face.pos()[i * 3 + 2]));
+                    float across = (point.x - minX) / xRange;
+                    mapped[i][0] = left ? 4f + across * 4f : -8f + across * 4f;
+                    mapped[i][1] = (maxY - point.y) / yRange * 12f;
+                    mapped[i][2] = -2f + (point.z - minZ) / zRange * 4f;
+                }
+                Vector3f n = new Vector3f(mapped[1][0] - mapped[0][0], mapped[1][1] - mapped[0][1], mapped[1][2] - mapped[0][2])
+                        .cross(mapped[2][0] - mapped[0][0], mapped[2][1] - mapped[0][1], mapped[2][2] - mapped[0][2]);
+                if (n.lengthSquared() > 1.0e-12f) n.normalize(); else n.set(0f, 1f, 0f);
+                vertices.get(t).add(new float[]{mapped[0][0], mapped[0][1], mapped[0][2], mapped[1][0], mapped[1][1], mapped[1][2],
+                        mapped[2][0], mapped[2][1], mapped[2][2], mapped[3][0], mapped[3][1], mapped[3][2],
+                        face.uv()[0], face.uv()[1], face.uv()[2], face.uv()[3], face.uv()[4], face.uv()[5], face.uv()[6], face.uv()[7]});
+                normals.get(t).add(new float[]{n.x, n.y, n.z});
+            }
+        }
+        pose.pushPose();
+        pose.scale(1f / 16f, 1f / 16f, 1f / 16f);
+        for (int t = 0; t < model.textures.length; t++) {
+            if (vertices.get(t).isEmpty() || model.textures[t] == null) continue;
+            int texture = t;
+            collector.submitCustomGeometry(pose, RenderTypes.entityTranslucent(model.textures[t]), (p, vc) -> {
+                List<float[]> faces = vertices.get(texture), faceNormals = normals.get(texture);
+                for (int f = 0; f < faces.size(); f++) {
+                    float[] v = faces.get(f), n = faceNormals.get(f);
+                    for (int i = 0; i < 4; i++) {
+                        vc.addVertex(p, v[i * 3], v[i * 3 + 1], v[i * 3 + 2]).setColor(0xFFFFFFFF)
+                                .setUv(v[12 + i * 2], v[13 + i * 2]).setOverlay(OverlayTexture.NO_OVERLAY)
+                                .setLight(light).setNormal(p, n[0], n[1], n[2]);
+                    }
+                }
+            });
+        }
+        pose.popPose();
+        return true;
+    }
+
+    /**
+     * Draws a held item in the model's hand, as the player model's held item layer does: {@code pose} is the model's
+     * space, {@code s} its scale and {@code turn} its turn, so undoing those at the hand leaves the player model's own
+     * frame (y down, front -Z), turned the way the hand's bone is.
+     */
+    private static void heldItem(Model model, ItemStackRenderState item, boolean left, Matrix4f[] boneMats, float s,
+                                 float turn, PoseStack pose, SubmitNodeCollector collector, int light, int outline) {
+        float[] hand = left ? model.leftHand : model.rightHand;
+        int bone = left ? model.leftHandBone : model.rightHandBone;
+        if (item == null || item.isEmpty() || hand == null || bone < 0 || bone >= boneMats.length) return;
+        Matrix4f boneMat = boneMats[bone];
+        Vector3f at = boneMat.transformPosition(new Vector3f(hand[0], hand[1], hand[2]));
+        // The bone's turn from rest, moved from the model's frame (y up, turned) into the player model's (y down).
+        Matrix4f turnOfBone = new Matrix4f().set3x3(boneMat).normalize3x3();
+        Matrix4f handTurn = new Matrix4f().scale(-1f, -1f, 1f).rotateY(turn).mul(turnOfBone).rotateY(-turn).scale(-1f, -1f, 1f);
+        pose.pushPose();
+        pose.translate(at.x, at.y, at.z);
+        pose.scale(1f / s, 1f / s, 1f / s);
+        pose.mulPose(new Matrix4f().rotateY(-turn));
+        pose.mulPose(handTurn);
+        // The player model's held item layer, from the fist rather than the shoulder.
+        pose.mulPose(new Matrix4f().rotateX((float) Math.toRadians(-90)).rotateY((float) Math.PI));
+        pose.translate((left ? -1f : 1f) / 16f, 2f / 16f, 0f);
+        item.submit(pose, collector, light, OverlayTexture.NO_OVERLAY, outline);
         pose.popPose();
     }
 
     /** How a model is placed: set per model on the website (Model Scale, Turn and Fit to Player Height). */
     public record ServerModelPlacement(float scale, float turn, boolean fit) {
     }
+
+    /** A person's walk, in radians (a Minecraft player swings its legs about 80 degrees and its arms about 57). */
+    private static final float HIP_SWING = 0.5f, KNEE_BEND = 0.95f, KNEE_REST = 0.08f, SHOULDER_SWING = 0.35f,
+            ELBOW_BEND = 0.3f, ELBOW_REST = 0.12f;
+    /** How far a person rises between strides, in blocks. */
+    private static final float BOB = 0.035f;
 
     /** Each bone's transform from model space, with the head turned and the limbs swung when animating. */
     private static Matrix4f[] boneMatrices(Model model, AvatarRenderState state, boolean animate, float turn) {
@@ -203,6 +366,8 @@ public final class CustomModels {
         float walkSpeed = Math.min(1f, state.walkAnimationSpeed);
         float swing = (float) Math.cos(walkPos * 0.6662f);
         float swingOpp = (float) Math.cos(walkPos * 0.6662f + Math.PI);
+        // Positive while the right leg swings forward (the left one is planted), negative for the left.
+        float stride = (float) Math.sin(walkPos * 0.6662f);
         for (int i = 0; i < out.length; i++) {
             Bone b = model.bones.get(i);
             Matrix4f m = b.parent() < 0 ? new Matrix4f() : new Matrix4f(out[b.parent()]);
@@ -210,15 +375,39 @@ public final class CustomModels {
             if (animate && b.anim() != ANIM_NONE) {
                 // Angles in the player's frame (y up, front -Z), turned into the model's frame when Model Turn is set.
                 Matrix4f anim = new Matrix4f();
-                switch (b.anim()) {
-                    case ANIM_HEAD -> anim.rotateY((float) Math.toRadians(-state.yRot))
-                            .rotateX((float) Math.toRadians(-state.xRot));
-                    case ANIM_RIGHT_ARM -> anim.rotateX(-swingOpp * walkSpeed);
-                    case ANIM_LEFT_ARM -> anim.rotateX(-swing * walkSpeed);
-                    case ANIM_RIGHT_LEG -> anim.rotateX(-swing * 1.4f * walkSpeed);
-                    case ANIM_LEFT_LEG -> anim.rotateX(-swingOpp * 1.4f * walkSpeed);
-                    default -> {
+                if (b.anim() == ANIM_HEAD) {
+                    anim.rotateY((float) Math.toRadians(-state.yRot)).rotateX((float) Math.toRadians(-state.xRot));
+                } else if (model.humanWalk) {
+                    // A positive X turn swings a limb forward. Knees only bend backward and most while the leg swings
+                    // through; elbows stay a little bent and bend more as the arm comes forward.
+                    switch (b.anim()) {
+                        case ANIM_RIGHT_ARM -> anim.rotateX(-swingOpp * SHOULDER_SWING * walkSpeed);
+                        case ANIM_LEFT_ARM -> anim.rotateX(-swing * SHOULDER_SWING * walkSpeed);
+                        case ANIM_RIGHT_LEG -> anim.rotateX(-swing * HIP_SWING * walkSpeed);
+                        case ANIM_LEFT_LEG -> anim.rotateX(-swingOpp * HIP_SWING * walkSpeed);
+                        case ANIM_RIGHT_KNEE -> anim.rotateX(-(KNEE_REST + KNEE_BEND * Math.max(0f, stride)) * walkSpeed);
+                        case ANIM_LEFT_KNEE -> anim.rotateX(-(KNEE_REST + KNEE_BEND * Math.max(0f, -stride)) * walkSpeed);
+                        case ANIM_RIGHT_ELBOW -> anim.rotateX((ELBOW_REST + ELBOW_BEND * Math.max(0f, swing)) * walkSpeed);
+                        case ANIM_LEFT_ELBOW -> anim.rotateX((ELBOW_REST + ELBOW_BEND * Math.max(0f, -swing)) * walkSpeed);
+                        default -> {
+                        }
                     }
+                } else {
+                    switch (b.anim()) {
+                        case ANIM_RIGHT_ARM -> anim.rotateX(-swingOpp * walkSpeed);
+                        case ANIM_LEFT_ARM -> anim.rotateX(-swing * walkSpeed);
+                        case ANIM_RIGHT_LEG -> anim.rotateX(-swing * 1.4f * walkSpeed);
+                        case ANIM_LEFT_LEG -> anim.rotateX(-swingOpp * 1.4f * walkSpeed);
+                        default -> {
+                        }
+                    }
+                }
+                if (model.humanWalk && state instanceof ArmedEntityRenderState armed && armed.attackTime > 0f
+                        && ((armed.attackArm == HumanoidArm.RIGHT && b.anim() == ANIM_RIGHT_ARM)
+                        || (armed.attackArm == HumanoidArm.LEFT && b.anim() == ANIM_LEFT_ARM))) {
+                    float progress = 1f - (float) Math.pow(1f - armed.attackTime, 4);
+                    float strike = (float) Math.sin(progress * Math.PI);
+                    anim.rotateX(-strike * 1.2f).rotateY((armed.attackArm == HumanoidArm.RIGHT ? 1f : -1f) * strike * 0.18f);
                 }
                 m.mul(new Matrix4f().rotateY(-turn).mul(anim).rotateY(turn));
             }
@@ -236,6 +425,49 @@ public final class CustomModels {
         final List<Bone> bones = new ArrayList<>();
         final List<List<Face>> faces = new ArrayList<>();
         int faceCount;
+        private float[] rightHand, leftHand;
+        private int rightHandBone = -1, leftHandBone = -1;
+
+        /** A hand bone's position (model space) and the bone it moves with; the first one found for each side wins. */
+        void hand(boolean left, int bone, float[] at) {
+            if (left && leftHand == null) {
+                leftHand = at;
+                leftHandBone = bone;
+            } else if (!left && rightHand == null) {
+                rightHand = at;
+                rightHandBone = bone;
+            }
+        }
+
+        /**
+         * Without a hand bone: the end of the arm. The lowest part of the forearm's (or else the arm's) faces, as the arms
+         * hang at rest, which is where the hand is.
+         */
+        private void guessHand(boolean left) {
+            int elbow = left ? ANIM_LEFT_ELBOW : ANIM_RIGHT_ELBOW, arm = left ? ANIM_LEFT_ARM : ANIM_RIGHT_ARM;
+            int found = -1;
+            for (int i = 0; i < bones.size() && found < 0; i++) if (bones.get(i).anim() == elbow) found = i;
+            for (int i = 0; i < bones.size() && found < 0; i++) if (bones.get(i).anim() == arm) found = i;
+            if (found < 0) return;
+            float lo = Float.MAX_VALUE, hi = -Float.MAX_VALUE;
+            for (List<Face> list : faces) for (Face f : list) if (f.bone() == found) for (int i = 0; i < 4; i++) {
+                lo = Math.min(lo, f.pos()[i * 3 + 1]);
+                hi = Math.max(hi, f.pos()[i * 3 + 1]);
+            }
+            if (lo > hi) return;
+            // Include the palm/wrist area, rather than anchoring an item to just the bottom-most few vertices.
+            float limit = lo + (hi - lo) * 0.30f;
+            double x = 0, y = 0, z = 0;
+            int n = 0;
+            for (List<Face> list : faces) for (Face f : list) if (f.bone() == found) for (int i = 0; i < 4; i++) {
+                if (f.pos()[i * 3 + 1] > limit) continue;
+                x += f.pos()[i * 3];
+                y += f.pos()[i * 3 + 1];
+                z += f.pos()[i * 3 + 2];
+                n++;
+            }
+            if (n > 0) hand(left, found, new float[]{(float) (x / n), (float) (y / n), (float) (z / n)});
+        }
 
         Builder(int textures) {
             for (int i = 0; i < textures; i++) faces.add(new ArrayList<>());
@@ -250,6 +482,15 @@ public final class CustomModels {
 
         /** A face of 3 or 4 corners (positions in model space, uvs 0-1). */
         void face(int bone, int texture, float[][] corners, float[][] uvs) throws IOException {
+            face(bone, texture, corners, uvs, null, null);
+        }
+
+        /**
+         * A face whose corners can each follow up to 4 bones: {@code skinBones[c]} and {@code skinWeights[c]} per
+         * corner, weights adding up to 1. {@code bone} is the one that matters most (used for the model's bounds).
+         */
+        void face(int bone, int texture, float[][] corners, float[][] uvs, int[][] skinBones, float[][] skinWeights)
+                throws IOException {
             if (texture < 0 || texture >= faces.size()) return;
             if (++faceCount > MAX_FACES) throw new IOException("the model has over " + MAX_FACES + " faces");
             float[] pos = new float[12];
@@ -267,7 +508,20 @@ public final class CustomModels {
             Vector3f n = a.cross(b);
             if (n.lengthSquared() > 1.0e-12f) n.normalize();
             else n.set(0, 1, 0);
-            faces.get(texture).add(new Face(bone, pos, uv, n.x, n.y, n.z));
+            int[] sb = null;
+            float[] sw = null;
+            if (skinBones != null) {
+                sb = new int[16];
+                sw = new float[16];
+                for (int i = 0; i < 4; i++) {
+                    int c = Math.min(i, corners.length - 1);
+                    for (int k = 0; k < 4 && k < skinBones[c].length; k++) {
+                        sb[i * 4 + k] = skinBones[c][k];
+                        sw[i * 4 + k] = skinWeights[c][k];
+                    }
+                }
+            }
+            faces.get(texture).add(new Face(bone, pos, uv, n.x, n.y, n.z, sb, sw));
         }
 
         Model build(Identifier[] textures, float unit, boolean centre) throws IOException {
@@ -275,8 +529,15 @@ public final class CustomModels {
         }
 
         Model build(Identifier[] textures, float unit, boolean centre, float baseTurn) throws IOException {
+            return build(textures, unit, centre, baseTurn, false);
+        }
+
+        Model build(Identifier[] textures, float unit, boolean centre, float baseTurn, boolean humanWalk) throws IOException {
             if (faceCount == 0) throw new IOException("the model has no textured faces");
-            return new Model(List.copyOf(bones), textures, faces, bounds(), unit, centre, baseTurn);
+            if (rightHand == null) guessHand(false);
+            if (leftHand == null) guessHand(true);
+            return new Model(List.copyOf(bones), textures, faces, bounds(), unit, centre, baseTurn, humanWalk,
+                    rightHand, rightHandBone, leftHand, leftHandBone);
         }
 
         /** Rest-pose bounds, with every bone's own rotation applied. */
@@ -426,7 +687,14 @@ public final class CustomModels {
                 if (uuid == null || !placed.contains(uuid)) bbElement(o, 0, builder, texSize, modelBoxUv);
             }
         }
-        return builder.build(textures, 1f / 16f, false);
+        boolean humanRig = hasBone(builder, ANIM_RIGHT_ARM) && hasBone(builder, ANIM_LEFT_ARM)
+                && hasBone(builder, ANIM_RIGHT_LEG) && hasBone(builder, ANIM_LEFT_LEG);
+        float baseTurn = meta == null ? 0f : (float) Math.toRadians(num(meta, "sky2m_base_turn", 0f));
+        return builder.build(textures, 1f / 16f, false, baseTurn, humanRig);
+    }
+
+    private static boolean hasBone(Builder builder, int animation) {
+        return builder.bones.stream().anyMatch(bone -> bone.anim() == animation);
     }
 
     private static Identifier bbTexture(JsonObject t, Path dir) {
@@ -443,8 +711,17 @@ public final class CustomModels {
         // A "path" is a file on the computer the model was made on: never read (models come from the server).
         String name = str(t, "name");
         if (name != null && !name.isBlank() && dir != null) {
-            Path near = dir.resolve(name.endsWith(".png") ? name : name + ".png").normalize();
-            if (near.startsWith(dir)) return textureFile(near);
+            // Blockbench exports commonly keep JPEGs next to the model and store only their basename here.
+            // Also accept an explicit relative path, while never following paths outside the model directory.
+            Path relative = Path.of(name);
+            Path near = dir.resolve(relative).normalize();
+            if (near.startsWith(dir) && Files.isRegularFile(near)) return textureFile(near);
+            if (!relative.getFileName().toString().contains(".")) {
+                for (String ext : new String[]{".png", ".jpg", ".jpeg"}) {
+                    near = dir.resolve(name + ext).normalize();
+                    if (near.startsWith(dir) && Files.isRegularFile(near)) return textureFile(near);
+                }
+            }
         }
         return null;
     }
@@ -466,6 +743,8 @@ public final class CustomModels {
         int anim = animFor(str(info, "name"));
         if (animatedAbove.contains(anim)) anim = ANIM_NONE;
         int bone = builder.bone(parentBone, vec(info, "origin"), vec(info, "rotation"), anim);
+        int hand = handSide(str(info, "name"));
+        if (hand != 0) builder.hand(hand == 2, bone, vec(info, "origin"));
         Set<Integer> below = animatedAbove;
         if (anim != ANIM_NONE) {
             below = new HashSet<>(animatedAbove);
@@ -479,6 +758,16 @@ public final class CustomModels {
     }
 
     /** Which body part a bone name is: head, left/right arm or left/right leg. */
+    /** 1 for a right hand bone ("right_hand", "hand_r", "mixamorig:RightHand", "J_Bip_R_Hand"), 2 for a left one, else 0. */
+    static int handSide(String name) {
+        if (name == null) return 0;
+        String n = name.toLowerCase(Locale.ROOT).replace('-', '_').replace(' ', '_').replace('.', '_');
+        if (!n.contains("hand") || n.contains("handle")) return 0;
+        boolean right = n.contains("right") || n.startsWith("r_") || n.endsWith("_r") || n.contains("_r_");
+        boolean left = n.contains("left") || n.startsWith("l_") || n.endsWith("_l") || n.contains("_l_");
+        return right == left ? 0 : right ? 1 : 2;
+    }
+
     static int animFor(String name) {
         if (name == null) return ANIM_NONE;
         String n = name.toLowerCase(Locale.ROOT).replace('-', '_').replace(' ', '_').replace('.', '_');
@@ -487,9 +776,13 @@ public final class CustomModels {
         boolean right = n.contains("right") || n.startsWith("r_") || n.endsWith("_r") || n.contains("_r_");
         boolean left = n.contains("left") || n.startsWith("l_") || n.endsWith("_l") || n.contains("_l_");
         if (right == left) return ANIM_NONE;
-        if (n.contains("arm") && !n.contains("armor") && !n.contains("armour") && !n.contains("armature")) {
-            return right ? ANIM_RIGHT_ARM : ANIM_LEFT_ARM;
+        boolean arm = n.contains("arm") && !n.contains("armor") && !n.contains("armour") && !n.contains("armature");
+        // "right_forearm", "J_Bip_R_LowerArm", "mixamorig:LeftForeArm", "shin_l", "J_Bip_L_LowerLeg", "calf.R"
+        if (n.contains("forearm") || n.contains("elbow") || (arm && n.contains("lower"))) return right ? ANIM_RIGHT_ELBOW : ANIM_LEFT_ELBOW;
+        if (n.contains("shin") || n.contains("calf") || n.contains("knee") || (n.contains("leg") && n.contains("lower"))) {
+            return right ? ANIM_RIGHT_KNEE : ANIM_LEFT_KNEE;
         }
+        if (arm) return right ? ANIM_RIGHT_ARM : ANIM_LEFT_ARM;
         if (n.contains("leg") || n.contains("thigh")) return right ? ANIM_RIGHT_LEG : ANIM_LEFT_LEG;
         return ANIM_NONE;
     }

@@ -339,7 +339,7 @@ public final class DianaRareMobs {
             return InteractionResult.PASS;
         });
         Sky2MWorldRender.register(DianaRareMobs::render);
-        EntityGlow.register(entity -> glow.getOrDefault(entity, -1));
+        EntityGlow.register(entity -> glow.isEmpty() ? -1 : glow.getOrDefault(entity, -1));
     }
 
     /** The Hypixel server you're on ("mini84BT"), from the tab list's "Server:" line. */

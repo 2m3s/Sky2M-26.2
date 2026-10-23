@@ -13,9 +13,18 @@ import net.minecraft.world.item.component.ItemLore;
 public final class Sky2MDebug {
     private Sky2MDebug() {}
 
+    private static boolean roomDebug;
+
+    /** Whether /s2 debug has turned the dungeon room debug lines on (a chat line when the Dungeon Sim room under you changes). */
+    public static boolean roomDebug() { return roomDebug; }
+
+    public static void roomLine(String text) { line("Debug", text); }
+
     public static int run() {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return 0;
+        roomDebug = !roomDebug;
+        line("Room debug lines", roomDebug ? "on (run /s2 debug again to turn off)" : "off");
         Sky2MConfig config = Sky2MConfig.current();
 
         line("Server brand", mc.getConnection() == null ? "none" : String.valueOf(mc.getConnection().serverBrand()));

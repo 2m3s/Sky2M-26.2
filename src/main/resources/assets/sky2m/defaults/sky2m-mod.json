@@ -513,7 +513,6 @@
     "positionalMessages": {
       "enabled": true,
       "onlyInBoss": true,
-      "builtInWaypoints": false,
       "classOverride": "AUTO",
       "showPositions": true,
       "ringHeight": 0.2,

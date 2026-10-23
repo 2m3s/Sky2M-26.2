@@ -29,6 +29,9 @@ public abstract class Sky2MFloor7PacketsMixin {
     @Inject(method = "handleSoundEvent", at = @At(value = "INVOKE", target = "Lnet/minecraft/network/protocol/PacketUtils;ensureRunningOnSameThread(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketListener;Lnet/minecraft/network/PacketProcessor;)V", shift = At.Shift.AFTER), cancellable = true)
     private void sky2m$f7Sound(ClientboundSoundPacket packet, CallbackInfo ci) {
         String name = packet.getSound().value().location().getPath();
+        // Dungeons > Dungeon Extras: Spring Boots charge sounds and Clean End's muted boss music.
+        com.epic60869.sky2m.features.dungeons.extras.DungeonExtras.onSound(name, packet.getPitch());
+        if (com.epic60869.sky2m.features.dungeons.extras.DungeonExtras.cancelSound(name)) ci.cancel();
         if (F7Extras.onSound(name, packet.getVolume(), packet.getPitch())) ci.cancel();
     }
 }

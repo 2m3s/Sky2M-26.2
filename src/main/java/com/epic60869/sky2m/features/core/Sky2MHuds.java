@@ -172,12 +172,18 @@ public final class Sky2MHuds {
         // Positions saved before the reference size existed were placed on this screen size.
         if (refWidth <= 0 || refHeight <= 0) setReferenceToScreen();
         Sky2MPerf.frame();
+        boolean stamp = !(mc.gui.screen() instanceof com.epic60869.sky2m.Sky2MHudEditorScreen);
+        long now = System.currentTimeMillis();
+        if (stamp) lastLiveMs = now;
         for (Element element : ELEMENTS.values()) {
             if (!safe(element, element.enabled())) continue;
             long started = Sky2MPerf.start();
             if (element.custom() != null) {
                 try {
-                    if (customVisible(element)) renderCustom(graphics, element, false);
+                    if (customVisible(element)) {
+                        if (stamp) LAST_DRAWN.put(element.id(), now);
+                        renderCustom(graphics, element, false);
+                    }
                 } catch (Exception e) {
                     Sky2MErrors.caught(element.name(), e, "HUD " + element.id());
                 }
@@ -186,11 +192,31 @@ public final class Sky2MHuds {
             }
             List<Component> lines = tickLines(element);
             if (!lines.isEmpty()) {
+                if (stamp) LAST_DRAWN.put(element.id(), now);
                 Placement p = placement(element.id());
                 render(graphics, lines, mapX(p.x, width(lines, p.scale)), mapY(p.y, height(lines, p.scale)), p.scale, p.background);
             }
             Sky2MPerf.end(Sky2MPerf.Kind.HUD, element.name(), started);
         }
+    }
+
+    /** When each HUD last actually drew, for /s2 gui to list only what is on screen (like SkyHanni's editor). */
+    private static final Map<String, Long> LAST_DRAWN = new java.util.HashMap<>();
+    private static long lastLiveMs;
+    private static final long SEEN_GRACE_MS = 10_000L;
+
+    /**
+     * The moment the HUD layer last drew. Nothing draws while a screen hides it, so /s2 gui measures its grace window
+     * from here rather than from the clock.
+     */
+    public static long lastLive() {
+        return lastLiveMs == 0L ? System.currentTimeMillis() : lastLiveMs;
+    }
+
+    /** Whether the HUD drew within 10 seconds of {@code asOfMs}. */
+    public static boolean drawnRecently(String id, long asOfMs) {
+        Long at = LAST_DRAWN.get(id);
+        return at != null && asOfMs - at <= SEEN_GRACE_MS;
     }
 
     private static boolean safe(Element element, BooleanSupplier supplier) {

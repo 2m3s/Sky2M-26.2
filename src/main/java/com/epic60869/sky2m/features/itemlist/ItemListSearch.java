@@ -65,12 +65,20 @@ public final class ItemListSearch {
     }
 
     public static boolean matches(ItemListData.Entry e, Query q, boolean fuzzy) {
-        if (q.category() != null && e.category() != q.category()) return false;
+        return matches(q, e.id(), e.category(), e.searchName(), e.searchLore(), fuzzy);
+    }
+
+    /**
+     * The search against any item: its SkyBlock id and category (either may be null when it isn't a known item), and its
+     * name and lore, lower case without colour codes. Used for the list and for highlighting items in menus.
+     */
+    public static boolean matches(Query q, String id, ItemListData.Category category, String name, String lore, boolean fuzzy) {
+        if (q.category() != null && category != q.category()) return false;
         if (q.groups().isEmpty()) return true;
         for (List<String> group : q.groups()) {
             boolean all = true;
             for (String term : group) {
-                if (!term(e, term, fuzzy)) {
+                if (!term(id, name, lore, term, fuzzy)) {
                     all = false;
                     break;
                 }
@@ -80,10 +88,10 @@ public final class ItemListSearch {
         return false;
     }
 
-    private static boolean term(ItemListData.Entry e, String term, boolean fuzzy) {
-        if (term.startsWith("#")) return e.id().toLowerCase(Locale.ROOT).startsWith(term.substring(1));
-        if (e.searchName().contains(term) || e.searchLore().contains(term)) return true;
-        return fuzzy && (fuzzy(term, e.searchName()));
+    private static boolean term(String id, String name, String lore, String term, boolean fuzzy) {
+        if (term.startsWith("#")) return id != null && id.toLowerCase(Locale.ROOT).startsWith(term.substring(1));
+        if (name.contains(term) || lore.contains(term)) return true;
+        return fuzzy && (fuzzy(term, name));
     }
 
     /** Whether the name starts with the search (those are listed first). */

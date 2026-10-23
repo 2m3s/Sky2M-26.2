@@ -25,14 +25,19 @@ import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.Style;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.ItemLore;
 
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -48,6 +53,8 @@ import java.util.concurrent.Executors;
  *   <li>Click an item for its recipes, right-click for its wiki page (both can be changed); the Recipe, Usage and
  *   Favourite keys work over items in the list, in recipes and in any menu.</li>
  *   <li>Favourites on the other side: items and recipes, and a pinned recipe on top (Ctrl and click a recipe).</li>
+ *   <li>Double-click the search bar for highlighter mode: items in the menu that match the search are highlighted and the
+ *   rest dimmed, until you double-click it again.</li>
  *   <li>The items move out of the way of other things beside the menu (Sky2M's panels such as the Garden plot map,
  *   other mods' buttons, potion effects), and the list takes the Storage Overlay's size into account.</li>
  * </ul>
@@ -81,6 +88,16 @@ public final class ItemList {
     private static String searchedFor = "\u0000";
     private static String calcResult;
     private static boolean calcOk;
+
+    // Highlighter mode (double-click the search bar): matching items in the menu are highlighted, the rest dimmed.
+    private static final long DOUBLE_CLICK_MS = 300;
+    private static final int HIGHLIGHT = 0x80FFFF55, DIM = 0xB0000000, HIGHLIGHT_EDGE = 0xFFFFFF55;
+    private static boolean highlighter;
+    private static long lastBoxClick;
+    private static String highlightFor;
+    private static ItemListSearch.Query highlightQuery;
+    /** Whether each item matches the current search, so lore isn't read every frame. Cleared when the search changes. */
+    private static final Map<ItemStack, Boolean> highlightCache = new IdentityHashMap<>();
 
     // This frame's layout.
     private static Rect mainRect, favRect, boxRect, filterRect, settingsRect, prevRect, nextRect, favPrevRect, favNextRect, pinnedRect;
@@ -126,7 +143,7 @@ public final class ItemList {
         box = new EditBox(mc.font, 0, 0, 100, 16, Component.literal("Search"));
         box.setMaxLength(999);
         box.setValue(text == null ? "" : text);
-        box.setHint(Component.literal("Search or Calculate...").withStyle(ChatFormatting.DARK_GRAY));
+        updateHint();
         box.addFormatter(ItemList::highlight);
         box.setResponder(value -> {
             c.lastSearch = value;
@@ -207,6 +224,56 @@ public final class ItemList {
             }
             return true;
         };
+    }
+
+    private static void updateHint() {
+        if (box == null) return;
+        box.setHint(Component.literal(highlighter ? "Highlight..." : "Search or Calculate...")
+            .withStyle(highlighter ? ChatFormatting.YELLOW : ChatFormatting.DARK_GRAY));
+    }
+
+    // ------------------------------------------------------------------------------------------------ highlighter
+
+    /** From the slot mixin, before the item is drawn: in highlighter mode, a highlight behind items matching the search. */
+    public static void renderSlot(GuiGraphicsExtractor g, Slot slot) {
+        if (highlightState(slot) == Boolean.TRUE) g.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, HIGHLIGHT);
+    }
+
+    /** From the slot mixin, after the item is drawn: in highlighter mode, items not matching the search are dimmed. */
+    public static void renderSlotDim(GuiGraphicsExtractor g, Slot slot) {
+        if (highlightState(slot) == Boolean.FALSE) g.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, DIM);
+    }
+
+    /** True: matches; false: dim it; null: highlighter is off here, or the slot is empty. */
+    private static Boolean highlightState(Slot slot) {
+        if (!highlighter || box == null || !slot.hasItem()) return null;
+        Minecraft mc = Minecraft.getInstance();
+        FeatureConfigs.ItemList c = config();
+        if (c == null || c.hidden || !shouldShow(mc.gui.screen())) return null;
+        String raw = box.getValue();
+        if (raw.isBlank() || calcResult != null) return null;
+        if (!raw.equals(highlightFor)) {
+            highlightFor = raw;
+            highlightQuery = ItemListSearch.parse(raw);
+            highlightCache.clear();
+        }
+        if (highlightQuery.isEmpty()) return null;
+        if (highlightCache.size() > 2048) highlightCache.clear();
+        return highlightCache.computeIfAbsent(slot.getItem(), stack -> highlightMatches(stack, c.fuzzy));
+    }
+
+    private static boolean highlightMatches(ItemStack stack, boolean fuzzy) {
+        String id = ItemListIds.of(stack);
+        ItemListData.Entry entry = id == null ? null : ItemListData.entry(id);
+        String name = ItemListData.strip(stack.getHoverName().getString()).toLowerCase(Locale.ROOT);
+        StringBuilder lore = new StringBuilder();
+        ItemLore itemLore = stack.get(DataComponents.LORE);
+        if (itemLore != null) {
+            for (Component line : itemLore.lines()) lore.append(ItemListData.strip(line.getString()).toLowerCase(Locale.ROOT)).append(' ');
+        }
+        if (entry != null) lore.append(entry.searchName()).append(' ').append(entry.searchLore());
+        return ItemListSearch.matches(highlightQuery, id != null ? id : Compat.neuName(stack), entry == null ? null : entry.category(),
+            name, lore.toString(), fuzzy);
     }
 
     // ------------------------------------------------------------------------------------------------ layout
@@ -328,6 +395,9 @@ public final class ItemList {
             hoveredRecipe = null;
             Font font = Minecraft.getInstance().font;
             if (mainRect != null) drawMain(g, font, mouseX, mouseY);
+            if (mainRect != null && highlighter && box.visible) {
+                g.outline(box.getX() - 1, box.getY() - 1, box.getWidth() + 2, box.getHeight() + 2, HIGHLIGHT_EDGE);
+            }
             if (favRect != null) drawFavourites(g, font, mouseX, mouseY);
         }
 
@@ -441,7 +511,7 @@ public final class ItemList {
         g.pose().popMatrix();
         if (over) {
             hoveredId = id;
-            List<Component> tip = new ArrayList<>(Screen.getTooltipFromItem(Minecraft.getInstance(), stack));
+            List<Component> tip = new ArrayList<>(com.epic60869.sky2m.Sky2MPriceTooltip.itemListTooltip(stack));
             if (recipeTile) tip.add(Component.literal("[Ctrl + Click to pin this recipe]").withStyle(ChatFormatting.GRAY));
             g.setComponentTooltipForNextFrame(font, tip, mouseX, mouseY);
         }
@@ -518,6 +588,16 @@ public final class ItemList {
             }
             if (boxRect.contains(x, y)) {
                 if (event.button() == com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_RIGHT) box.setValue("");
+                if (event.button() == com.mojang.blaze3d.platform.InputConstants.MOUSE_BUTTON_LEFT) {
+                    long now = System.currentTimeMillis();
+                    if (now - lastBoxClick <= DOUBLE_CLICK_MS) {
+                        highlighter = !highlighter;
+                        updateHint();
+                        lastBoxClick = 0;
+                    } else {
+                        lastBoxClick = now;
+                    }
+                }
                 return false;
             }
             if (prevRect != null && prevRect.contains(x, y)) {

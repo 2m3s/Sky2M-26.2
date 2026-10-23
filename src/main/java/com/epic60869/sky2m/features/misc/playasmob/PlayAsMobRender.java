@@ -12,6 +12,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.client.renderer.entity.EntityRenderer;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.state.ArmedEntityRenderState;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
@@ -20,6 +21,7 @@ import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import org.slf4j.Logger;
@@ -103,12 +105,24 @@ public final class PlayAsMobRender {
         if (mc.level == null) return null;
         Entity entity = mc.level.getEntity(avatar.id);
         if (!(entity instanceof AbstractClientPlayer player) || !shows(player)) return null;
+        return modelForPlayer(player);
+    }
+
+    /** The downloaded model selected by a player, for the first-person hand renderer. */
+    public static Drawn modelForPlayer(AbstractClientPlayer player) {
+        if (player == null || !shows(player)) return null;
         SbcCosmetics.ModelRef ref = SbcCosmetics.modelFor(player.getUUID());
         if (ref == null) return null;
         Path file = ServerModels.file(ref);
         if (file == null) return null;
         CustomModels.Model model = CustomModels.get(file);
         return model == null ? null : new Drawn(model, new CustomModels.ServerModelPlacement(ref.scale(), ref.turn(), ref.fit()));
+    }
+
+    /** Replace the vanilla first-person arm with the selected textured model arm, preserving the hand pose and item renderer. */
+    public static boolean renderFirstPersonArm(HumanoidArm arm, PoseStack pose, SubmitNodeCollector collector, int light) {
+        Drawn drawn = modelForPlayer(Minecraft.getInstance().player);
+        return drawn != null && CustomModels.drawFirstPersonArm(drawn.model(), arm == HumanoidArm.LEFT, pose, collector, light);
     }
 
     /** {@code playerState} as the level renderer should draw it: unchanged unless that player plays as a mob. */

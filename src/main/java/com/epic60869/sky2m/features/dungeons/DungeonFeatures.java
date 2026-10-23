@@ -195,6 +195,7 @@ public final class DungeonFeatures {
         TeammateHighlight.init();
         LeapMenu.init();
         PositionalMessages.init(configDir);
+        AdgRoles.init();
         DoorHighlight.init();
         BloodCamp.init();
         OdinPuzzleSolvers.init();
@@ -399,7 +400,46 @@ public final class DungeonFeatures {
             }
         }
         lines.add(splitLine(new SplitRow("§1Total", rows.getLast().time(), rows.getLast().ticks(), false), config));
+        if (config.timers.splitEta && SPLITS.getLast().time == 0) {
+            long eta = estimateTotal(rows);
+            if (eta > 0) lines.add(Component.literal("§7ETA: §f" + formatTime(eta)));
+        }
         return lines;
+    }
+
+    /**
+     * Estimated total run time: the time so far plus the rest of the current split and every later one, each taken as
+     * the average of that split in finished Run History runs for this floor (or the personal best if there are none).
+     * 0 when nothing is known.
+     */
+    private static long estimateTotal(List<SplitRow> rows) {
+        if (splitFloor.isEmpty() || rows.size() < 2) return 0;
+        Map<String, long[]> sums = new HashMap<>();
+        for (RunHistory.Run run : RunHistory.runs()) {
+            if (!run.completed || !splitFloor.equals(run.floor)) continue;
+            for (RunHistory.Split s : run.splits) {
+                long[] v = sums.computeIfAbsent(s.name(), k -> new long[2]);
+                v[0] += s.ms();
+                v[1]++;
+            }
+        }
+        Map<String, Float> pbs = personalBests.getOrDefault(splitFloor, Map.of());
+        long remaining = 0;
+        boolean started = false;
+        for (int i = 0; i < rows.size() - 1; i++) {
+            SplitRow row = rows.get(i);
+            if (!row.current() && !started) continue;
+            String name = ChatFormatting.stripFormatting(row.name());
+            long[] v = sums.get(name);
+            long expected;
+            if (v != null && v[1] > 0) expected = v[0] / v[1];
+            else if (pbs.containsKey(name)) expected = (long) (pbs.get(name) * 1000f);
+            else return 0;
+            remaining += started ? expected : Math.max(0, expected - row.time());
+            started = true;
+        }
+        if (!started) return 0;
+        return rows.getLast().time() + remaining;
     }
 
     private static Component splitLine(SplitRow row, FeatureConfigs.Dungeons config) {

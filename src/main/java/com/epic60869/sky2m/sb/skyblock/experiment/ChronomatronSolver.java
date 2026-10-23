@@ -58,7 +58,7 @@ public final class ChronomatronSolver extends ExperimentSolver implements Contai
 	private boolean isSingleRow;
 
 	public ChronomatronSolver() {
-		super("^Chronomatron \\(\\w+\\)$");
+		super("(?i)^Chronomatron\\b.*");
 	}
 
 	@Override
@@ -161,8 +161,8 @@ public final class ChronomatronSolver extends ExperimentSolver implements Contai
 		super.start(screen);
 		this.screen = screen;
 		screen.getMenu().addSlotListener(this);
-		String title = screen.getTitle().getString();
-		isSingleRow = title.endsWith("(High)") || title.endsWith("(Grand)") || title.endsWith("(Supreme)");
+		String title = screen.getTitle().getString().replaceAll("§.", "").trim().toLowerCase(java.util.Locale.ROOT);
+		isSingleRow = title.endsWith("(high)") || title.endsWith("(grand)") || title.endsWith("(supreme)");
 	}
 
 	@Override

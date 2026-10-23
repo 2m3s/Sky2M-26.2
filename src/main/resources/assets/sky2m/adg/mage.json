@@ -1,0 +1,136 @@
+{
+  "class": "mage",
+  "name": "Mage",
+  "sections": [
+    {
+      "id": "clear",
+      "title": "Bloodrush and Secrets",
+      "subtitle": "Bloodrush with the healer and the Archer",
+      "lines": [
+        "In the clear your main job is to bloodrush with the healer and the Archer.",
+        "Once you finish br, do the secrets outside of blood room (target around 4-6).",
+        "Return to the blood room.",
+        "Swap to your lcm armor and bloodcamp."
+      ]
+    },
+    {
+      "id": "maxor",
+      "title": "Left Crystal",
+      "subtitle": "Place the left crystal instantly, then dps Maxor",
+      "lines": [
+        "Mage is the Left crystal in the maxor phase.",
+        "When the boss starts swap to your spring boots.",
+        "Pickup the crystal and wait on the pad to instantly place it.",
+        "Grab the 2nd crystal and place it.",
+        "Either leap to the tank or run over to maxor.",
+        "Spam left click with your chim hyp to enrange and dps maxor.",
+        "Help the archer to instantly kill maxor.",
+        "Leap down to the bers for storm."
+      ]
+    },
+    {
+      "id": "storm",
+      "title": "Storm: Pad and Kill",
+      "subtitle": "Hit Storm at 40.05 or 41.05 to kill at yellow",
+      "lines": [
+        "Run to the purple pad, clear it and set it up so it is one below the top position.",
+        "Leap to the archer and kill all remaining archers around.",
+        "Mana drain during the end of the lightning.",
+        "Leap to the tank to crush the purple pad.",
+        "Leap to the healer after you hit storm once.",
+        "Run to the back of the platform without jumping or crouching.",
+        "Spam left click on storm to keep agro.",
+        "Time a hit on storm at 40.05 or 41.05 (depending on your archers kill time), to instantly kill storm at yellow."
+      ]
+    },
+    {
+      "id": "s1",
+      "title": "S1: Superbounce to 2nd Dev",
+      "subtitle": "Enter at 3.1, soul sand superbounce to 2nd dev",
+      "lines": [
+        "Mage's role in terms is: bl i2 ee2 / 2 / core / recore.",
+        "When Storm is over leap to the healer and setswap to your terms set.",
+        "Move to the levers and spam click the lever waiting for the section to start.",
+        "Bonzo to the 2nd lever.",
+        "Blow the gate and premine it while you wait for the 3 tick.",
+        "Enter at 3.1 and run left placing a soul sand below you to superbounce you straight to the 2nd dev.",
+        "Click the device then face forward.",
+        "Wait for everyone to leap to you."
+      ]
+    },
+    {
+      "id": "s2",
+      "title": "S2: Flick and Core",
+      "subtitle": "Flick 90 degrees, do terminal 2, dig into core",
+      "lines": [
+        "Flick 90 degrees and run off the platform landing straight at 2.",
+        "Do the 2nd terminal.",
+        "Dig into the wall in front of you to walk through core as shown."
+      ]
+    },
+    {
+      "id": "s3",
+      "title": "S3: Wait and Swap",
+      "subtitle": "Wait on the carpet, swap to storm armor and gdrag",
+      "lines": [
+        "Run out the other side of the gold blocks.",
+        "Wait on the carpet for everyone to leap to you.",
+        "Swap to your storm armor and gdrag now."
+      ]
+    },
+    {
+      "id": "s4",
+      "title": "S4: Rag and Mineout",
+      "subtitle": "Dig into core, pop rag, mine out the 2x2",
+      "lines": [
+        "Dig back into core when everyone leaps to you.",
+        "Pop your rag.",
+        "Mineout the 2x2 to the right side as shown."
+      ]
+    },
+    {
+      "id": "goldor",
+      "title": "Orbs then Hit Goldor",
+      "subtitle": "Run out fast and hit Goldor asap",
+      "lines": [
+        "Spam place orbs when the archer leaps to mana drain for them.",
+        "When the Goldor phase starts, run out as fast as possible.",
+        "Try to hit Goldor as soon as possible."
+      ]
+    },
+    {
+      "id": "necron",
+      "title": "Prefire and Spam Necron",
+      "subtitle": "Spam click Necron back to mid asap",
+      "lines": [
+        "Leap to the healer and begin to prefire hitting necron with your chim hyp (venomous stacks).",
+        "Run to the front and center of the platform when necron drops you down.",
+        "Spam left click to send him back to mid as soon as possible.",
+        "Continue to spam click him throughout all the phases."
+      ]
+    },
+    {
+      "id": "relics",
+      "title": "Blue Relic",
+      "subtitle": "Leap to the bers and tap a to place blue relic",
+      "lines": [
+        "Swap to black cat and a cow hat, and spam click.",
+        "Immediately leap to the bers as soon as possible.",
+        "Tap a to place the blue relic."
+      ]
+    },
+    {
+      "id": "dragons",
+      "title": "Dragons: Rag and Debuff",
+      "subtitle": "Rag on 2nd dialogue, run to your split dragon",
+      "lines": [
+        "Stand middle after placing your relic.",
+        "Swap in your last breath, ice spray wand, and twilight arrow poison.",
+        "Use your rag axe on the wither kings 2nd dialogue (\"I no longer wish to fight, but I know that will not stop you\").",
+        "Run to your split dragon as soon as possible and begin to debuff like normal.",
+        "Rag before drags 3 and 5.",
+        "Debuff like normal on dragon 4, except instead of ice spraying focus on getting a 1t first hit in order to proc lethality as fast as possible."
+      ]
+    }
+  ]
+}

@@ -30,13 +30,28 @@ public final class LoadoutHighlight {
     private LoadoutHighlight() {}
 
     /** Drawn behind the slot's item, from Sky2MSlotBackgroundMixin. */
+    private static net.minecraft.network.chat.Component lastTitle;
+    private static boolean lastTitleMatches;
+    private static net.minecraft.client.gui.screens.Screen lastScreen;
+
+    /** Asked for every slot every frame: the title is only matched when it changes. */
+    private static boolean inLoadoutMenu(net.minecraft.client.gui.screens.Screen screen) {
+        net.minecraft.network.chat.Component title = screen.getTitle();
+        if (screen != lastScreen || title != lastTitle) {
+            lastScreen = screen;
+            lastTitle = title;
+            lastTitleMatches = INVENTORY.matcher(Sky2MLocation.strip(title.getString())).find();
+        }
+        return lastTitleMatches;
+    }
+
     public static void renderSlot(GuiGraphicsExtractor graphics, Slot slot) {
         Sky2MConfig config = Sky2MConfig.current();
         if (config == null || !config.misc.loadoutHighlight.enabled || !config.misc.loadoutHighlight.currentlyEquipped) return;
         if (!Compat.isOnSkyblock() || slot.container instanceof Inventory || !isIconSlot(slot.index)) return;
         var screen = Minecraft.getInstance().gui.screen();
         if (!(screen instanceof AbstractContainerScreen<?>)) return;
-        if (!INVENTORY.matcher(Sky2MLocation.strip(screen.getTitle().getString())).find()) return;
+        if (!inLoadoutMenu(screen)) return;
         if (!isCurrentSelectedLoadout(slot.getItem())) return;
         graphics.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, colour(config.misc.loadoutHighlight.equippedColor));
     }
@@ -51,15 +66,15 @@ public final class LoadoutHighlight {
 
     // A loadout that doesn't change anything has no "Left-click to equip!" either, so it counts as equipped too.
     private static boolean isCurrentSelectedLoadout(ItemStack stack) {
-        if (stack == null || stack.isEmpty() || stack.getItem().toString().contains("glass_pane")) return false;
+        if (stack == null || stack.isEmpty() || net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).getPath().contains("glass_pane")) return false;
         if (LOCKED.matcher(Sky2MLocation.strip(stack.getHoverName().getString())).find()) return false;
         ItemLore lore = stack.get(DataComponents.LORE);
         if (lore == null) return false;
         for (Component line : lore.lines()) {
-            String text = line.getString();
-            if (text.contains("Left-click to equip!") || text.contains("You must customize this loadout")) return false;
+            String text = Sky2MLocation.strip(line.getString()).toLowerCase(java.util.Locale.ROOT);
+            if (text.contains("to equip") || text.contains("customize this loadout")) return false;
         }
-        return true;
+        return !lore.lines().isEmpty();
     }
 
     private static int colour(String value) {

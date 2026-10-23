@@ -212,7 +212,7 @@ Sky2M's dungeon map ("NoammAddons (Legit)" style) and dungeon score calculator a
 - https://github.com/Noamm9/NoammAddons (26.2 branch)
 - Relevant source: `features/impl/dungeon/map/MapRenderer.kt`, `MapConfig.kt`, `utils/dungeons/map/handlers/HotbarMapColorParser.kt`, `MapUpdater.kt`, `ScoreCalculation.kt`, `utils/dungeons/map/utils/MapUtils.kt`, `utils/dungeons/map/core/`, `features/impl/dungeon/ScoreCalculator.kt`, and the checkmark and marker textures in `textures/gui/dungeonmap/` (copied to `assets/sky2m/textures/gui/dungeonmap/`)
 
-Ported to Java in `features/dungeons/NoammMap.java` and `features/dungeons/ScoreCalculator.java`. The M7 dragon priority (the dragon that spawns first, Solo Priority, First Dragon Only) and the relic place timer in `features/dungeons/WitherDragons.java` follow NoammAddons' `floor7/dragons/DragonCheck.kt` and `floor7/M7Relics.kt`. NoammAddons is dedicated to the public domain under CC0 1.0 Universal.
+Ported to Java in `features/dungeons/ScoreCalculator.java`. The M7 dragon priority (the dragon that spawns first, Solo Priority, First Dragon Only) and the relic place timer in `features/dungeons/WitherDragons.java` follow NoammAddons' `floor7/dragons/DragonCheck.kt` and `floor7/M7Relics.kt`. NoammAddons is dedicated to the public domain under CC0 1.0 Universal.
 
 ## Skysoft Held Item
 

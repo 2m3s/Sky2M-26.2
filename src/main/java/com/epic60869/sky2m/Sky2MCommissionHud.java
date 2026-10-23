@@ -92,10 +92,8 @@ public final class Sky2MCommissionHud {
             return;
         }
 
-        List<PlayerInfo> entries = new ArrayList<>(mc.getConnection().getOnlinePlayers());
-        try {
-            entries.sort(Sky2MPlayerTabOverlayAccessor.getOrdering());
-        } catch (Throwable ignored) {}
+        // Already ordered by the tab manager, which rebuilds it only when the tab list changes.
+        List<PlayerInfo> entries = Sky2MTabWidgetManager.players();
 
         /*
          * Do not infer commissions from the generic TAB widget names. Hypixel's
