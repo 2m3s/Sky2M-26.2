@@ -33,7 +33,6 @@ public final class DungeonRecapExtras {
     public static void init() {
         DeathRecap.init();
         ClassCooldowns.init();
-        RunSummary.init();
         BossNotes.init();
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, context) -> {
             for (String root : Compat.COMMAND_ROOTS) {
@@ -47,21 +46,18 @@ public final class DungeonRecapExtras {
                             Minecraft.getInstance().execute(RunSummary::open);
                             return 1;
                         })
-                        .then(ClientCommands.literal("share").then(ClientCommands.argument("target", StringArgumentType.word())
-                            .suggests((ctx, builder) -> {
-                                for (String t : new String[]{"party", "guild", "s2c"}) builder.suggest(t);
-                                return builder.buildFuture();
-                            })
+                        // The [View] button on a run summary in S2C (not meant to be typed).
+                        .then(ClientCommands.literal("view").then(ClientCommands.argument("id", StringArgumentType.word())
                             .executes(c -> {
-                                String target = StringArgumentType.getString(c, "target");
-                                Minecraft.getInstance().execute(() -> RunSummary.share(target));
+                                String id = StringArgumentType.getString(c, "id");
+                                Minecraft.getInstance().execute(() -> RunSummary.view(id));
                                 return 1;
                             })))));
             }
         });
     }
 
-    /** From RunHistory when a run has been saved: attach the death log, then print the recap and the summary link. */
+    /** From RunHistory when a run has been saved: attach the death log, then print the recap and post the summary to /s2c if that is on. */
     static void onRunFinished(RunHistory.Run run) {
         try {
             DeathRecap.onRunFinished(run);
@@ -84,7 +80,7 @@ public final class DungeonRecapExtras {
 
         @Expose
         @Accordion
-        @ConfigOption(name = "Run Summary Card", desc = "A shareable card for the run that just ended (floor, time, score, secrets, deaths, splits, party, chest profit): click [View Summary] in chat or use /s2 runsummary. Needs Run History (Timers and Alerts) to be on.")
+        @ConfigOption(name = "Run Summary Card", desc = "A card for the run that just ended (floor, time, score, secrets, deaths, splits, party, chest profit): open it with /s2 runsummary. It can be posted to /s2c with a [View] button anyone there can click. Nothing is sent to party or guild chat. Needs Run History (Timers and Alerts) to be on.")
         public SummaryConfig runSummary = new SummaryConfig();
 
         @Expose
@@ -124,14 +120,14 @@ public final class DungeonRecapExtras {
 
     public static final class SummaryConfig {
         @Expose
-        @ConfigOption(name = "Enabled", desc = "Build a summary card at the end of each run.")
+        @ConfigOption(name = "Enabled", desc = "Build a summary card for each run (/s2 runsummary).")
         @ConfigEditorBoolean
         public boolean enabled = false;
 
         @Expose
-        @ConfigOption(name = "Chat Link", desc = "Print a clickable [View Summary] in chat when the run ends.")
+        @ConfigOption(name = "Post Run Summary to /s2c", desc = "When you clear a run, post one message to /s2c (Sky2M chat) like 'Name cleared F7 in 4:21 (score 305)' with a [View] button that opens the full summary for everyone who clicks it. This is public, so it is off by default. You can also post a run by hand from /s2 runsummary.")
         @ConfigEditorBoolean
-        public boolean chatLink = true;
+        public boolean postToS2c = false;
     }
 
     public static final class NotesConfig {

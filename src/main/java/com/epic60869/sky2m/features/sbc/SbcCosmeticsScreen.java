@@ -275,6 +275,9 @@ public final class SbcCosmeticsScreen extends Screen {
     /** "Player", a mob's name, or a model's name, for the stored look ("", a mob id, or "model:<id>"). */
     private String lookName(String value) {
         if (value == null || value.isEmpty()) return "Player";
+        if (value.startsWith(com.epic60869.sky2m.features.misc.playasmob.BuiltinModels.PREFIX)) {
+            return com.epic60869.sky2m.features.misc.playasmob.BuiltinModels.displayName(value);
+        }
         if (value.startsWith("model:")) {
             Option o = selected(models, value.substring(6));
             return o == null ? value.substring(6) : o.name();
@@ -330,6 +333,17 @@ public final class SbcCosmeticsScreen extends Screen {
                 modelRows.add(new Option("model:" + o.id(), o.name(), "", 0xFFFFFF, "", o.description(), o.owned(), "", false));
             }
         }
+        // Models that ship with the mod: free, no download, kept in your settings.
+        List<Option> builtinRows = new ArrayList<>();
+        for (com.epic60869.sky2m.features.misc.playasmob.BuiltinModels.Entry b : com.epic60869.sky2m.features.misc.playasmob.BuiltinModels.ALL) {
+            if (matches(q, b.name(), b.id())) {
+                builtinRows.add(new Option(com.epic60869.sky2m.features.misc.playasmob.BuiltinModels.PREFIX + b.id(), b.name(), "", 0xFFFFFF, "", "Built in", true, "", false));
+            }
+        }
+        if (!builtinRows.isEmpty()) {
+            rows.add(Option.header("Built-in models"));
+            rows.addAll(builtinRows);
+        }
         if (!modelRows.isEmpty() || q.isEmpty()) {
             rows.add(Option.header("Models" + (models.isEmpty() ? ": none yet. Sky2M staff give these out." : "")));
             rows.addAll(modelRows);
@@ -355,15 +369,15 @@ public final class SbcCosmeticsScreen extends Screen {
                 config.misc.playAsMob.mob = id.isEmpty() || id.startsWith("model:") ? "" : id;
                 com.epic60869.sky2m.Sky2MConfig.saveCurrent(config);
             }
-            // Sent too, so other Sky2M players see it.
-            if (SbcNet.online()) SbcCosmetics.selectLook(id);
+            // Sent too, so other Sky2M players see it (a built-in model only exists on your own client).
+            if (SbcNet.online()) SbcCosmetics.selectLook(id.startsWith(com.epic60869.sky2m.features.misc.playasmob.BuiltinModels.PREFIX) ? "" : id);
         });
     }
 
     private static String localMob() {
         com.epic60869.sky2m.Sky2MConfig config = com.epic60869.sky2m.Sky2MConfig.current();
         String mob = config == null ? null : config.misc.playAsMob.mob;
-        return PlayAsMobs.sanitize(mob) == null ? "" : mob;
+        return PlayAsMobs.sanitize(mob) == null && com.epic60869.sky2m.features.misc.playasmob.BuiltinModels.sanitize(mob) == null ? "" : mob;
     }
 
     private static boolean matches(String q, String name, String id) {

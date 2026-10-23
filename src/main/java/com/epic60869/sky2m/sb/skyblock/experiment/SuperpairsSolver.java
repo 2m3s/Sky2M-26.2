@@ -29,7 +29,7 @@ public final class SuperpairsSolver extends ExperimentSolver {
 	private final IntSet superpairsDuplicatedSlots = new IntArraySet(28);
 
 	public SuperpairsSolver() {
-		super("(?i)^Superpairs\\b.*");
+		super("(?i)^Superpairs\\s*\\([\\w ]+\\)$");
 	}
 
 	@Override

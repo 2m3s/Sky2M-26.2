@@ -144,6 +144,19 @@ public final class SlotLocking {
             || title.contains("create bin auction") || title.contains("create auction");
     }
 
+    /** Menus where moving a protected item is fine: storage, equipment and crafting menus. */
+    private static boolean isSafeMenu(AbstractContainerScreen<?> screen) {
+        String title = net.minecraft.ChatFormatting.stripFormatting(screen.getTitle().getString());
+        if (title == null) return false;
+        title = title.toLowerCase(java.util.Locale.ROOT);
+        for (String safe : new String[] {"chest", "ender", "backpack", "bag", "storage", "sack", "wardrobe", "equipment",
+            "loadout", "pets", "anvil", "reforge", "forge", "craft", "enchant", "accessory", "quiver", "vault", "museum",
+            "salvage", "dye", "rune", "skin", "upgrade", "auction", "minion", "hopper"}) {
+            if (title.contains(safe)) return true;
+        }
+        return false;
+    }
+
     /** True if any item in the player's own inventory (including the offhand) is protected. */
     private static boolean anyProtectedInInventory() {
         Minecraft mc = Minecraft.getInstance();
@@ -163,7 +176,14 @@ public final class SlotLocking {
 
         // Keep protected items out of NPC sell/shop menus as well as preventing drops. Hypixel's sell screens
         // can sell an item just by clicking it in the player inventory, so check both the clicked stack and cursor.
-        if (isNpcShopScreen(screen)) {
+        boolean shop = isNpcShopScreen(screen);
+        // NPC shops have many titles (Weaponsmith, Armorsmith, a Merchant's name ...), so a menu that is not a known
+        // storage or utility menu is treated like a shop: a protected item can't be clicked there.
+        if (!shop && !(screen instanceof InventoryScreen) && !isSafeMenu(screen)) {
+            ItemStack clicked = slot == null ? ItemStack.EMPTY : slot.getItem();
+            if (isProtected(clicked) || isProtected(screen.getMenu().getCarried())) shop = true;
+        }
+        if (shop) {
             ItemStack clicked = slot == null ? ItemStack.EMPTY : slot.getItem();
             ItemStack carried = screen.getMenu().getCarried();
             boolean blocked = isProtected(clicked) || isProtected(carried);

@@ -208,6 +208,8 @@ public final class VisualTweaks {
 
     /** What the fog distances are multiplied by: 1 for vanilla, a huge number to remove it. */
     public static float fogFactor() {
+        Sky2MConfig root = Sky2MConfig.current();
+        if (root != null && root.misc.random.removeAllFog) return 1_000_000f;
         Config c = config();
         if (c == null || !onIsland(c.fogIslands)) return 1f;
         if (c.removeFog) return 1_000_000f;

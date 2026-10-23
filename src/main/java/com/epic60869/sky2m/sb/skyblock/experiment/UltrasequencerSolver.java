@@ -44,7 +44,7 @@ public final class UltrasequencerSolver extends ExperimentSolver {
 	private @Nullable DyeColor lastColor;
 
 	private UltrasequencerSolver() {
-		super("(?i)^Ultrasequencer\\b.*");
+		super("(?i)^Ultrasequencer\\s*\\([\\w ]+\\)$");
 	}
 
 	@Override

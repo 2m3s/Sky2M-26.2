@@ -111,6 +111,9 @@ public final class PlayAsMobRender {
     /** The downloaded model selected by a player, for the first-person hand renderer. */
     public static Drawn modelForPlayer(AbstractClientPlayer player) {
         if (player == null || !shows(player)) return null;
+        // A model bundled with the mod ("builtin:generic_man"), picked in /s2 cosmetics and kept in your settings.
+        String bundled = player == Minecraft.getInstance().player ? ownMob() : SbcCosmetics.mobFor(player.getUUID());
+        if (bundled != null && bundled.startsWith(BuiltinModels.PREFIX)) return BuiltinModels.drawn(bundled);
         SbcCosmetics.ModelRef ref = SbcCosmetics.modelFor(player.getUUID());
         if (ref == null) return null;
         Path file = ServerModels.file(ref);
@@ -123,6 +126,42 @@ public final class PlayAsMobRender {
     public static boolean renderFirstPersonArm(HumanoidArm arm, PoseStack pose, SubmitNodeCollector collector, int light) {
         Drawn drawn = modelForPlayer(Minecraft.getInstance().player);
         return drawn != null && CustomModels.drawFirstPersonArm(drawn.model(), arm == HumanoidArm.LEFT, pose, collector, light);
+    }
+
+    /** Where the fist is in the held item's frame (camera aligned, blocks, for the right hand; x mirrors for the left). */
+    private static final float HELD_HAND_X = 0.06f, HELD_HAND_Y = -0.10f, HELD_HAND_Z = -0.12f;
+    /** The arm's direction from the shoulder to the fist in that frame: forward, up and toward the middle. */
+    private static final float HELD_ARM_X = -0.35f, HELD_ARM_Y = 0.45f, HELD_ARM_Z = -0.82f;
+    /** The fist in the arm's own pixels (x for the right arm; the left mirrors it), and a twist about the arm, in degrees. */
+    private static final float FIST_X = 6f, FIST_Y = 10f, FIST_Z = 0.5f, HELD_ARM_ROLL = 0f;
+
+    /**
+     * The selected model's arm reaching in from the corner of the screen to the fist holding the item, drawn just before
+     * vanilla draws the item in the same pose, so it follows the equip, swing, eat and use transforms of the item.
+     * Vanilla shows no arm while an item is held; with a custom model the hand is part of the look.
+     */
+    public static void renderFirstPersonHeldArm(AbstractClientPlayer player, HumanoidArm arm, PoseStack pose,
+                                                SubmitNodeCollector collector, int light) {
+        if (player == null || player != Minecraft.getInstance().player || player.isInvisible()) return;
+        Drawn drawn = modelForPlayer(player);
+        if (drawn == null) return;
+        boolean left = arm == HumanoidArm.LEFT;
+        float side = left ? -1f : 1f;
+        pose.pushPose();
+        try {
+            org.joml.Vector3f along = new org.joml.Vector3f(HELD_ARM_X * side, HELD_ARM_Y, HELD_ARM_Z).normalize();
+            pose.translate(HELD_HAND_X * side, HELD_HAND_Y, HELD_HAND_Z);
+            // The arm hangs along +y in its own space, shoulder first: turn that to run shoulder to fist.
+            pose.mulPose(new org.joml.Quaternionf().rotationTo(0f, 1f, 0f, along.x, along.y, along.z));
+            pose.mulPose(com.mojang.math.Axis.YP.rotationDegrees(HELD_ARM_ROLL * side));
+            // Move the arm's own fist (x -6 px for the right arm, +6 for the left) to the origin.
+            pose.translate(FIST_X * side / 16f, -FIST_Y / 16f, -FIST_Z / 16f);
+            CustomModels.drawFirstPersonArm(drawn.model(), left, pose, collector, light);
+        } catch (Throwable t) {
+            // The item still draws; only the arm is skipped.
+        } finally {
+            pose.popPose();
+        }
     }
 
     /** {@code playerState} as the level renderer should draw it: unchanged unless that player plays as a mob. */

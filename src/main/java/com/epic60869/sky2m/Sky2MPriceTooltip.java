@@ -308,7 +308,10 @@ public final class Sky2MPriceTooltip {
         }
         boolean onAuctionHouse = lowestBins().containsKey(apiId) || threeDayAverage().containsKey(apiId) || PriceHistory.get(apiId) != null;
         if (!onAuctionHouse && bazaarBuy().containsKey(apiId)) {
-            if (!config.bazaar && !config.lowestBin && !config.threeDayAverage) return;
+            if (!config.bazaar && !config.lowestBin && !config.threeDayAverage) {
+                Sky2MRecipeCost.addLines(config, id, apiId, count, lines);
+                return;
+            }
             // For a sack in the Sacks menu, price everything stored in it.
             int amount = count;
             for (Component line : lines) {
@@ -321,6 +324,7 @@ public final class Sky2MPriceTooltip {
             Double buy = bazaarBuy().get(apiId), sell = bazaarSell().get(apiId);
             lines.add(buy == null || buy <= 0 ? noData("Bazaar Insta-Buy: ") : line("Bazaar Insta-Buy: ", ChatFormatting.GOLD, buy, amount));
             lines.add(sell == null || sell <= 0 ? noData("Bazaar Insta-Sell: ") : line("Bazaar Insta-Sell: ", ChatFormatting.GOLD, sell, amount));
+            Sky2MRecipeCost.addLines(config, id, apiId, count, lines);
             return;
         }
         if (config.lowestBin) {
@@ -353,6 +357,7 @@ public final class Sky2MPriceTooltip {
             double value = EstimatedItemValue.estimate(id, apiId, Compat.customDataView(stack));
             if (value > 0) lines.add(line("Estimated Item Value: ", ChatFormatting.GOLD, value, count));
         }
+        Sky2MRecipeCost.addLines(config, id, apiId, count, lines);
     }
 
     private static Component noData(String label) {

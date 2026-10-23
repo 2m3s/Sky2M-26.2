@@ -764,7 +764,7 @@ public final class FeatureConfigs {
         public LeapMenu leapMenu = new LeapMenu();
 
         @Expose
-        @Category(name = "Positional Messages", desc = "Party messages sent when you reach a spot (/s2 posmsg), and the ADG role guide for F7/M7.")
+        @Category(name = "Positional Messages", desc = "Party messages sent when you reach a spot (/s2 posmsg).")
         public PositionalMessages positionalMessages = new PositionalMessages();
 
         @Expose
@@ -1126,6 +1126,8 @@ public final class FeatureConfigs {
         public String rngLuck = "";
         @Expose
         public String rngSearch = "";
+        @Expose
+        public String rngCategory = "ALL";
     }
 
     public static final class Slayer {
@@ -3428,17 +3430,7 @@ public final class FeatureConfigs {
         public boolean onlyInBoss = true;
 
         @Expose
-        @ConfigOption(name = "ADG Role Guide", desc = "On F7 and M7, track the phases (clear, Maxor, Storm, terminal sections, Goldor, Necron, relics, dragons) for your class's ADG role. It is shown on the ADG Phase HUD, and /s2 adg [class] [phase] prints a guide in chat.")
-        @ConfigEditorBoolean
-        public boolean adgRoles = true;
-
-        @Expose
-        @ConfigOption(name = "ADG Phase HUD", desc = "A movable HUD with the whole ADG role for the current phase of F7/M7 (its key action and every step), kept on screen until the next phase. Move it in /s2 gui.")
-        @ConfigEditorBoolean
-        public boolean adgHud = true;
-
-        @Expose
-        @ConfigOption(name = "Your Class", desc = "Which class's ADG role guide to show. Auto reads it from the tab list; pick one if it isn't detected.")
+        @ConfigOption(name = "Your Class", desc = "Your dungeon class. Auto reads it from the tab list; pick one if it isn't detected.")
         @ConfigEditorDropdown
         public ClassOverride classOverride = ClassOverride.AUTO;
 

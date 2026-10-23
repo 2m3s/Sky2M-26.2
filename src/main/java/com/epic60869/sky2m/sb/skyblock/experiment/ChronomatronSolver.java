@@ -58,7 +58,7 @@ public final class ChronomatronSolver extends ExperimentSolver implements Contai
 	private boolean isSingleRow;
 
 	public ChronomatronSolver() {
-		super("(?i)^Chronomatron\\b.*");
+		super("(?i)^Chronomatron\\s*\\([\\w ]+\\)$");
 	}
 
 	@Override

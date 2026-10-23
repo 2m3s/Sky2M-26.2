@@ -172,9 +172,7 @@ public final class BossPhases {
 
     private static void onChat(String text) {
         FeatureConfigs.BossPhases config = config();
-        // The ADG role guide needs the phase changes too, so it keeps the tracking running without Boss Phases being on.
-        boolean adg = AdgRoles.wantsPhases();
-        if (config == null || !adg && !config.enabled && !config.alertTitle && !config.alertSound && !config.partyMessage) return;
+        if (config == null || !config.enabled && !config.alertTitle && !config.alertSound && !config.partyMessage) return;
         if (!Sky2MLocation.inDungeon()) return;
         long now = System.currentTimeMillis();
 
@@ -191,7 +189,7 @@ public final class BossPhases {
         String currentFloor = Sky2MLocation.dungeonFloor();
         if (currentFloor.length() != 2) return;
         Boss candidate = BOSSES.get(currentFloor.charAt(1));
-        if (candidate == null || !candidate.enabled().test(config) && !(adg && currentFloor.endsWith("7"))) return;
+        if (candidate == null || !candidate.enabled().test(config)) return;
         if (boss != null && boss != candidate) reset();
         floor = currentFloor;
 
@@ -232,7 +230,6 @@ public final class BossPhases {
         phaseClean = true;
         String name = boss.phases().get(next).name();
         BossNotes.onPhase(floor, name);
-        AdgRoles.onPhase(floor, name);
         if (name.equals("Livid")) lividStart = serverTicks;
         if (name.equals("Storm")) stormStart = serverTicks;
         if (name.equals("Terminals 1")) { goldorStart = serverTicks; stormStart = -1; }

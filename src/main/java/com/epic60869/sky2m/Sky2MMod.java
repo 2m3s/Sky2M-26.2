@@ -243,6 +243,7 @@ public final class Sky2MMod implements ClientModInitializer {
         com.epic60869.sky2m.features.misc.SpamFilters.init(); lap("SpamFilters.init");
         com.epic60869.sky2m.features.misc.SideChat.init(); lap("SideChat.init");
         com.epic60869.sky2m.features.qol.ChatRules.init(); lap("ChatRules.init");
+        com.epic60869.sky2m.features.misc.LoadoutHighlight.init(); lap("LoadoutHighlight.init");
         com.epic60869.sky2m.features.misc.ChatNameLinks.init(); lap("ChatNameLinks.init");
         com.epic60869.sky2m.features.social.PartyTools.init(); lap("PartyTools.init");
         com.epic60869.sky2m.features.social.ChatWaypoints.init(); lap("ChatWaypoints.init");

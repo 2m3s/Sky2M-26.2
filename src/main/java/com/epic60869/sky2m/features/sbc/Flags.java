@@ -41,7 +41,10 @@ public final class Flags {
         Map.entry("partyData", "partyFinder.stats"), Map.entry("partyDataJoin", "partyFinder.stats"),
         Map.entry("partyDataLeave", "partyFinder.stats"),
         Map.entry("museum", "museumTooltip"), Map.entry("museumResult", "museumTooltip"),
-        Map.entry("uploadToken", "screenshots"));
+        Map.entry("uploadToken", "screenshots"),
+        Map.entry("runSummaryPost", "chat.runSummary"), Map.entry("runSummaryGet", "chat.runSummary"),
+        Map.entry("runSummary", "chat.runSummary"), Map.entry("runSummaryMissing", "chat.runSummary"),
+        Map.entry("runSummaryPosted", "chat.runSummary"), Map.entry("runSummaryError", "chat.runSummary"));
 
     private Flags() {}
 

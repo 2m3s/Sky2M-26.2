@@ -1775,6 +1775,16 @@ public final class Sky2MConfig extends Config {
         public boolean estimatedValue = true;
 
         @Expose
+        @ConfigOption(name = "Recipe Cost", desc = "Show what it costs to craft the item from its recipe (bazaar insta-buy, lowest BIN or NPC shop prices of the ingredients), and how much that saves against buying it. Hold Shift for the ingredients.")
+        @ConfigEditorBoolean
+        public boolean recipeCost = true;
+
+        @Expose
+        @ConfigOption(name = "Recipe Cost: Include Sub-Crafts", desc = "Price an ingredient that can itself be crafted at the cheaper of buying it and crafting it from its own recipe (up to 4 levels deep). Off: ingredients are priced at their market price.")
+        @ConfigEditorBoolean
+        public boolean recipeSubCrafts = false;
+
+        @Expose
         @ConfigOption(name = "Price Paid", desc = "Remember what you paid for items you buy on the auction house and show it in their tooltip, like NoFrills.")
         @ConfigEditorBoolean
         public boolean pricePaid = false;
@@ -2054,6 +2064,11 @@ public final class Sky2MConfig extends Config {
         @ConfigOption(name = "Hide Block Break Particles", desc = "Hide the particles when a block breaks (yours or anyone's) and the bits that fly off a block while you mine it, like SkyHanni's.")
         @ConfigEditorBoolean
         public boolean hideBlockBreakParticles = false;
+
+        @Expose
+        @ConfigOption(name = "Remove All Fog", desc = "Remove every kind of fog, everywhere: the distance fog, and the fog in water, lava, powder snow, darkness and blindness. Only affects your own screen.")
+        @ConfigEditorBoolean
+        public boolean removeAllFog = false;
     }
 
     /** Firmament's storage overlay options (Firmament's StorageOverlay.TConfig). */

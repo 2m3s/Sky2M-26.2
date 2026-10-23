@@ -2,6 +2,7 @@ package com.epic60869.sky2m.features.misc;
 
 import com.epic60869.sky2m.Sky2MConfig;
 import com.epic60869.sky2m.custom.util.Compat;
+import com.epic60869.sky2m.features.core.Sky2MChat;
 import com.epic60869.sky2m.features.core.Sky2MLocation;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -29,6 +30,82 @@ public final class LoadoutHighlight {
 
     private LoadoutHighlight() {}
 
+    private static final Pattern EQUIPPED_CHAT = Pattern.compile("^You equipped (.+)!$");
+    /** The loadout named in the last "You equipped X!" message: Hypixel no longer leaves "Left-click to equip!" off the equipped one. */
+    private static volatile String equippedName = "";
+    private static net.minecraft.client.gui.screens.Screen cacheScreen;
+    private static long cacheAt;
+    private static final java.util.Set<Integer> EQUIPPED_SLOTS = new java.util.HashSet<>();
+
+    public static void init() {
+        Sky2MChat.onChat(message -> {
+            java.util.regex.Matcher m = EQUIPPED_CHAT.matcher(message.text().trim());
+            if (m.matches()) equippedName = normalise(m.group(1));
+        });
+    }
+
+    private static String normalise(String text) {
+        StringBuilder out = new StringBuilder();
+        for (char c : Sky2MLocation.strip(text).toCharArray()) if (Character.isLetterOrDigit(c)) out.append(Character.toLowerCase(c));
+        return out.toString();
+    }
+
+    /**
+     * The loadout icon slots that are the equipped loadout, worked out a few times a second: the one named in the last
+     * "You equipped X!" message; else the ones whose lore armor matches what you wear; else the ones without
+     * "Left-click to equip!" (the old behaviour).
+     */
+    private static java.util.Set<Integer> equippedSlots(AbstractContainerScreen<?> screen) {
+        long now = System.currentTimeMillis();
+        if (screen == cacheScreen && now - cacheAt < 250) return EQUIPPED_SLOTS;
+        cacheScreen = screen;
+        cacheAt = now;
+        EQUIPPED_SLOTS.clear();
+        java.util.List<Slot> icons = new java.util.ArrayList<>();
+        for (Slot s : screen.getMenu().slots) {
+            if (s.container instanceof Inventory || !isIconSlot(s.index) || s.getItem().isEmpty()) continue;
+            if (net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(s.getItem().getItem()).getPath().contains("glass_pane")) continue;
+            if (LOCKED.matcher(Sky2MLocation.strip(s.getItem().getHoverName().getString())).find()) continue;
+            icons.add(s);
+        }
+        String named = equippedName;
+        if (!named.isEmpty()) {
+            for (Slot s : icons) if (normalise(s.getItem().getHoverName().getString()).equals(named)) EQUIPPED_SLOTS.add(s.index);
+            if (!EQUIPPED_SLOTS.isEmpty()) return EQUIPPED_SLOTS;
+        }
+        var player = Minecraft.getInstance().player;
+        if (player != null) {
+            String[] worn = {
+                wornName(player, net.minecraft.world.entity.EquipmentSlot.HEAD), wornName(player, net.minecraft.world.entity.EquipmentSlot.CHEST),
+                wornName(player, net.minecraft.world.entity.EquipmentSlot.LEGS), wornName(player, net.minecraft.world.entity.EquipmentSlot.FEET)};
+            String[] keys = {"helmet:", "chestplate:", "leggings:", "boots:"};
+            for (Slot s : icons) {
+                ItemLore lore = s.getItem().get(DataComponents.LORE);
+                if (lore == null) continue;
+                String[] want = new String[4];
+                for (Component line : lore.lines()) {
+                    String text = Sky2MLocation.strip(line.getString()).trim();
+                    String lower = text.toLowerCase(java.util.Locale.ROOT);
+                    for (int i = 0; i < 4; i++) if (lower.startsWith(keys[i])) want[i] = normalise(text.substring(keys[i].length()));
+                }
+                boolean all = true;
+                for (int i = 0; i < 4 && all; i++) {
+                    String w = want[i] == null || want[i].equals("empty") || want[i].equals("none") ? "" : want[i];
+                    all = w.equals(worn[i]);
+                }
+                if (all) EQUIPPED_SLOTS.add(s.index);
+            }
+            if (!EQUIPPED_SLOTS.isEmpty()) return EQUIPPED_SLOTS;
+        }
+        for (Slot s : icons) if (isCurrentSelectedLoadout(s.getItem())) EQUIPPED_SLOTS.add(s.index);
+        return EQUIPPED_SLOTS;
+    }
+
+    private static String wornName(net.minecraft.world.entity.player.Player player, net.minecraft.world.entity.EquipmentSlot slot) {
+        ItemStack stack = player.getItemBySlot(slot);
+        return stack.isEmpty() ? "" : normalise(stack.getHoverName().getString());
+    }
+
     /** Drawn behind the slot's item, from Sky2MSlotBackgroundMixin. */
     private static net.minecraft.network.chat.Component lastTitle;
     private static boolean lastTitleMatches;
@@ -54,9 +131,21 @@ public final class LoadoutHighlight {
      */
     private static void report(net.minecraft.client.gui.screens.Screen screen) {
         if (screen == reported) return;
-        reported = screen;
         String title = Sky2MLocation.strip(screen.getTitle().getString());
-        if (!title.toLowerCase(java.util.Locale.ROOT).contains("loadout")) return;
+        if (!title.toLowerCase(java.util.Locale.ROOT).contains("loadout")) {
+            reported = screen;
+            return;
+        }
+        // The first frames after opening have empty slots: wait until the loadout icons have arrived.
+        boolean filled = false;
+        for (Slot s : ((AbstractContainerScreen<?>) screen).getMenu().slots) {
+            if (!(s.container instanceof Inventory) && isIconSlot(s.index) && !s.getItem().isEmpty()) {
+                filled = true;
+                break;
+            }
+        }
+        if (!filled) return;
+        reported = screen;
         StringBuilder log = new StringBuilder("[Sky2M] Loadout highlight: title '" + title + "' matched=" + INVENTORY.matcher(title).find()
             + " onSkyblock=" + Compat.isOnSkyblock() + "\n");
         int equipped = 0;
@@ -70,13 +159,10 @@ public final class LoadoutHighlight {
             log.append("  slot ").append(s.index).append(' ')
                 .append(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).getPath())
                 .append(" '").append(Sky2MLocation.strip(stack.getHoverName().getString())).append("' equipped=").append(decision)
-                .append(" lore=").append(lore == null ? "none" : lore.lines().stream().limit(12)
+                .append(" lore=").append(lore == null ? "none" : lore.lines().stream()
                     .map(l -> Sky2MLocation.strip(l.getString())).collect(java.util.stream.Collectors.joining(" | "))).append('\n');
         }
-        System.out.print(log);
-        com.epic60869.sky2m.features.core.Sky2MAlerts.chat(Component.literal("Loadout highlight: menu '" + title + "', "
-            + (INVENTORY.matcher(title).find() ? "recognised" : "NOT recognised") + ", " + equipped + " equipped loadout(s) found. Details are in the game log.")
-            .withStyle(net.minecraft.ChatFormatting.GRAY));
+        for (String row : log.toString().split("\n")) System.out.println(row);
     }
 
     public static void renderSlot(GuiGraphicsExtractor graphics, Slot slot) {
@@ -88,7 +174,7 @@ public final class LoadoutHighlight {
         report(screen);
         if (!Compat.isOnSkyblock() || !isIconSlot(slot.index)) return;
         if (!inLoadoutMenu(screen)) return;
-        if (!isCurrentSelectedLoadout(slot.getItem())) return;
+        if (!equippedSlots((AbstractContainerScreen<?>) screen).contains(slot.index)) return;
         graphics.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, colour(config.misc.loadoutHighlight.equippedColor));
     }
 
@@ -108,7 +194,7 @@ public final class LoadoutHighlight {
         if (lore == null) return false;
         for (Component line : lore.lines()) {
             String text = Sky2MLocation.strip(line.getString()).toLowerCase(java.util.Locale.ROOT);
-            if (text.contains("to equip") || text.contains("customize this loadout")) return false;
+            if (text.contains("to equip") || text.contains("you must customize this loadout")) return false;
         }
         return !lore.lines().isEmpty();
     }

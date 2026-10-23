@@ -75,6 +75,7 @@ public final class Sbc {
                 case "partyData" -> com.epic60869.sky2m.features.dungeons.party.PartyDungeonData.handle(packet);
                 case "updateAvailable", "announcement", "motd" -> SbcServer.handle(type, packet);
                 case "roomResult", "roomEvent", "rooms", "roomInvite", "roomKicked", "roomBrowse" -> SbcRooms.handle(type, packet);
+                case "runSummary", "runSummaryMissing", "runSummaryPosted", "runSummaryError" -> com.epic60869.sky2m.features.dungeons.RunSummary.handle(type, packet);
                 case "reactions", "reactionError", "chatBlocked", "muted", "unmuted" -> SbcChat.handle(type, packet);
                 case "cosmetics", "cosmeticsProfile", "cosmeticsError", "badgeEarned" -> SbcCosmetics.handle(type, packet);
                 case "nameTagTable", "nameTagUpdate" -> SbcNameTags.handle(type, packet);

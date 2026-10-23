@@ -288,7 +288,9 @@ public final class CustomModels {
                 for (int i = 0; i < 4; i++) {
                     transform.transformPosition(point.set(face.pos()[i * 3], face.pos()[i * 3 + 1], face.pos()[i * 3 + 2]));
                     float across = (point.x - minX) / xRange;
-                    mapped[i][0] = left ? 4f + across * 4f : -8f + across * 4f;
+                    // The model's frame (y up, its right at +x) into the arm's (y down, its right at -x): x and y both flip,
+                    // so the arm keeps its handedness (a thumb stays on the thumb side) rather than being mirrored.
+                    mapped[i][0] = left ? 8f - across * 4f : -4f - across * 4f;
                     mapped[i][1] = (maxY - point.y) / yRange * 12f;
                     mapped[i][2] = -2f + (point.z - minZ) / zRange * 4f;
                 }
@@ -358,6 +360,8 @@ public final class CustomModels {
             ELBOW_BEND = 0.3f, ELBOW_REST = 0.12f;
     /** How far a person rises between strides, in blocks. */
     private static final float BOB = 0.035f;
+    /** How far an arm holding an item comes forward, in radians. */
+    private static final float HELD_ITEM_RAISE = 0.31f;
 
     /** Each bone's transform from model space, with the head turned and the limbs swung when animating. */
     private static Matrix4f[] boneMatrices(Model model, AvatarRenderState state, boolean animate, float turn) {
@@ -402,12 +406,20 @@ public final class CustomModels {
                         }
                     }
                 }
+                if (model.humanWalk && state instanceof ArmedEntityRenderState holding
+                        && (b.anim() == ANIM_RIGHT_ARM || b.anim() == ANIM_LEFT_ARM)) {
+                    // An arm holding something comes up a little, as the player model's does (about 18 degrees).
+                    ItemStackRenderState heldItem = b.anim() == ANIM_RIGHT_ARM ? holding.rightHandItemState : holding.leftHandItemState;
+                    if (heldItem != null && !heldItem.isEmpty()) anim.rotateX(HELD_ITEM_RAISE);
+                }
                 if (model.humanWalk && state instanceof ArmedEntityRenderState armed && armed.attackTime > 0f
                         && ((armed.attackArm == HumanoidArm.RIGHT && b.anim() == ANIM_RIGHT_ARM)
                         || (armed.attackArm == HumanoidArm.LEFT && b.anim() == ANIM_LEFT_ARM))) {
+                    // The player model's attack swing: the arm snaps forward and back (a positive turn is forward here)
+                    // and crosses a little toward the middle.
                     float progress = 1f - (float) Math.pow(1f - armed.attackTime, 4);
                     float strike = (float) Math.sin(progress * Math.PI);
-                    anim.rotateX(-strike * 1.2f).rotateY((armed.attackArm == HumanoidArm.RIGHT ? 1f : -1f) * strike * 0.18f);
+                    anim.rotateX(strike * 1.2f).rotateY((armed.attackArm == HumanoidArm.RIGHT ? 1f : -1f) * strike * 0.18f);
                 }
                 m.mul(new Matrix4f().rotateY(-turn).mul(anim).rotateY(turn));
             }

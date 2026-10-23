@@ -11,20 +11,47 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * The Run Summary card (/s2 runsummary or [View Summary] in chat): the run's floor, time, score, secrets, deaths,
- * splits, party and chest profit, with buttons to send a text version to party, guild or Sky2M chat.
+ * The Run Summary card: the run's floor, time, score, secrets, crypts, deaths (with the death log), splits, party and
+ * chest profit. Opened by /s2 runsummary (your latest run) or by the [View] button on a run summary in S2C, which shows
+ * "Loading" until the Sky2M server sends the data.
  */
 final class RunSummaryScreen extends Screen {
     private static final int W = 380, BG = 0xE0121722, EDGE = 0xFF3B465B, GOLD = 0xFFFFD35A, TEXT = 0xFF9AA5B8,
         BUTTON = 0xFF2A3345, WHITE = 0xFFFFFFFF;
 
-    private final Run run;
+    private Run run;
+    private Double profit;
+    private String owner;
+    private final boolean own;
+    private String status = "Loading run summary...";
+    private final long openedAt = System.currentTimeMillis();
     private final List<int[]> buttons = new ArrayList<>();
     private final List<Runnable> actions = new ArrayList<>();
 
-    RunSummaryScreen(Run run) {
+    /** A summary that is still being fetched from the server. */
+    RunSummaryScreen() {
+        super(Component.literal("Run Summary"));
+        this.own = false;
+    }
+
+    RunSummaryScreen(Run run, Double profit, String owner, boolean own) {
         super(Component.literal("Run Summary"));
         this.run = run;
+        this.profit = profit;
+        this.owner = owner;
+        this.own = own;
+        this.status = null;
+    }
+
+    void show(Run run, Double profit, String owner) {
+        this.run = run;
+        this.profit = profit;
+        this.owner = owner;
+        this.status = null;
+    }
+
+    void fail(String message) {
+        if (run == null) status = message;
     }
 
     private void button(GuiGraphicsExtractor g, int x, int y, int w, String label, int mouseX, int mouseY, Runnable action) {
@@ -51,7 +78,16 @@ final class RunSummaryScreen extends Screen {
         int left = (width - W) / 2, top = 20, bottom = height - 20;
         g.fill(left, top, left + W, bottom, BG);
         g.outline(left, top, W, bottom - top, EDGE);
-        g.centeredText(font, "Run Summary", width / 2, top + 6, GOLD);
+        g.centeredText(font, owner == null ? "Run Summary" : "Run Summary - " + owner, width / 2, top + 6, GOLD);
+        int by = bottom - 24;
+        if (run == null) {
+            if (status != null && status.startsWith("Loading") && System.currentTimeMillis() - openedAt > 10_000L) {
+                status = "Couldn't load this run summary. Try clicking [View] again.";
+            }
+            g.centeredText(font, status == null ? "" : status, width / 2, top + 40, TEXT);
+            button(g, left + W - 10 - 80, by, 80, "Close", mouseX, mouseY, this::onClose);
+            return;
+        }
         int x = left + 10, half = left + W / 2 + 6, y = top + 22;
 
         String floor = run.floor == null ? "?" : run.floor;
@@ -59,13 +95,12 @@ final class RunSummaryScreen extends Screen {
         y += 14;
         int ly = y;
         ly = stat(g, x, ly, "Time", RunHistory.time(run.totalMs) + (run.bestTime ? " (PB)" : ""), WHITE);
-        if (run.effectiveScore() >= 0) ly = stat(g, x, ly, "Score", run.effectiveScore() + " (" + run.effectiveRank() + ")" + (run.bestScore ? " (PB)" : ""), 0xFF55FFFF);
+        if (run.effectiveScore() >= 0) ly = stat(g, x, ly, "Score", run.effectiveScore() + (run.effectiveRank() == null || run.effectiveRank().isEmpty() ? "" : " (" + run.effectiveRank() + ")") + (run.bestScore ? " (PB)" : ""), 0xFF55FFFF);
         if (run.secrets >= 0) ly = stat(g, x, ly, "Secrets", run.secrets + String.format(Locale.ROOT, " (%.0f%%)", Math.max(0, run.secretPercent)), WHITE);
         if (run.crypts >= 0) ly = stat(g, x, ly, "Crypts", String.valueOf(run.crypts), WHITE);
         int deaths = run.deathLog != null ? run.deathLog.size() : Math.max(0, run.deaths);
         ly = stat(g, x, ly, "Deaths", String.valueOf(deaths), deaths > 0 ? 0xFFFF5555 : WHITE);
-        if (RunSummary.hasChests(run)) {
-            double profit = RunSummary.profit(run);
+        if (profit != null) {
             ly = stat(g, x, ly, "Chest profit", RunSummary.coins(profit), profit >= 0 ? 0xFF55FF55 : 0xFFFF5555);
         }
         ly += 6;
@@ -98,11 +133,10 @@ final class RunSummaryScreen extends Screen {
             }
         }
 
-        int by = bottom - 24, bw = (W - 20 - 12) / 4;
-        button(g, left + 10, by, bw, "Share: Party", mouseX, mouseY, () -> RunSummary.share(run, "party"));
-        button(g, left + 10 + (bw + 4), by, bw, "Share: Guild", mouseX, mouseY, () -> RunSummary.share(run, "guild"));
-        button(g, left + 10 + 2 * (bw + 4), by, bw, "Share: /s2c", mouseX, mouseY, () -> RunSummary.share(run, "s2c"));
-        button(g, left + 10 + 3 * (bw + 4), by, bw, "Close", mouseX, mouseY, this::onClose);
+        if (own && !RunSummary.posted(run)) {
+            button(g, left + 10, by, 110, "Post to /s2c", mouseX, mouseY, () -> RunSummary.post(run, false));
+        }
+        button(g, left + W - 10 - 80, by, 80, "Close", mouseX, mouseY, this::onClose);
     }
 
     @Override

@@ -195,7 +195,6 @@ public final class DungeonFeatures {
         TeammateHighlight.init();
         LeapMenu.init();
         PositionalMessages.init(configDir);
-        AdgRoles.init();
         DoorHighlight.init();
         BloodCamp.init();
         OdinPuzzleSolvers.init();
