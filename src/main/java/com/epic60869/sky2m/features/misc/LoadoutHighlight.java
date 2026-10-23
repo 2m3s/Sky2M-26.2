@@ -21,8 +21,8 @@ import java.util.regex.Pattern;
  * "Left-click to equip!" on every loadout but the equipped one.
  */
 public final class LoadoutHighlight {
-    private static final Pattern INVENTORY = Pattern.compile("\\((?<currentPage>\\d+)/\\d+\\) Loadouts");
-    private static final Pattern LOCKED = Pattern.compile("Loadout \\d+ Locked");
+    private static final Pattern INVENTORY = Pattern.compile("(?i)(?:\\(\\d+/\\d+\\)\\s*)?Loadouts");
+    private static final Pattern LOCKED = Pattern.compile("(?i)Loadout \\d+ Locked");
     private static final int FIRST_ICON_SLOT = 14;
     private static final int ROWS = 4;
     private static final int SLOTS_PER_ROW = 3;
@@ -45,12 +45,48 @@ public final class LoadoutHighlight {
         return lastTitleMatches;
     }
 
+    private static net.minecraft.client.gui.screens.Screen reported;
+
+    /**
+     * When a menu with "loadout" in its title opens, says once in chat (and in the log) what the highlight saw: the
+     * title, whether it matched, and for each loadout icon its item, name and the decision. This is what to send if the
+     * highlight is wrong, since Hypixel's menu text can change.
+     */
+    private static void report(net.minecraft.client.gui.screens.Screen screen) {
+        if (screen == reported) return;
+        reported = screen;
+        String title = Sky2MLocation.strip(screen.getTitle().getString());
+        if (!title.toLowerCase(java.util.Locale.ROOT).contains("loadout")) return;
+        StringBuilder log = new StringBuilder("[Sky2M] Loadout highlight: title '" + title + "' matched=" + INVENTORY.matcher(title).find()
+            + " onSkyblock=" + Compat.isOnSkyblock() + "\n");
+        int equipped = 0;
+        var menu = ((AbstractContainerScreen<?>) screen).getMenu();
+        for (Slot s : menu.slots) {
+            if (s.container instanceof Inventory || !isIconSlot(s.index)) continue;
+            ItemStack stack = s.getItem();
+            boolean decision = isCurrentSelectedLoadout(stack);
+            if (decision) equipped++;
+            ItemLore lore = stack.get(DataComponents.LORE);
+            log.append("  slot ").append(s.index).append(' ')
+                .append(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).getPath())
+                .append(" '").append(Sky2MLocation.strip(stack.getHoverName().getString())).append("' equipped=").append(decision)
+                .append(" lore=").append(lore == null ? "none" : lore.lines().stream().limit(12)
+                    .map(l -> Sky2MLocation.strip(l.getString())).collect(java.util.stream.Collectors.joining(" | "))).append('\n');
+        }
+        System.out.print(log);
+        com.epic60869.sky2m.features.core.Sky2MAlerts.chat(Component.literal("Loadout highlight: menu '" + title + "', "
+            + (INVENTORY.matcher(title).find() ? "recognised" : "NOT recognised") + ", " + equipped + " equipped loadout(s) found. Details are in the game log.")
+            .withStyle(net.minecraft.ChatFormatting.GRAY));
+    }
+
     public static void renderSlot(GuiGraphicsExtractor graphics, Slot slot) {
         Sky2MConfig config = Sky2MConfig.current();
         if (config == null || !config.misc.loadoutHighlight.enabled || !config.misc.loadoutHighlight.currentlyEquipped) return;
-        if (!Compat.isOnSkyblock() || slot.container instanceof Inventory || !isIconSlot(slot.index)) return;
+        if (slot.container instanceof Inventory) return;
         var screen = Minecraft.getInstance().gui.screen();
         if (!(screen instanceof AbstractContainerScreen<?>)) return;
+        report(screen);
+        if (!Compat.isOnSkyblock() || !isIconSlot(slot.index)) return;
         if (!inLoadoutMenu(screen)) return;
         if (!isCurrentSelectedLoadout(slot.getItem())) return;
         graphics.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, colour(config.misc.loadoutHighlight.equippedColor));

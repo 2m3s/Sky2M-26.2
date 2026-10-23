@@ -56,7 +56,7 @@ public final class AdgRoles {
     private static final Set<String> SHOWN = new HashSet<>();
     /** The section of the phase you are in, for the HUD; cleared when you change world. */
     private static volatile Section current;
-    private static final int WRAP = 58;
+    private static final int WRAP = 40;
 
     private AdgRoles() {}
 
@@ -81,12 +81,16 @@ public final class AdgRoles {
         Sky2MHuds.register("adg_role", "ADG Role",
             () -> {
                 FeatureConfigs.PositionalMessages c = config();
-                return c != null && c.adgRoles && c.adgHud && current != null && Sky2MLocation.inDungeon();
+                return c != null && c.adgRoles && c.adgHud && Sky2MLocation.inDungeon()
+                    && (current != null || PositionalMessages.onFloor7());
             },
             AdgRoles::hudLines,
             List.of(Component.literal("Storm: pad yellow 37.1-37.9").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD),
                 Component.literal("Spirit mask for lightning at purple").withStyle(ChatFormatting.YELLOW)),
             8, 120);
+        // A smaller default size so the whole role fits on screen; resize it in /s2 gui (scroll over it) if needed.
+        Sky2MHuds.Placement placement = Sky2MHuds.placement("adg_role");
+        if (placement.x == 8 && placement.y == 120 && placement.scale == 1f) placement.scale = 0.75f;
         Sky2MChat.onChat(message -> {
             String text = message.text();
             if (text.equals("Starting in 1 second.")) {
@@ -179,23 +183,29 @@ public final class AdgRoles {
         Guide guide = guide(key(SelfClass.get()));
         Section section = section(guide, id);
         if (section == null) return;
+        // Only the HUD shows the role (no title, no chat): the whole section stays up until the next phase.
         current = section;
-        if (c.adgTitles && section.title != null) {
-            Sky2MAlerts.title(Component.literal(section.title).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD),
-                section.subtitle == null ? null : Component.literal(section.subtitle).withStyle(ChatFormatting.YELLOW));
-        }
-        if (c.adgChat) chat(guide, section);
     }
 
-    /** The HUD: the phase's title and key action, and (optionally) its steps wrapped to a readable width. */
+    /** The HUD: the phase's title and key action, then every step wrapped to a readable width. */
     private static List<Component> hudLines() {
         Section section = current;
         FeatureConfigs.PositionalMessages c = config();
-        if (section == null || c == null) return List.of();
+        if (c == null) return List.of();
         List<Component> out = new ArrayList<>();
+        if (section == null) {
+            if (key(SelfClass.get()) == null) {
+                out.add(Component.literal("ADG role: class not detected").withStyle(ChatFormatting.RED, ChatFormatting.BOLD));
+                out.add(Component.literal("Set Your Class in Dungeons >").withStyle(ChatFormatting.GRAY));
+                out.add(Component.literal("Positional Messages.").withStyle(ChatFormatting.GRAY));
+            } else {
+                out.add(Component.literal("ADG role: waiting for the next phase").withStyle(ChatFormatting.GRAY));
+            }
+            return out;
+        }
         if (section.title != null) out.add(Component.literal(section.title).withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD));
         if (section.subtitle != null) out.add(Component.literal(section.subtitle).withStyle(ChatFormatting.YELLOW));
-        if (c.adgHudSteps && section.lines != null) {
+        if (section.lines != null) {
             for (String line : section.lines) {
                 boolean first = true;
                 for (String part : wrap(line, WRAP)) {

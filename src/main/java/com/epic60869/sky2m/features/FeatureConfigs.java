@@ -3428,29 +3428,14 @@ public final class FeatureConfigs {
         public boolean onlyInBoss = true;
 
         @Expose
-        @ConfigOption(name = "ADG Role Guide", desc = "On F7 and M7, shows your class's ADG role for each phase (clear, Maxor, Storm, terminal sections, Goldor, Necron, relics, dragons) as a title and a short checklist in chat. Print the full guide with /s2 adg [class] [phase].")
+        @ConfigOption(name = "ADG Role Guide", desc = "On F7 and M7, track the phases (clear, Maxor, Storm, terminal sections, Goldor, Necron, relics, dragons) for your class's ADG role. It is shown on the ADG Phase HUD, and /s2 adg [class] [phase] prints a guide in chat.")
         @ConfigEditorBoolean
         public boolean adgRoles = true;
 
         @Expose
-        @ConfigOption(name = "ADG Titles", desc = "Show the role's key action as a title at the start of each phase.")
-        @ConfigEditorBoolean
-        public boolean adgTitles = true;
-
-        @Expose
-        @ConfigOption(name = "ADG Chat Checklist", desc = "Print the role's steps for the phase in chat when it starts.")
-        @ConfigEditorBoolean
-        public boolean adgChat = true;
-
-        @Expose
-        @ConfigOption(name = "ADG Phase HUD", desc = "A small movable HUD that keeps what you should be doing in the current phase on screen (title and key action) until the next phase. Move it in /s2 gui.")
+        @ConfigOption(name = "ADG Phase HUD", desc = "A movable HUD with the whole ADG role for the current phase of F7/M7 (its key action and every step), kept on screen until the next phase. Move it in /s2 gui.")
         @ConfigEditorBoolean
         public boolean adgHud = true;
-
-        @Expose
-        @ConfigOption(name = "ADG HUD Shows Steps", desc = "Also list the role's steps for the phase in the HUD, not just the key action.")
-        @ConfigEditorBoolean
-        public boolean adgHudSteps = false;
 
         @Expose
         @ConfigOption(name = "Your Class", desc = "Which class's ADG role guide to show. Auto reads it from the tab list; pick one if it isn't detected.")
