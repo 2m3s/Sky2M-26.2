@@ -5,6 +5,7 @@ import com.epic60869.sky2m.features.core.Sky2MAlerts;
 import com.epic60869.sky2m.features.core.Sky2MLocation;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -41,7 +42,7 @@ public final class GlaciteCold {
             alerted = false;
             ropeAlerted = false;
         });
-        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("sky2m", "cold_overlay"), (graphics, delta) -> render(graphics));
+        HudElementRegistry.attachElementBefore(VanillaHudElements.PLAYER_LIST, Identifier.fromNamespaceAndPath("sky2m", "cold_overlay"), (graphics, delta) -> render(graphics));
     }
 
     private static boolean inColdArea() {

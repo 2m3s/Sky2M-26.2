@@ -131,8 +131,8 @@ public final class DwarvenConfig {
     public enum EventIslands {
         ALL("All"),
         DWARVEN("Dwarven Mines"),
-        CRYSTAL("Crystal Hollows"),
-        CURRENT("Current Island");
+        CRYSTAL("Hollows"),
+        CURRENT("This Island");
 
         private final String displayName;
 

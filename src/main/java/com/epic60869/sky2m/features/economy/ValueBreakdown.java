@@ -29,7 +29,7 @@ public final class ValueBreakdown {
 
     static EconomyConfig config() {
         Sky2MConfig c = Sky2MConfig.current();
-        return c == null ? null : c.misc.economy;
+        return c == null ? null : c.inventory.economy;
     }
 
     /** The rows for one item (not times its count), empty when it has no price. */

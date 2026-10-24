@@ -61,7 +61,7 @@ public final class GreenhousePreview {
 
     private static void paste() {
         if (!enabled()) {
-            message("Greenhouse Preview is off (Farming > Garden).", ChatFormatting.RED);
+            message("Greenhouse Preview is off (Garden > Garden).", ChatFormatting.RED);
             return;
         }
         String clipboard = Minecraft.getInstance().keyboardHandler.getClipboard();
@@ -76,7 +76,7 @@ public final class GreenhousePreview {
 
     private static void open() {
         if (!enabled()) {
-            message("Greenhouse Preview is off (Farming > Garden).", ChatFormatting.RED);
+            message("Greenhouse Preview is off (Garden > Garden).", ChatFormatting.RED);
             return;
         }
         if (layout == null) {

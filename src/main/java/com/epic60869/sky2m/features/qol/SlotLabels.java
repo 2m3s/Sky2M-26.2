@@ -33,7 +33,7 @@ public final class SlotLabels {
     public static void drawOverlay(GuiGraphicsExtractor g, ItemStack stack, int x, int y) {
         Sky2MConfig config = Sky2MConfig.current();
         if (config == null || stack.isEmpty()) return;
-        QolConfigs.SlotLabels c = config.misc.slotLabels;
+        QolConfigs.SlotLabels c = config.gui.slotLabels;
         if (!c.petLevel && !c.attributeLevel && !c.minionTier && !c.collectionLevel && !c.bestiaryLevel) return;
         if (!Sky2MLocation.onSkyblock()) return;
         String label = CACHE.computeIfAbsent(stack, s -> label(s, c));

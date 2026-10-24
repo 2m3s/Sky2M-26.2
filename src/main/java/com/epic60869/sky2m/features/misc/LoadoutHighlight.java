@@ -167,7 +167,7 @@ public final class LoadoutHighlight {
 
     public static void renderSlot(GuiGraphicsExtractor graphics, Slot slot) {
         Sky2MConfig config = Sky2MConfig.current();
-        if (config == null || !config.misc.loadoutHighlight.enabled || !config.misc.loadoutHighlight.currentlyEquipped) return;
+        if (config == null || !config.inventory.loadoutHighlight.enabled || !config.inventory.loadoutHighlight.currentlyEquipped) return;
         if (slot.container instanceof Inventory) return;
         var screen = Minecraft.getInstance().gui.screen();
         if (!(screen instanceof AbstractContainerScreen<?>)) return;
@@ -175,7 +175,7 @@ public final class LoadoutHighlight {
         if (!Compat.isOnSkyblock() || !isIconSlot(slot.index)) return;
         if (!inLoadoutMenu(screen)) return;
         if (!equippedSlots((AbstractContainerScreen<?>) screen).contains(slot.index)) return;
-        graphics.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, colour(config.misc.loadoutHighlight.equippedColor));
+        graphics.fill(slot.x, slot.y, slot.x + 16, slot.y + 16, colour(config.inventory.loadoutHighlight.equippedColor));
     }
 
     private static boolean isIconSlot(int index) {

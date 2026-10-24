@@ -55,7 +55,7 @@ final class KuudraMenus {
 
     private static KuudraConfig config() {
         Sky2MConfig c = Sky2MConfig.current();
-        return c == null ? null : c.combat.kuudra;
+        return c == null ? null : c.crimsonIsle.kuudra;
     }
 
     static void init() {

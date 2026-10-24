@@ -104,7 +104,7 @@ final class DeathRecap {
         }
         List<RunHistory.Run> runs = RunHistory.runs();
         if (runs.isEmpty() || runs.getFirst().deathLog == null) {
-            Sky2MAlerts.chat(Component.literal(enabled() ? "No deaths recorded for the last run." : "Turn on Death Recap (Dungeons > Run Recap) to record deaths.")
+            Sky2MAlerts.chat(Component.literal(enabled() ? "No deaths recorded for the last run." : "Turn on Death Recap (Dungeon > Run Recap) to record deaths.")
                 .withStyle(ChatFormatting.GRAY));
             return;
         }

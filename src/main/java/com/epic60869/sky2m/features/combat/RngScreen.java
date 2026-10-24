@@ -106,7 +106,8 @@ public final class RngScreen extends Screen {
 
     private final String initialSearch;
     private final List<Item> items = new ArrayList<>();
-    private final Map<String, Boolean> open = new HashMap<>();
+    // Which groups you opened: kept while the game runs (closing the menu keeps them), every group closed on launch.
+    private static final Map<String, Boolean> open = new HashMap<>();
     private List<Line> lines = List.of();
     private boolean dirty = true;
     private boolean built;
@@ -384,10 +385,6 @@ public final class RngScreen extends Screen {
         }
     }
 
-    private boolean defaultOpen(Cat c) {
-        return c == Cat.SLAYERS || c == Cat.FARMING || c == Cat.FISHING || c == Cat.PETS;
-    }
-
     private void rebuildLines() {
         dirty = false;
         String f = search.getValue().trim().toLowerCase(Locale.ROOT);
@@ -412,7 +409,7 @@ public final class RngScreen extends Screen {
         List<Line> out = new ArrayList<>();
         for (Map.Entry<String, List<Item>> g : groups.entrySet()) {
             Item first = g.getValue().get(0);
-            boolean isOpen = open.getOrDefault(g.getKey(), !f.isEmpty() || defaultOpen(first.cat));
+            boolean isOpen = open.getOrDefault(g.getKey(), !f.isEmpty());
             String title = (cat == Cat.ALL && first.cat != Cat.PETS ? first.cat.label + ": " : "") + first.group;
             out.add(new Line(GROUP, first, null, g.getKey(), title, g.getValue().size(), isOpen));
             if (!isOpen) continue;

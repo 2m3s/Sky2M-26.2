@@ -59,9 +59,34 @@ public final class QolConfigs {
 
     public static final class TabListExtras {
         @Expose
-        @ConfigOption(name = "Compact Tab List", desc = "Drop the blank filler lines Hypixel pads the tab list with, so it is shorter. Columns of widgets can shift.")
+        @ConfigOption(name = "Compact Tab List", desc = "Compact the tab list like SkyHanni: Hypixel's sections side by side without the blank filler lines, each column's title once, and the footer as an \"Other\" column.")
         @ConfigEditorBoolean
         public boolean compact = false;
+
+        @Expose
+        @ConfigOption(name = "Toggle Tab", desc = "Compact Tab List: press Tab to open or close the tab list, instead of holding it.")
+        @ConfigEditorBoolean
+        public boolean toggleTab = false;
+
+        @Expose
+        @ConfigOption(name = "Hide Hypixel Adverts", desc = "Compact Tab List: hide the Hypixel server and store lines above and below the tab list.")
+        @ConfigEditorBoolean
+        public boolean hideAdverts = false;
+
+        @Expose
+        @ConfigOption(name = "Hide Fire Sales", desc = "Compact Tab List: hide the Fire Sales section.")
+        @ConfigEditorBoolean
+        public boolean hideFiresales = false;
+
+        @Expose
+        @ConfigOption(name = "Hide Tab Background", desc = "Compact Tab List: hide the dark background behind the whole tab list (the columns get their own darker one).")
+        @ConfigEditorBoolean
+        public boolean hideTabBackground = false;
+
+        @Expose
+        @ConfigOption(name = "Hide Player Heads", desc = "Compact Tab List: hide the heads beside player names.")
+        @ConfigEditorBoolean
+        public boolean hidePlayerIcons = false;
 
         @Expose
         @ConfigOption(name = "Tab Widgets HUD", desc = "Show tab list widgets (e.g. Pet, Commissions, Pickaxe Ability) on a HUD without holding tab. Move it in /s2 gui.")

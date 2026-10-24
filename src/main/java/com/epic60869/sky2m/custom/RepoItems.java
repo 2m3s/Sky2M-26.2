@@ -284,9 +284,11 @@ public final class RepoItems {
 	}
 
 	private static ItemStack createStack(RepoItem repoItem) {
-		ItemStack stack = repoItem.texture() != null ? Compat.createSkull(repoItem.texture()) : new ItemStack(repoItem.item());
-		// Newer items are paper with Hypixel's model on top; use the model when it's loaded (Hypixel's pack, or vanilla).
 		Identifier model = repoItem.itemModel() == null ? null : Identifier.tryParse(repoItem.itemModel());
+		// Newer items have no vanilla material, only Hypixel's model: draw them as paper rather than a barrier.
+		Item base = repoItem.item() == net.minecraft.world.item.Items.BARRIER && model != null ? net.minecraft.world.item.Items.PAPER : repoItem.item();
+		ItemStack stack = repoItem.texture() != null ? Compat.createSkull(repoItem.texture()) : new ItemStack(base);
+		// Newer items are paper with Hypixel's model on top; use the model when it's loaded (Hypixel's pack, or vanilla).
 		if (model != null && repoItem.texture() == null && hasItemModel(model)) stack.set(DataComponents.ITEM_MODEL, model);
 		stack.set(DataComponents.CUSTOM_NAME, Component.literal(repoItem.name()));
 		CompoundTag tag = new CompoundTag();

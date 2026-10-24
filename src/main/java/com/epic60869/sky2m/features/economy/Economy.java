@@ -61,7 +61,7 @@ public final class Economy {
 
     static EconomyConfig config() {
         Sky2MConfig c = Sky2MConfig.current();
-        return c == null ? null : c.misc.economy;
+        return c == null ? null : c.inventory.economy;
     }
 
     static String screenTitle(net.minecraft.client.gui.screens.Screen screen) {

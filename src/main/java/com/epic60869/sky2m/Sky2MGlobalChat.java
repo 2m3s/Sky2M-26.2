@@ -654,6 +654,21 @@ public final class Sky2MGlobalChat {
                     }
                 }
 
+                if ("bot".equalsIgnoreCase(packetString(packet, "source")) && !hasItem) {
+                    // Bot replies read "[S2M] <text>": no sender label, one prefix.
+                    Sky2MConfig botConfig = Sky2MConfig.current();
+                    if (botConfig != null && !botConfig.chat.customChat.showSjChat) return;
+                    String botText = message.trim();
+                    while (botText.startsWith("[S2M]")) botText = botText.substring(5).trim();
+                    long botId = packet.has("id") && !packet.get("id").isJsonNull() ? packet.get("id").getAsLong() : 0;
+                    MutableComponent botLine = Component.empty()
+                        .append(com.epic60869.sky2m.features.sbc.SbcChat.prefix(botId))
+                        .append(Component.literal(" "))
+                        .append(linkify(Component.literal(botText)));
+                    mcMessage(com.epic60869.sky2m.features.sbc.SbcChat.decorate(packet, botLine, message));
+                    return;
+                }
+
                 UUID messageUuid = null;
                 try {
                     if (packet.has("minecraftUuid")) {
@@ -680,11 +695,18 @@ public final class Sky2MGlobalChat {
                     }
                 } catch (Exception ignored) {}
 
-                name = name.replaceAll("[^A-Za-z0-9_]", "");
-                if (name.isBlank()) name = "Unknown";
-
                 String source = packet.has("source") ? packet.get("source").getAsString() : "mod";
                 String prefix = "discord".equalsIgnoreCase(source) ? "[Discord]" : "[S2M]";
+                if ("discord".equalsIgnoreCase(source)) {
+                    // The server's own "[Discord] " name prefix: the brackets made the nickname filter reject the
+                    // name, so "[Discord] Bob" showed as "DiscordBob". The tag is shown separately.
+                    name = name.replaceFirst("^\\[Discord] ", "");
+                    displayName = displayName.replaceFirst("^\\[Discord] ", "");
+                }
+
+                name = name.replaceAll("[^A-Za-z0-9_]", "");
+                if (name.isBlank()) name = "Unknown";
+                if (displayName.isBlank()) displayName = name;
 
                 if (Sky2MNickFilter.isBlocked(displayName, messageUuid)) displayName = name;
                 Component shownName;
@@ -720,13 +742,21 @@ public final class Sky2MGlobalChat {
                     } catch (Exception ignored) {}
                     line.append(Component.literal("[" + level + "] ").withStyle(Style.EMPTY.withColor(levelColor)));
                 }
-                // Hovering the sender shows their real Minecraft name.
-                MutableComponent sender = Component.empty().withStyle(Style.EMPTY
-                    .withHoverEvent(new net.minecraft.network.chat.HoverEvent.ShowText(
-                        Component.literal("Real name: ").withStyle(Style.EMPTY.withColor(0xAAAAAA))
-                            .append(Component.literal(name).withStyle(Style.EMPTY.withColor(0xFFFFFF)))))
-                    .withClickEvent(new net.minecraft.network.chat.ClickEvent.SuggestCommand("/msg " + name + " ")));
-                sender.append(shownName);
+                MutableComponent sender;
+                if ("discord".equalsIgnoreCase(source)) {
+                    // From Discord: the name in blue, without the server's own "[Discord] " (the tag is already shown),
+                    // and no Minecraft name to hover or /msg.
+                    String discordName = displayName.replaceFirst("^\\[Discord] ", "");
+                    sender = Component.literal(discordName).withStyle(net.minecraft.ChatFormatting.BLUE);
+                } else {
+                    // Hovering the sender shows their real Minecraft name.
+                    sender = Component.empty().withStyle(Style.EMPTY
+                        .withHoverEvent(new net.minecraft.network.chat.HoverEvent.ShowText(
+                            Component.literal("Real name: ").withStyle(Style.EMPTY.withColor(0xAAAAAA))
+                                .append(Component.literal(name).withStyle(Style.EMPTY.withColor(0xFFFFFF)))))
+                        .withClickEvent(new net.minecraft.network.chat.ClickEvent.SuggestCommand("/msg " + name + " ")));
+                    sender.append(shownName);
+                }
                 line.append(Component.literal("["))
                     .append(sender)
                     .append(Component.literal("]: "))

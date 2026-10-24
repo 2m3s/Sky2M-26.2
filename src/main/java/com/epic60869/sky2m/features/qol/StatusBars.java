@@ -34,7 +34,7 @@ public final class StatusBars {
 
     private static QolConfigs.StatusBars config() {
         Sky2MConfig c = Sky2MConfig.current();
-        return c == null ? null : c.misc.statusBars;
+        return c == null ? null : c.gui.statusBars;
     }
 
     private static boolean on() {

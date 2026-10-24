@@ -46,6 +46,18 @@ public final class MiningExtrasConfig {
         public boolean pityChat = false;
     }
 
+    public static final class MineshaftStats {
+        @Expose
+        @ConfigOption(name = "HUD", desc = "HUD with the time you have been in the current Glacite Mineshaft and the blocks you broke in it, with ore blocks (named *_ore) counted separately. Tungsten, Umber, Glacite and gemstones only count in the block total. Move it in /s2 gui.")
+        @ConfigEditorBoolean
+        public boolean hud = false;
+
+        @Expose
+        @ConfigOption(name = "Summary In Chat", desc = "When you leave a mineshaft, say in chat how long you were in it and how many blocks you broke.")
+        @ConfigEditorBoolean
+        public boolean chat = false;
+    }
+
     public static final class PowderTracker {
         @Expose
         @ConfigOption(name = "Enabled", desc = "HUD with the Mithril, Gemstone and Glacite powder you gained this session and per hour, read from the sidebar. Only gains count, spending does not. Pauses when you stop gaining powder. Move it in /s2 gui.")

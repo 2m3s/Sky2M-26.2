@@ -48,7 +48,7 @@ public final class Sky2MDateCalculator {
     /** Checked first: tooltips are built every frame an item is hovered. */
     private static boolean datesEnabled() {
         Sky2MConfig config = Sky2MConfig.current();
-        return config != null && config.misc.calendarTimeToRealTime && Compat.isOnSkyblock();
+        return config != null && config.inventory.calendarTimeToRealTime && Compat.isOnSkyblock();
     }
 
     private static TimeProvider timerFor(Screen screen) {
@@ -81,7 +81,7 @@ public final class Sky2MDateCalculator {
 
     private static void addToTooltip(ItemStack stack, List<Component> lines) {
         Sky2MConfig config = Sky2MConfig.current();
-        if (config == null || !config.misc.calendarTimeToRealTime || !Compat.isOnSkyblock()) return;
+        if (config == null || !config.inventory.calendarTimeToRealTime || !Compat.isOnSkyblock()) return;
 
         boolean added = false;
         if (currentTimer != null) {

@@ -83,7 +83,7 @@ public final class ChatWaypoints {
             if (shared == null || shared.sender().equalsIgnoreCase(Minecraft.getInstance().getUser().getName())) return;
             // Party chat is Diana > Party Coord Waypoints' while that is on.
             var config = com.epic60869.sky2m.Sky2MConfig.current();
-            if (message.text().startsWith("Party >") && config != null && config.mayors.diana.partyCoordWaypoints) return;
+            if (message.text().startsWith("Party >") && config != null && config.events.diana.partyCoordWaypoints) return;
             add(shared.sender(), shared.note(), new Vec3(shared.x(), shared.y(), shared.z()));
         });
         Sky2MWorldRender.register(collector -> {

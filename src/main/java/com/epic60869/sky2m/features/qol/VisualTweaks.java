@@ -41,7 +41,7 @@ public final class VisualTweaks {
     private VisualTweaks() {}
 
     public enum Light {
-        OFF("Off"), AMBIENT("Ambient (no mods needed)"), GAMMA("Gamma");
+        OFF("Off"), AMBIENT("Ambient"), GAMMA("Gamma");
 
         private final String label;
 
@@ -52,7 +52,7 @@ public final class VisualTweaks {
     }
 
     public enum ArmorHide {
-        OFF("Off"), SELF("Only yours"), OTHERS("Other players'"), ALL("Everyone's");
+        OFF("Off"), SELF("Only yours"), OTHERS("Others"), ALL("Everyone's");
 
         private final String label;
 
@@ -63,7 +63,7 @@ public final class VisualTweaks {
     }
 
     public enum Preset {
-        OFF("Off"), MINIMAL("Smoke and puffs"), NO_AMBIENT("No ambient effects"), ALL("All particles");
+        OFF("Off"), MINIMAL("Minimal"), NO_AMBIENT("No Ambient"), ALL("All particles");
 
         private final String label;
 

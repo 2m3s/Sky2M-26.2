@@ -53,7 +53,7 @@ public final class SbcStaffScreen extends Screen {
         FEATURES.put("cosmetics", "Cosmetics (all)");
         FEATURES.put("cosmetics.emblems", "Emblems and symbols");
         FEATURES.put("cosmetics.capes", "Capes");
-        FEATURES.put("cosmetics.models", "Play as Mob looks");
+        FEATURES.put("cosmetics.models", "Play as Mob looks (mobs, models)");
         FEATURES.put("leaderboards", "Leaderboards and rivals");
         FEATURES.put("leaderboards.slayerPbs", "Slayer personal bests");
         FEATURES.put("partyFinder", "Party finder");

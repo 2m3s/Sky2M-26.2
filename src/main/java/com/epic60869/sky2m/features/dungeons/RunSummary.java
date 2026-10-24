@@ -55,7 +55,7 @@ public final class RunSummary {
     static void open() {
         RunHistory.Run run = current();
         if (run == null) {
-            Sky2MAlerts.chat(Component.literal("No finished run yet. Turn on Run History (Dungeons > Timers and Alerts) and finish a run.").withStyle(ChatFormatting.GRAY));
+            Sky2MAlerts.chat(Component.literal("No finished run yet. Turn on Run History (Dungeon > Timers and Alerts) and finish a run.").withStyle(ChatFormatting.GRAY));
             return;
         }
         Compat.queueOpenScreen(new RunSummaryScreen(run, hasChests(run) ? profit(run) : null, null, true));

@@ -709,7 +709,7 @@ public final class GardenVisitors {
         Player player = Minecraft.getInstance().player;
         if (player != null && player.isShiftKeyDown()) return InteractionResult.PASS;
         if (isVisitorOutside(entity) || (entity instanceof ArmorStand && visitorNearby(entity))) {
-            Sky2MAlerts.chat(Component.literal("Blocked you from interacting with a visitor. Sneak to bypass or change it in /s2 (Farming > Visitors).").withStyle(ChatFormatting.YELLOW));
+            Sky2MAlerts.chat(Component.literal("Blocked you from interacting with a visitor. Sneak to bypass or change it in /s2 (Garden > Visitors).").withStyle(ChatFormatting.YELLOW));
             return InteractionResult.FAIL;
         }
         return InteractionResult.PASS;

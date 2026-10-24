@@ -7,6 +7,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import org.jspecify.annotations.Nullable;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerListener;
@@ -101,18 +102,26 @@ public final class ChronomatronSolver extends ExperimentSolver implements Contai
 			case WAIT -> {
 				if (slotId == 49 && stack.getHoverName().getString().startsWith("Timer: ")) {
 					setState(State.SHOW);
+				} else if (chronomatronCurrentSlot == slotId && !stack.hasFoil()) {
+					// The last item shown stops glowing while waiting: without this it still counted as lit next round,
+					// so the next round's first item (the same one) was missed and the chain went out of step.
+					chronomatronCurrentSlot = 0;
 				}
 			}
 			case END -> {
 				String name = stack.getHoverName().getString();
 				if (slotId == 49 && !name.startsWith("Timer: ")) {
-					// Get ready for another round if the instructions say to remember the pattern.
+					// Get ready for another round if the instructions say to remember the pattern. Anything else ends
+					// the game: start over, but stay listening (this runs inside the menu's listener loop, so the
+					// listener can't be removed here).
 					if (name.equals("Remember the pattern!")) {
 						chronomatronChainLengthCount = 0;
 						chronomatronCurrentOrdinal = 0;
+						chronomatronCurrentSlot = 0;
 						setState(State.REMEMBER);
 					} else {
-						reset();
+						clearChain();
+						setState(State.REMEMBER);
 					}
 				}
 			}
@@ -165,13 +174,25 @@ public final class ChronomatronSolver extends ExperimentSolver implements Contai
 		isSingleRow = title.endsWith("(high)") || title.endsWith("(grand)") || title.endsWith("(supreme)");
 	}
 
-	@Override
-	public void reset() {
+	private void clearChain() {
 		chronomatronSlots.clear();
 		chronomatronChainLengthCount = 0;
 		chronomatronCurrentSlot = 0;
 		chronomatronCurrentOrdinal = 0;
-		if (screen != null) screen.getMenu().removeSlotListener(this);
+	}
+
+	@Override
+	public void reset() {
+		clearChain();
+		// Removed on the next tick: removing it while the menu is notifying its listeners threw a
+		// ConcurrentModificationException, which disconnected with "Network Protocol Error".
+		if (screen != null) {
+			AbstractContainerMenu menu = screen.getMenu();
+			screen = null;
+			Minecraft.getInstance().schedule(() -> {
+				if (screen == null || screen.getMenu() != menu) menu.removeSlotListener(this);
+			});
+		}
 		super.reset();
 	}
 

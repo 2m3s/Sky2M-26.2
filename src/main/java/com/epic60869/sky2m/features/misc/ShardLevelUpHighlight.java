@@ -54,7 +54,7 @@ public final class ShardLevelUpHighlight {
 
     public static void renderSlot(GuiGraphicsExtractor graphics, Slot slot) {
         Sky2MConfig config = Sky2MConfig.current();
-        if (config == null || !config.misc.shardLevelUpHighlight || !slot.hasItem()) return;
+        if (config == null || !config.inventory.shardLevelUpHighlight || !slot.hasItem()) return;
         if (slot.container instanceof Inventory || !Compat.isOnSkyblock()) return;
         if (!(Minecraft.getInstance().gui.screen() instanceof AbstractContainerScreen<?> screen)) return;
         net.minecraft.network.chat.Component screenTitle = screen.getTitle();

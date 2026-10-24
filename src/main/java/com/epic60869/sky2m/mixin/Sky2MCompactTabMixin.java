@@ -1,22 +1,22 @@
 package com.epic60869.sky2m.mixin;
 
-import com.epic60869.sky2m.features.qol.TabListExtras;
+import com.epic60869.sky2m.features.qol.CompactTabList;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.PlayerTabOverlay;
-import net.minecraft.client.multiplayer.PlayerInfo;
+import net.minecraft.world.scores.Objective;
+import net.minecraft.world.scores.Scoreboard;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.util.List;
-
-/** Compact Tab List: the tab list without Hypixel's blank filler lines. */
+/** Compact Tab List: draws SkyHanni's compact tab list (CompactTabList) instead of the vanilla one. */
 @Mixin(PlayerTabOverlay.class)
 public class Sky2MCompactTabMixin {
-    @Inject(method = "getPlayerInfos", at = @At("RETURN"), cancellable = true)
-    private void sky2m$compact(CallbackInfoReturnable<List<PlayerInfo>> cir) {
-        if (!TabListExtras.compact()) return;
-        List<PlayerInfo> kept = cir.getReturnValue().stream().filter(info -> !TabListExtras.blank(info)).toList();
-        cir.setReturnValue(kept);
+    @Inject(method = "extractRenderState", at = @At("HEAD"), cancellable = true)
+    private void sky2m$compact(GuiGraphicsExtractor graphics, int screenWidth, Scoreboard scoreboard, Objective objective, CallbackInfo ci) {
+        if (!CompactTabList.enabled()) return;
+        CompactTabList.renderHeld(graphics);
+        ci.cancel();
     }
 }

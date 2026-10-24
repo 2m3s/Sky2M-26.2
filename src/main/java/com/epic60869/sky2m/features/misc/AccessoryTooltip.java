@@ -105,7 +105,7 @@ public final class AccessoryTooltip {
 
     private static boolean enabled() {
         Sky2MConfig config = Sky2MConfig.current();
-        return config != null && config.misc.collectionTooltips.accessories;
+        return config != null && config.inventory.collectionTooltips.accessories;
     }
 
     private static String profileId() {

@@ -45,7 +45,7 @@ public final class SessionShare {
 
     private static FeatureConfigs.SessionTrackerSettings config() {
         Sky2MConfig c = Sky2MConfig.current();
-        return c == null ? null : c.profitTrackers.session;
+        return c == null ? null : c.misc.profitTrackers.session;
     }
 
     public static boolean enabled() {

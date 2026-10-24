@@ -66,6 +66,14 @@ public final class FishingMore {
     private static final Map<String, Integer> counts = new LinkedHashMap<>();
     private static long activeMs;
     private static long lastCatch;
+    /** This game session's catches (SkyHanni's "This Session" display mode), not saved. */
+    private static final Map<String, Integer> sessionCounts = new LinkedHashMap<>();
+    private static long sessionActiveMs;
+    /** The category shown ("All" or one of SkyHanni's groups), like SkyHanni's currentCategory: kept until restart. */
+    private static final String ALL = "All";
+    private static String category = ALL;
+    /** The tracker drawn over a menu, where its Display Mode and Category lines can be clicked. */
+    private static int[] modeLine, categoryLine;
     private static boolean loaded;
     private static long lastSave;
 
@@ -124,11 +132,19 @@ public final class FishingMore {
                 counts.clear();
                 activeMs = 0;
                 lastCatch = 0;
+                sessionCounts.clear();
+                sessionActiveMs = 0;
                 save();
                 Sky2MAlerts.chat(Component.literal("Reset the Sea Creature Tracker.").withStyle(ChatFormatting.GREEN));
                 return Command.SINGLE_SUCCESS;
             })));
         ItemTooltipCallback.EVENT.register((stack, context, type, lines) -> odgerTooltip(lines));
+        net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
+            if (!(screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?>)) return;
+            net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.afterExtract(screen).register((s, g, mouseX, mouseY, delta) -> trackerInScreen(g));
+            net.fabricmc.fabric.api.client.screen.v1.ScreenMouseEvents.allowMouseClick(screen).register((s, event) -> !trackerClick(event.x(), event.y(), event.button()));
+            net.fabricmc.fabric.api.client.screen.v1.ScreenEvents.remove(screen).register(s -> modeLine = categoryLine = null);
+        });
 
         Sky2MHuds.setting("fishing_totem", () -> config() != null && config().totemOverlay);
         Sky2MHuds.register("fishing_totem", "Totem of Corruption", () -> config() != null && config().totemOverlay && !totems.isEmpty(),
@@ -136,12 +152,12 @@ public final class FishingMore {
             List.of(SbcItems.parseLegacy("§5§lTotem of Corruption"), SbcItems.parseLegacy("§7Remaining: §e2m 30s"), SbcItems.parseLegacy("§7Owner: §eSteve")),
             8, 200);
         Sky2MHuds.setting("fishing_sc_tracker", () -> config() != null && config().seaCreatureTracker);
+        // Over a menu it's drawn by trackerInScreen instead, with clickable Display Mode and Category lines.
         Sky2MHuds.register("fishing_sc_tracker", "Sea Creature Tracker",
-            () -> config() != null && config().seaCreatureTracker && !counts.isEmpty() && (holdingRod() || fishing()),
-            FishingMore::trackerLines,
-            List.of(SbcItems.parseLegacy("§7Sea Creature Tracker:"), SbcItems.parseLegacy(" §7- §e120 §7Squid §755%"),
-                SbcItems.parseLegacy(" §7- §e45 §7Thunder §720%"), SbcItems.parseLegacy(" §7- §e165 §7Total Sea Creatures"),
-                SbcItems.parseLegacy("§7Per hour: §e210")),
+            () -> trackerShown() && !(Minecraft.getInstance().gui.screen() instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?>),
+            () -> trackerLines(false),
+            List.of(SbcItems.parseLegacy("§7Sea Creature Tracker:"), SbcItems.parseLegacy(" §7- §e120 §bSquid §755%"),
+                SbcItems.parseLegacy(" §7- §e45 §c§lThunder §720%"), SbcItems.parseLegacy(" §7- §e165 §7Total Sea Creatures")),
             8, 230);
         Sky2MHuds.setting("fishing_golden_fish", () -> config() != null && config().goldenFishTimer);
         Sky2MHuds.register("fishing_golden_fish", "Golden Fish Timer",
@@ -210,9 +226,14 @@ public final class FishingMore {
         int amount = doubleHook && c.trackerCountDouble ? 2 : 1;
         if (c.seaCreatureTracker) {
             // Active time: the gap since the last catch counts unless it is a long break.
-            if (lastCatch > 0) activeMs += Math.min(now - lastCatch, 5 * 60_000L);
+            if (lastCatch > 0) {
+                long gap = Math.min(now - lastCatch, 5 * 60_000L);
+                activeMs += gap;
+                if (!sessionCounts.isEmpty()) sessionActiveMs += gap;
+            }
             lastCatch = now;
             counts.merge(creature.name(), amount, Integer::sum);
+            sessionCounts.merge(creature.name(), amount, Integer::sum);
             if (now - lastSave > 30_000) save();
         }
         ownCatches.add(now);
@@ -338,24 +359,105 @@ public final class FishingMore {
 
     // ------------------------------------------------------------------------------------------------ tracker
 
-    private static List<Component> trackerLines() {
+    private static boolean trackerShown() {
+        Config c = config();
+        return c != null && c.seaCreatureTracker && !counts.isEmpty()
+            && (holdingRod() || fishing() || System.currentTimeMillis() - lastCatch < 3 * 60_000L);
+    }
+
+    private static boolean session() {
+        Config c = config();
+        return c != null && c.trackerDisplay == TrackerDisplay.SESSION;
+    }
+
+    /** SkyHanni's getCurrentCategories: All, then each group you've caught something from, with how many kinds. */
+    private static Map<String, Integer> categories(Map<String, Integer> shown) {
+        Map<String, Integer> out = new LinkedHashMap<>();
+        out.put(ALL, shown.size());
+        for (Map.Entry<String, java.util.Set<String>> e : FishingData.skyHanniVariants().entrySet()) {
+            int kinds = 0;
+            for (String name : e.getValue()) if (shown.containsKey(name)) kinds++;
+            if (kinds > 0) out.put(e.getKey(), kinds);
+        }
+        return out;
+    }
+
+    /**
+     * SkyHanni's Sea Creature Tracker: the shown display mode's catches in the current category. With a menu open
+     * ({@code buttons}) its Category and Display Mode lines are added, which can be clicked (see trackerInScreen).
+     */
+    private static List<Component> trackerLines(boolean buttons) {
         List<Component> lines = new ArrayList<>();
         lines.add(SbcItems.parseLegacy("§7Sea Creature Tracker:"));
+        Map<String, Integer> shown = session() ? sessionCounts : counts;
+        Map<String, Integer> categories = categories(shown);
+        if (!categories.containsKey(category)) category = ALL;
+        if (buttons) lines.add(SbcItems.parseLegacy("§7Category: §e[" + category + " §7(" + categories.get(category) + ")§e]"));
+        java.util.Set<String> inCategory = category.equals(ALL) ? null : FishingData.skyHanniVariants().get(category);
+        Map<String, Integer> filtered = new LinkedHashMap<>();
+        for (Map.Entry<String, Integer> e : shown.entrySet()) if (inCategory == null || inCategory.contains(e.getKey())) filtered.put(e.getKey(), e.getValue());
         int total = 0;
-        for (int v : counts.values()) total += v;
+        for (int v : filtered.values()) total += v;
         Config c = config();
-        List<Map.Entry<String, Integer>> sorted = new ArrayList<>(counts.entrySet());
+        List<Map.Entry<String, Integer>> sorted = new ArrayList<>(filtered.entrySet());
         sorted.sort((a, b) -> Integer.compare(b.getValue(), a.getValue()));
         for (Map.Entry<String, Integer> e : sorted) {
             String percent = c != null && c.trackerPercentage && total > 0
                 ? String.format(Locale.US, " §7%.1f%%", e.getValue() * 100.0 / total) : "";
-            lines.add(SbcItems.parseLegacy(" §7- §e" + String.format(Locale.US, "%,d", e.getValue()) + " §7" + e.getKey() + percent));
+            // SkyHanni's colours: each sea creature in its group's chat colour, rare ones bold.
+            lines.add(SbcItems.parseLegacy(" §7- §e" + String.format(Locale.US, "%,d", e.getValue()) + " "
+                + FishingData.skyHanniDisplayName(e.getKey()) + "§r" + percent));
         }
         lines.add(SbcItems.parseLegacy(" §7- §e" + String.format(Locale.US, "%,d", total) + " §7Total Sea Creatures"));
-        if (c != null && c.trackerPerHour && activeMs > 60_000) {
-            lines.add(SbcItems.parseLegacy("§7Per hour: §e" + String.format(Locale.US, "%,d", Math.round(total * 3_600_000.0 / activeMs))));
-        }
+        if (buttons) lines.add(SbcItems.parseLegacy("§7Display Mode: " + (session() ? "§7[Total] §a§l[This Session]" : "§a§l[Total] §7[This Session]")));
         return lines;
+    }
+
+    /** The tracker over a menu (inventory, chests), where SkyHanni shows its buttons, at its /s2 gui position. */
+    private static void trackerInScreen(net.minecraft.client.gui.GuiGraphicsExtractor g) {
+        modeLine = categoryLine = null;
+        if (!trackerShown()) return;
+        Minecraft mc = Minecraft.getInstance();
+        List<Component> lines = trackerLines(true);
+        int w = 0;
+        for (Component line : lines) w = Math.max(w, mc.font.width(line));
+        w += 2 * Sky2MHuds.PADDING;
+        int h = lines.size() * Sky2MHuds.LINE_HEIGHT + 2 * Sky2MHuds.PADDING;
+        Sky2MHuds.Placement p = Sky2MHuds.placement("fishing_sc_tracker");
+        int x = Sky2MHuds.mapX(p.x, Math.round(w * p.scale)), y = Sky2MHuds.mapY(p.y, Math.round(h * p.scale));
+        g.nextStratum();
+        g.pose().pushMatrix();
+        g.pose().translate(x, y);
+        g.pose().scale(p.scale, p.scale);
+        if (p.background) g.fill(0, 0, w, h, 0x80000000);
+        for (int i = 0; i < lines.size(); i++) g.text(mc.font, lines.get(i), Sky2MHuds.PADDING, Sky2MHuds.PADDING + i * Sky2MHuds.LINE_HEIGHT, 0xFFFFFFFF, true);
+        g.pose().popMatrix();
+        int lineH = Math.round(Sky2MHuds.LINE_HEIGHT * p.scale), top = y + Math.round(Sky2MHuds.PADDING * p.scale);
+        // The Category line is the second, Display Mode the last.
+        categoryLine = new int[]{x, top + lineH, Math.round(w * p.scale), lineH};
+        modeLine = new int[]{x, top + (lines.size() - 1) * lineH, Math.round(w * p.scale), lineH};
+    }
+
+    /** Clicking Category (left: next, right: back) or Display Mode on the tracker over a menu. */
+    private static boolean trackerClick(double mx, double my, int button) {
+        Config c = config();
+        if (c == null) return false;
+        if (inside(categoryLine, mx, my)) {
+            List<String> list = new ArrayList<>(categories(session() ? sessionCounts : counts).keySet());
+            int i = Math.max(0, list.indexOf(category));
+            category = list.get(Math.floorMod(i + (button == 1 ? -1 : 1), list.size()));
+            return true;
+        }
+        if (inside(modeLine, mx, my)) {
+            c.trackerDisplay = session() ? TrackerDisplay.TOTAL : TrackerDisplay.SESSION;
+            Sky2MConfig.saveCurrent(Sky2MConfig.current());
+            return true;
+        }
+        return false;
+    }
+
+    private static boolean inside(int[] r, double mx, double my) {
+        return r != null && mx >= r[0] && mx < r[0] + r[2] && my >= r[1] && my < r[1] + r[3];
     }
 
     private static Path file() {
@@ -604,6 +706,22 @@ public final class FishingMore {
         return (seconds / 3600) + "h " + ((seconds % 3600) / 60) + "m";
     }
 
+    /** SkyHanni's tracker display modes. */
+    public enum TrackerDisplay {
+        TOTAL("Total"), SESSION("This Session");
+
+        private final String label;
+
+        TrackerDisplay(String label) {
+            this.label = label;
+        }
+
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
+
     public static final class Config {
         @Expose
         @ConfigOption(name = "Totem of Corruption Overlay", desc = "HUD with the time left and owner of the Totem of Corruption near you (SkyHanni). Move it in /s2 gui.")
@@ -643,7 +761,7 @@ public final class FishingMore {
         @Expose
         @ConfigOption(name = "Sea Creature Tracker", desc = "HUD counting the sea creatures you catch, per type, with how many per hour (SkyHanni). Shown while you fish. Reset with /s2fishingreset. Needs Sea Creature Chat in SkyBlock settings.")
         @ConfigEditorBoolean
-        public boolean seaCreatureTracker = false;
+        public boolean seaCreatureTracker = true;
 
         @Expose
         @ConfigOption(name = "Tracker: Count Double Hook", desc = "Count a double hook catch as two sea creatures.")
@@ -656,9 +774,9 @@ public final class FishingMore {
         public boolean trackerPercentage = true;
 
         @Expose
-        @ConfigOption(name = "Tracker: Per Hour", desc = "Show sea creatures per hour in the tracker (breaks longer than 5 minutes do not count).")
-        @ConfigEditorBoolean
-        public boolean trackerPerHour = true;
+        @ConfigOption(name = "Tracker: Display Mode", desc = "Total: every sea creature since the last reset. This Session: only since you started the game. Also switched by clicking \"Display Mode\" on the tracker while your inventory or a menu is open, like SkyHanni.")
+        @io.github.notenoughupdates.moulconfig.annotations.ConfigEditorDropdown
+        public TrackerDisplay trackerDisplay = TrackerDisplay.TOTAL;
 
         @Expose
         @ConfigOption(name = "Golden Fish Timer", desc = "Crimson Isle: when the Golden Fish can spawn after you cast into lava, its interactions and despawn timer (SkyHanni). Move it in /s2 gui.")

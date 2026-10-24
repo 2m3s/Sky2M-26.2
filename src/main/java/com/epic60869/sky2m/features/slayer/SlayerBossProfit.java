@@ -410,6 +410,12 @@ public final class SlayerBossProfit {
         }
     }
 
+    /** The last boss's {drops value, quest cost (-1 if unknown), profit}, or null before any boss. */
+    public static double[] lastKill() {
+        Result r = last;
+        return r == null ? null : new double[]{r.drops(), r.cost(), r.total()};
+    }
+
     /** Stops counting drops for the kill; its last result stays on the HUD. */
     private static void close() {
         refresh();

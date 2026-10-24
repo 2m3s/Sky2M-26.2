@@ -311,7 +311,7 @@ public final class DianaRareMobs {
 
     private static FeatureConfigs.Diana config() {
         Sky2MConfig c = Sky2MConfig.current();
-        return c == null ? null : c.mayors.diana;
+        return c == null ? null : c.events.diana;
     }
 
     private static boolean onHub() {

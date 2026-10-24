@@ -55,7 +55,7 @@ public final class RareSc {
     private static final Pattern NAMETAG = Pattern.compile("^(?:﴾ )?\\[Lv\\d+] \\S+ (.+) ([\\d.,]+[kKmMbB]?)/([\\d.,]+[kKmMbB]?)❤(?: ﴿)?( ✯)?.*$");
 
     public enum PartyStyle {
-        CLASSIC("Sky2M Classic"), RFU("Riccio Fishing Utils"), CUSTOM("Custom Template");
+        CLASSIC("Sky2M Classic"), RFU("Riccio (RFU)"), CUSTOM("Custom");
 
         private final String displayName;
 

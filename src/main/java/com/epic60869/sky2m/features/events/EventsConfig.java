@@ -8,29 +8,37 @@ import io.github.notenoughupdates.moulconfig.annotations.ConfigEditorSlider;
 import io.github.notenoughupdates.moulconfig.annotations.ConfigOption;
 
 /**
- * The Events category: Hoppity's Hunt, the Chocolate Factory, the Carnival, the Great Spook and the winter events.
+ * The Events category: Diana and the mayor (see FeatureConfigs), Hoppity's Hunt, the Chocolate Factory, the Carnival, the Great Spook and the winter events.
  * Ported from SkyHanni's event features (https://github.com/hannibal002/SkyHanni, features/event/ and
  * features/inventory/chocolatefactory/, LGPL-2.1). HUD positions and scales are set in /s2 gui.
  */
 public final class EventsConfig {
     @Expose
-    @Category(name = "Hoppity's Hunt", desc = "Egg waypoints and the unclaimed eggs display.")
+    @Category(name = "Diana", desc = "Rare Diana mobs and lootshare.")
+    public com.epic60869.sky2m.features.FeatureConfigs.Diana diana = new com.epic60869.sky2m.features.FeatureConfigs.Diana();
+
+    @Expose
+    @Category(name = "Mayor & Election", desc = "The mayor, minister and election.")
+    public com.epic60869.sky2m.features.FeatureConfigs.MayorDisplay mayor = new com.epic60869.sky2m.features.FeatureConfigs.MayorDisplay();
+
+    @Expose
+    @Category(name = "Hoppity's Hunt", desc = "Egg waypoints and unclaimed eggs.")
     public Hoppity hoppity = new Hoppity();
 
     @Expose
-    @Category(name = "Chocolate Factory", desc = "Upgrade advice, the Time Tower and the Stray Rabbit timer.")
+    @Category(name = "Chocolate Factory", desc = "Upgrades, Time Tower and Stray Rabbits.")
     public ChocolateFactory chocolateFactory = new ChocolateFactory();
 
     @Expose
-    @Category(name = "Carnival", desc = "Daily ticket reminder, goals display and the Zombie Shootout helpers.")
+    @Category(name = "Carnival", desc = "Tickets, goals and Zombie Shootout.")
     public Carnival carnival = new Carnival();
 
     @Expose
-    @Category(name = "The Great Spook", desc = "Primal Fear timer and math answers, Trick or Treat and Party Chest alerts.")
+    @Category(name = "The Great Spook", desc = "Primal Fear, Trick or Treat, chests.")
     public Spook spook = new Spook();
 
     @Expose
-    @Category(name = "Winter", desc = "Refined Jyrre timer, Frozen Treasure tracker and the Reindrake warp.")
+    @Category(name = "Winter", desc = "Jyrre, Frozen Treasure and Reindrake.")
     public Winter winter = new Winter();
 
     public static final class Hoppity {

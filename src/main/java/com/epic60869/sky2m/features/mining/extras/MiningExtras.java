@@ -8,6 +8,7 @@ public final class MiningExtras {
 
     public static void init(Path configDir) {
         GlaciteMineshaft.init();
+        MineshaftStats.init();
         PowderTrackerHud.init();
         FossilSolver.init();
         ExcavatorProfit.init(configDir);

@@ -17,6 +17,12 @@ public final class Sky2MMod implements ClientModInitializer {
 
     private static long startupT0;
     private static long lapT;
+    private static volatile long startupMs = -1;
+
+    /** How long startup took in ms, or -1 before it finished. */
+    public static long startupMillis() {
+        return startupMs;
+    }
 
     /** Logs how long the init since the previous lap took, when it was 25ms or more. */
     private static void lap(String name) {
@@ -158,6 +164,7 @@ public final class Sky2MMod implements ClientModInitializer {
         com.epic60869.sky2m.features.misc.JoinCommands.init(); lap("JoinCommands.init");
         com.epic60869.sky2m.features.misc.InventoryButtons.init(); lap("InventoryButtons.init");
         com.epic60869.sky2m.features.misc.SpeedDisplay.init(); lap("SpeedDisplay.init");
+        com.epic60869.sky2m.features.economy.CoinsChart.init(); lap("CoinsChart.init");
         com.epic60869.sky2m.features.qol.StatusBars.init(); lap("StatusBars.init");
         com.epic60869.sky2m.features.qol.TabListExtras.init(); lap("TabListExtras.init");
         com.epic60869.sky2m.features.qol.RadialMenu.init(); lap("RadialMenu.init");
@@ -179,6 +186,9 @@ public final class Sky2MMod implements ClientModInitializer {
         com.epic60869.sky2m.features.core.Sky2MErrors.register(); lap("Sky2MErrors.register");
         com.epic60869.sky2m.features.core.Sky2MHudOverviewScreen.register(); lap("Sky2MHudOverviewScreen.register");
         Sky2MConfigCode.init(); lap("Sky2MConfigCode.init");
+        Sky2MProfiles.init(); lap("Sky2MProfiles.init");
+        Sky2MModOverlap.init(); lap("Sky2MModOverlap.init");
+        Sky2MHealth.init(); lap("Sky2MHealth.init");
         Sky2MSelfTest.init(); lap("Sky2MSelfTest.init");
         Sky2MNopoFeatures.init(configDir); lap("Sky2MNopoFeatures.init");
         Sky2MNick.init(config); lap("Sky2MNick.init");
@@ -233,6 +243,7 @@ public final class Sky2MMod implements ClientModInitializer {
         com.epic60869.sky2m.features.combat.DamageNumbers.init(); lap("DamageNumbers.init");
         com.epic60869.sky2m.features.combat.extra.CombatExtras.init(configDir); lap("CombatExtras.init");
         com.epic60869.sky2m.features.combat.LowStats.init(); lap("LowStats.init");
+        com.epic60869.sky2m.features.combat.ArmorStacks.init(); lap("ArmorStacks.init");
         com.epic60869.sky2m.features.misc.CustomSounds.init(); lap("CustomSounds.init");
         com.epic60869.sky2m.features.misc.CarryTracker.init(configDir); lap("CarryTracker.init");
         com.epic60869.sky2m.features.misc.MayorDisplay.init(); lap("MayorDisplay.init");
@@ -243,6 +254,9 @@ public final class Sky2MMod implements ClientModInitializer {
         com.epic60869.sky2m.features.misc.SpamFilters.init(); lap("SpamFilters.init");
         com.epic60869.sky2m.features.misc.SideChat.init(); lap("SideChat.init");
         com.epic60869.sky2m.features.qol.ChatRules.init(); lap("ChatRules.init");
+        com.epic60869.sky2m.features.qol.MentionAlerts.init(); lap("MentionAlerts.init");
+        com.epic60869.sky2m.features.slayer.SlayerRngAdvisor.init(); lap("SlayerRngAdvisor.init");
+        com.epic60869.sky2m.features.fishing.TrophyFishTracker.init(configDir); lap("TrophyFishTracker.init");
         com.epic60869.sky2m.features.misc.LoadoutHighlight.init(); lap("LoadoutHighlight.init");
         com.epic60869.sky2m.features.misc.ChatNameLinks.init(); lap("ChatNameLinks.init");
         com.epic60869.sky2m.features.social.PartyTools.init(); lap("PartyTools.init");
@@ -256,7 +270,8 @@ public final class Sky2MMod implements ClientModInitializer {
         registerCommands();
         lap("registerCommands");
 
-        System.out.println("[Sky2M] startup: total init took " + (System.nanoTime() - startupT0) / 1_000_000L + "ms");
+        startupMs = (System.nanoTime() - startupT0) / 1_000_000L;
+        System.out.println("[Sky2M] startup: total init took " + startupMs + "ms");
         System.out.println("[Sky2M] Core mod loaded.");
     }
 
@@ -290,6 +305,25 @@ public final class Sky2MMod implements ClientModInitializer {
                 .then(ClientCommands.argument("player", StringArgumentType.word())
                     .executes(context -> partyTransfer(StringArgumentType.getString(context, "player")))));
         });
+        // After every /s2c subcommand is registered (some come from other classes): a message that starts with a
+        // subcommand word ("/s2c block hi nix") matched that subcommand, didn't fit its arguments and wasn't sent.
+        // Each subcommand also takes the rest of the line as a message; its own arguments are tried first, so
+        // "/s2c block nix" still blocks nix.
+        net.minecraft.resources.Identifier s2cFallback = net.minecraft.resources.Identifier.fromNamespaceAndPath("sky2m", "s2c_message_fallback");
+        ClientCommandRegistrationCallback.EVENT.addPhaseOrdering(net.fabricmc.fabric.api.event.Event.DEFAULT_PHASE, s2cFallback);
+        ClientCommandRegistrationCallback.EVENT.register(s2cFallback, (dispatcher, registryAccess) -> {
+            var s2c = dispatcher.getRoot().getChild("s2c");
+            if (s2c == null) return;
+            for (var sub : new java.util.ArrayList<>(s2c.getChildren())) {
+                if (!(sub instanceof com.mojang.brigadier.tree.LiteralCommandNode<?>)) continue;
+                String word = sub.getName();
+                @SuppressWarnings("unchecked")
+                var node = (com.mojang.brigadier.tree.CommandNode<net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource>) sub;
+                node.addChild(ClientCommands.argument("s2c_message", StringArgumentType.greedyString())
+                    .executes(context -> sendGlobalChat(word + " " + StringArgumentType.getString(context, "s2c_message")))
+                    .build());
+            }
+        });
     }
 
     private int partyTransfer(String player) {
@@ -305,9 +339,10 @@ public final class Sky2MMod implements ClientModInitializer {
                 .executes(context -> openMenu())
                 .then(ClientCommands.argument("filter", StringArgumentType.greedyString())
                     .suggests((context, builder) -> net.minecraft.commands.SharedSuggestionProvider.suggest(
-                        java.util.List.of("general", "chat", "combat", "diana", "mayors", "dungeons", "farming",
-                            "fishing", "mining", "foraging", "slayer", "profit trackers", "hunting", "safari",
-                            "skills", "pets", "misc", "storage", "waypoints", "hud", "alerts", "tracker", "enabled"),
+                        java.util.List.of("about", "gui", "garden", "crimson isle", "kuudra", "fishing", "mining", "foraging",
+                            "hunting", "safari", "combat", "slayer", "dungeon", "inventory", "events", "diana", "mayor",
+                            "skills", "chat", "misc", "profit trackers", "pets", "storage", "waypoints", "hud", "alerts",
+                            "tracker", "enabled"),
                         builder))
                     .executes(context -> openFilteredGui(StringArgumentType.getString(context, "filter"))))
                 )
@@ -328,9 +363,10 @@ public final class Sky2MMod implements ClientModInitializer {
                 .executes(context -> openHudEditor())
                 .then(ClientCommands.argument("filter", StringArgumentType.greedyString())
                     .suggests((context, builder) -> net.minecraft.commands.SharedSuggestionProvider.suggest(
-                        java.util.List.of("general", "chat", "combat", "diana", "mayors", "dungeons", "farming",
-                            "fishing", "mining", "foraging", "slayer", "profit trackers", "hunting", "safari",
-                            "skills", "pets", "misc", "storage", "waypoints", "hud", "alerts", "tracker", "enabled"),
+                        java.util.List.of("about", "gui", "garden", "crimson isle", "kuudra", "fishing", "mining", "foraging",
+                            "hunting", "safari", "combat", "slayer", "dungeon", "inventory", "events", "diana", "mayor",
+                            "skills", "chat", "misc", "profit trackers", "pets", "storage", "waypoints", "hud", "alerts",
+                            "tracker", "enabled"),
                         builder))
                     .executes(context -> openFilteredGui(StringArgumentType.getString(context, "filter")))))
             .then(ClientCommands.literal("debug").executes(context -> Sky2MDebug.run())
@@ -444,6 +480,7 @@ public final class Sky2MMod implements ClientModInitializer {
             com.epic60869.sky2m.features.slayer.SlayerFeatures.selectNextBossOwner();
         }
         Sky2MStorageSearch.tick(minecraft);
+        Sky2MDyeSync.tick(minecraft);
         Sky2MNopoFeatures.tick(minecraft);
         Sky2MTabWidgetManager.tick(minecraft);
         Sky2MMouseLock.tick(minecraft);

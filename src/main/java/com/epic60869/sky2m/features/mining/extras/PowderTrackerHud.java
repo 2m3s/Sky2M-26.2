@@ -129,6 +129,18 @@ public final class PowderTrackerHud {
         return out;
     }
 
+    /** The powder (0 Mithril, 1 Gemstone, 2 Glacite) last read from the sidebar, or -1. */
+    public static long current(int type) {
+        return type < 0 || type > 2 ? -1 : last[type];
+    }
+
+    /** Powder per hour gained this session of a type (0 Mithril, 1 Gemstone, 2 Glacite), or 0 until there is enough data. */
+    public static double perHour(int type) {
+        if (type < 0 || type > 2) return 0;
+        double hours = activeMs / 3_600_000.0;
+        return hours < 1.0 / 60 ? 0 : gained[type] / hours;
+    }
+
     /** The Reset button. */
     public static void reset() {
         java.util.Arrays.fill(gained, 0);

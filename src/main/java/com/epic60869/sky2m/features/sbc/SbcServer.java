@@ -100,7 +100,7 @@ public final class SbcServer {
         boolean seen = update != null && update.version().equals(version);
         update = u;
         Sky2MConfig c = Sky2MConfig.current();
-        boolean wanted = c == null || c.misc.updateNotifications;
+        boolean wanted = c == null || c.general.updateNotifications;
         // The GitHub checker must not say the same thing again.
         Sky2MUpdateChecker.markAnnounced(version);
         if (required) {

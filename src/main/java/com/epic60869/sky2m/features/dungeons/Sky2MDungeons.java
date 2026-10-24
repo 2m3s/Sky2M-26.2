@@ -132,10 +132,10 @@ public final class Sky2MDungeons {
         sb.dungeons.devices.solveArrowAlign = d.f7.terminals.arrowAlign && !odinDevices;
         sb.dungeons.devices.solveTargetPractice = d.f7.terminals.targetPractice && !odinDevices;
 
-        sb.helpers.experiments.enableChronomatronSolver = sky2m.misc.experimentalTable.chronomatron;
-        sb.helpers.experiments.enableSuperpairsSolver = sky2m.misc.experimentalTable.superpairs;
-        sb.helpers.experiments.enableUltrasequencerSolver = sky2m.misc.experimentalTable.ultrasequencer;
-        sb.helpers.experiments.blockIncorrectClicks = sky2m.misc.experimentalTable.preventMisclicks;
+        sb.helpers.experiments.enableChronomatronSolver = sky2m.inventory.experimentalTable.chronomatron;
+        sb.helpers.experiments.enableSuperpairsSolver = sky2m.inventory.experimentalTable.superpairs;
+        sb.helpers.experiments.enableUltrasequencerSolver = sky2m.inventory.experimentalTable.ultrasequencer;
+        sb.helpers.experiments.blockIncorrectClicks = sky2m.inventory.experimentalTable.preventMisclicks;
 
         // Dungeon terminals remain display-only; experiment misclick blocking is user-configurable above.
         sb.dungeons.terminals.blockIncorrectClicks = false;

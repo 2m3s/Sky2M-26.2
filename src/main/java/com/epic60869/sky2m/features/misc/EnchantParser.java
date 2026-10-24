@@ -51,7 +51,7 @@ public final class EnchantParser {
 
     private static EnchantParsingConfig config() {
         Sky2MConfig c = Sky2MConfig.current();
-        return c == null ? null : c.misc.enchantParsing;
+        return c == null ? null : c.inventory.enchantParsing;
     }
 
     public static void init() {

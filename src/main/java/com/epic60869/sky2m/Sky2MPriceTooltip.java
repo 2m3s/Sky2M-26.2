@@ -67,11 +67,11 @@ public final class Sky2MPriceTooltip {
     public static void init() {
         ItemTooltipCallback.EVENT.register((stack, context, flag, lines) -> {
             Sky2MConfig config = Sky2MConfig.current();
-            if (config == null || !config.misc.priceTooltip.enabled) return;
+            if (config == null || !config.inventory.priceTooltip.enabled) return;
             // The Item List works anywhere: it isn't a Hypixel inventory.
             if (!forceShow && !Compat.isOnSkyblock()) return;
-            if (forceShow && !config.misc.priceTooltip.itemList) return;
-            addPrices(config.misc.priceTooltip, stack, lines);
+            if (forceShow && !config.inventory.priceTooltip.itemList) return;
+            addPrices(config.inventory.priceTooltip, stack, lines);
         });
     }
 

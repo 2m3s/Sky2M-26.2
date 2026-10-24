@@ -52,7 +52,7 @@ public final class AshfangHelper {
 
     private static CombatExtraConfig.Ashfang config() {
         Sky2MConfig c = Sky2MConfig.current();
-        return c == null ? null : c.combat.ashfang;
+        return c == null ? null : c.crimsonIsle.ashfang;
     }
 
     private static boolean inCrimson() {

@@ -90,8 +90,8 @@ public final class Clips {
 
     public enum Sound {
         GAME("Game only", "game"),
-        GAME_DISCORD("Game + Discord", "game_discord"),
-        DESKTOP("Everything you hear", "desktop"),
+        GAME_DISCORD("Game+Discord", "game_discord"),
+        DESKTOP("Everything", "desktop"),
         NONE("No sound", "none");
         private final String label;
         final String wire;
@@ -116,7 +116,7 @@ public final class Clips {
 
     private static Sky2MConfig.Clips config() {
         Sky2MConfig c = Sky2MConfig.current();
-        return c == null ? null : c.clips;
+        return c == null ? null : c.misc.clips;
     }
 
     private static boolean windows() {

@@ -39,7 +39,7 @@ public final class RadialMenu {
 
     private static QolConfigs.RadialMenu config() {
         Sky2MConfig c = Sky2MConfig.current();
-        return c == null ? null : c.misc.radialMenu;
+        return c == null ? null : c.gui.radialMenu;
     }
 
     private static void tick(Minecraft mc) {

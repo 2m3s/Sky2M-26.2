@@ -36,6 +36,8 @@ public final class Sky2MUpdateChecker {
     private static volatile String etag;
 
     private static long lastCheck;
+    /** While rate limited, no check before this time (GitHub's reset time, or 15 minutes without one). */
+    private static volatile long retryAt;
     private static volatile boolean checking;
     private static String announced = "";
 
@@ -56,7 +58,7 @@ public final class Sky2MUpdateChecker {
 
     private static boolean enabled() {
         Sky2MConfig c = Sky2MConfig.current();
-        return c == null || c.misc.updateNotifications;
+        return c == null || c.general.updateNotifications;
     }
 
     private static String installed() {
@@ -66,7 +68,7 @@ public final class Sky2MUpdateChecker {
 
     private static void check() {
         long now = System.currentTimeMillis();
-        if (!enabled() || checking || now - lastCheck < CHECK_EVERY_MS) return;
+        if (!enabled() || checking || now - lastCheck < CHECK_EVERY_MS || now < retryAt) return;
         lastCheck = now;
         checking = true;
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(LATEST_URL))
@@ -77,6 +79,13 @@ public final class Sky2MUpdateChecker {
         HttpRequest request = builder.GET().build();
         HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build().sendAsync(request, HttpResponse.BodyHandlers.ofString()).thenAccept(response -> {
             if (response.statusCode() == 304) return; // no new release since the last check
+            if (response.statusCode() == 403 || response.statusCode() == 429) {
+                // Rate limited (60 an hour per IP without a token, shared with anything else on this network).
+                retryAt = rateLimitReset(response);
+                LOGGER.info("[Sky2M] Update check: GitHub rate limit reached, next check in {} min",
+                    Math.max(1, (retryAt - System.currentTimeMillis()) / 60_000L));
+                return;
+            }
             if (response.statusCode() != 200) {
                 LOGGER.info("[Sky2M] Update check: GitHub answered HTTP {}", response.statusCode());
                 return;
@@ -95,6 +104,19 @@ public final class Sky2MUpdateChecker {
             LOGGER.info("[Sky2M] Update check failed: {}", e.getMessage());
             return null;
         }).whenComplete((v, e) -> checking = false);
+    }
+
+    /** When GitHub says the limit resets: Retry-After (seconds) or X-RateLimit-Reset (epoch seconds), else 15 minutes. */
+    private static long rateLimitReset(HttpResponse<?> response) {
+        long now = System.currentTimeMillis();
+        try {
+            var retryAfter = response.headers().firstValue("Retry-After");
+            if (retryAfter.isPresent()) return now + Long.parseLong(retryAfter.get().trim()) * 1000L;
+            var reset = response.headers().firstValue("X-RateLimit-Reset");
+            if (reset.isPresent()) return Math.max(now + CHECK_EVERY_MS, Long.parseLong(reset.get().trim()) * 1000L);
+        } catch (NumberFormatException ignored) {
+        }
+        return now + 15 * 60_000L;
     }
 
     private static void announce(String current, String latest, String url) {

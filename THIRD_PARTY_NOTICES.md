@@ -90,6 +90,16 @@ Sky2M's implementation is rewritten in Java for Sky2M's own profit tracker and d
 
 Sky2M's current chat display (`Sky2MCurrentChat.java`) follows SkyHanni's CurrentChatDisplay (src/main/java/at/hannibal2/skyhanni/features/chat/CurrentChatDisplay.kt): the channel-change message patterns and the channel names and colours. SkyHanni is licensed under the GNU Lesser General Public License v2.1 (LGPL-2.1).
 
+## SkyHanni Compact Tab List
+
+Sky2M's Compact Tab List (`features/qol/CompactTabList.java` and the Sky2MCompactTabMixin mixin) is ported from SkyHanni's compact tab list:
+
+- https://github.com/hannibal002/SkyHanni (branch beta)
+- Relevant source: src/main/java/at/hannibal2/skyhanni/features/misc/compacttablist/ (TabListReader, TabListRenderer, TabColumn, TabSection, RenderColumn, TabLine, TabStringType), the tab list reading in utils/TabListData.kt and the options in config/features/misc/compacttablist/CompactTabListConfig.kt
+- License: GNU Lesser General Public License v2.1 (LGPL-2.1)
+
+The Kotlin code was rewritten in Java on Sky2M's config. SkyHanni's Advanced Player List (player sorting and custom player names) is not included.
+
 ## SkyHanni Enderman and Blaze slayer features
 
 Sky2M's Enderman Slayer and Blaze Slayer features (`features/slayer/EndermanSlayer.java`, `features/slayer/BlazeSlayer.java`, the phase numbers in `features/slayer/SlayerFeatures.java`, and the Sky2MSlayerPacketsMixin and Sky2MHideFireballsMixin mixins) are ported from SkyHanni:

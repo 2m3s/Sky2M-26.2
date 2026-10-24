@@ -180,6 +180,17 @@ public final class OdinTerminals {
         handler.resolve(menu.slots, slot);
     }
 
+    /**
+     * The whole menu arrived at once (the opening contents, or a resync after a rejected click): the server's state
+     * replaces any clicks still waiting for an answer, and the terminal is solved again from every slot.
+     */
+    public static void onContents(AbstractContainerMenu menu) {
+        Handler handler = current;
+        if (handler == null || menu != handler.menu) return;
+        handler.clicked.clear();
+        handler.resolve(menu.slots, -1);
+    }
+
     /** @return true to cancel the vanilla click. */
     public static boolean onSlotClicked(int slot, int button) {
         Handler handler = current;

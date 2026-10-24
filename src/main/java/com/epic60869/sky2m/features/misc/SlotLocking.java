@@ -35,7 +35,7 @@ public final class SlotLocking {
 
     private static Sky2MConfig.SlotLocking config() {
         Sky2MConfig c = Sky2MConfig.current();
-        return c == null ? null : c.misc.slotLocking;
+        return c == null ? null : c.inventory.slotLocking;
     }
 
     public static void init() {
@@ -157,12 +157,19 @@ public final class SlotLocking {
         return false;
     }
 
-    /** True if any item in the player's own inventory (including the offhand) is protected. */
-    private static boolean anyProtectedInInventory() {
+    /**
+     * True if any item in the player's own inventory (including the offhand) is protected. With bazaarOnly, items with
+     * a UUID are ignored: the Bazaar's "Sell Inventory Now" only sells stackable commodities, never unique gear.
+     */
+    private static boolean anyProtectedInInventory(boolean bazaarOnly) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return false;
         var inv = mc.player.getInventory();
-        for (int i = 0; i < inv.getContainerSize(); i++) if (isProtected(inv.getItem(i))) return true;
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            ItemStack stack = inv.getItem(i);
+            if (bazaarOnly && !Compat.uuid(stack).isBlank()) continue;
+            if (isProtected(stack)) return true;
+        }
         return false;
     }
 
@@ -194,12 +201,15 @@ public final class SlotLocking {
                     blocked = isProtected(mc.player.getInventory().getItem(button));
                 }
             }
-            // Bulk-sell buttons ("Sell Inventory Now", "Sell Sacks Now") sell everything, protected items included.
+            // Bulk-sell buttons ("Sell Inventory Now") sell everything they accept, protected items included. In the
+            // Bazaar that is only commodities, so protected gear doesn't stop the button.
             if (!blocked && !clicked.isEmpty() && screen.getMenu().slots.contains(slot)) {
                 String name = ChatFormatting.stripFormatting(clicked.getHoverName().getString());
                 if (name != null) {
                     name = name.toLowerCase(java.util.Locale.ROOT);
-                    if ((name.contains("sell inventory") || name.contains("sell all")) && anyProtectedInInventory()) blocked = true;
+                    String title = ChatFormatting.stripFormatting(screen.getTitle().getString());
+                    boolean bazaar = title != null && title.toLowerCase(java.util.Locale.ROOT).contains("bazaar");
+                    if ((name.contains("sell inventory") || name.contains("sell all")) && anyProtectedInInventory(bazaar)) blocked = true;
                 }
             }
             if (blocked) {

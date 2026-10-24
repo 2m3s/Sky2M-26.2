@@ -22,7 +22,7 @@ public final class ItemQuality {
 
     private static FeatureConfigs.ItemQuality config() {
         Sky2MConfig c = Sky2MConfig.current();
-        return c == null ? null : c.misc.itemQuality;
+        return c == null ? null : c.inventory.itemQuality;
     }
 
     public static void init() {

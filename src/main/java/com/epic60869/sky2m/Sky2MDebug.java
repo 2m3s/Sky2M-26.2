@@ -44,8 +44,8 @@ public final class Sky2MDebug {
         }
         line("Sidebar location line", catacombs);
         if (config != null) {
-            line("Item rarity enabled", String.valueOf(config.misc.itemRarity.enabled));
-            line("Calendar enabled", String.valueOf(config.misc.calendarTimeToRealTime));
+            line("Item rarity enabled", String.valueOf(config.inventory.itemRarity.enabled));
+            line("Calendar enabled", String.valueOf(config.inventory.calendarTimeToRealTime));
         }
 
         ItemStack held = mc.player.getMainHandItem();

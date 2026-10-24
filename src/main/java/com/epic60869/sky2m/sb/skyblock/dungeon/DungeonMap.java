@@ -161,7 +161,14 @@ public class DungeonMap {
 		return hovered;
 	}
 
+	/** When each decoration's error was last logged: it is hit every frame while the tab list's party is missing. */
+	private static final Map<String, Long> lastPlayerErrorLog = new java.util.HashMap<>();
+
 	private static void dungeonPlayerError(String decorationId, String reason, int i, DungeonPlayerManager.DungeonPlayer[] dungeonPlayers, Map<String, MapDecoration> mapDecorations) {
+		// Sky2M: at most once every 30 seconds per decoration and reason; per frame it wrote thousands of lines a minute.
+		long now = System.currentTimeMillis();
+		Long last = lastPlayerErrorLog.put(decorationId + "|" + reason, now);
+		if (last != null && now - last < 30_000L) return;
 		LOGGER.error("[Skyblocker Dungeon Map] Dungeon player for map decoration '{}' {}. Player list index (zero-indexed): {}. Player list: {}. Map decorations: {}", decorationId, reason, i, Arrays.toString(dungeonPlayers), mapDecorations);
 	}
 

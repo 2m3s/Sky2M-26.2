@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
@@ -71,7 +72,8 @@ public final class Sky2MHuds {
         // New players start from Sky2M's default HUD layout; an existing file is never replaced.
         com.epic60869.sky2m.Sky2MConfig.copyBundledDefault(file, "sky2m-huds.json");
         load();
-        HudElementRegistry.addLast(ID, (graphics, delta) -> renderAll(graphics));
+        // Drawn before the tab list, so holding Tab shows the list over the HUDs (like every Sky2M HUD layer).
+        HudElementRegistry.attachElementBefore(VanillaHudElements.PLAYER_LIST, ID, (graphics, delta) -> renderAll(graphics));
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(mc -> clientTicks++);
     }
 
@@ -394,12 +396,14 @@ public final class Sky2MHuds {
         var font = Minecraft.getInstance().font;
         int w = textWidth(lines);
         int h = lines.size() * LINE_HEIGHT + PADDING * 2 - 2;
+        // HUD theme (colour-blind palettes, high contrast); the same lines when the theme is Default.
+        List<Component> themed = Sky2MTheme.lines(lines);
         graphics.pose().pushMatrix();
         graphics.pose().translate((float) x, (float) y);
         graphics.pose().scale(scale, scale);
-        if (background) graphics.fill(0, 0, w + PADDING * 2, h, 0x80000000);
-        for (int i = 0; i < lines.size(); i++) {
-            graphics.text(font, lines.get(i), PADDING, PADDING + i * LINE_HEIGHT, 0xFFFFFFFF, true);
+        if (background) graphics.fill(0, 0, w + PADDING * 2, h, Sky2MTheme.background(0x80000000));
+        for (int i = 0; i < themed.size(); i++) {
+            graphics.text(font, themed.get(i), PADDING, PADDING + i * LINE_HEIGHT, Sky2MTheme.argb(0xFFFFFFFF), true);
         }
         graphics.pose().popMatrix();
     }

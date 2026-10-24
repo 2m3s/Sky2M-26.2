@@ -87,7 +87,7 @@ public final class RunHistoryScreen extends Screen {
         int y = top + 24;
         if (runs.isEmpty()) {
             boolean on = RunHistory.config() != null && RunHistory.config().enabled;
-            g.centeredText(font, on ? "No runs saved yet. Finish a dungeon run!" : "Turn on Run History (Dungeons > Timers and Alerts) to save your runs.",
+            g.centeredText(font, on ? "No runs saved yet. Finish a dungeon run!" : "Turn on Run History (Dungeon > Timers and Alerts) to save your runs.",
                 width / 2, y + 30, TEXT);
             return;
         }
