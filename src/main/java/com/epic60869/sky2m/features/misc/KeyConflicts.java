@@ -7,6 +7,7 @@ import com.epic60869.sky2m.commandkeys.config.Keybind;
 import com.epic60869.sky2m.commandkeys.config.Macro;
 import com.epic60869.sky2m.commandkeys.mixin.accessor.KeyMappingAccessor;
 import com.epic60869.sky2m.custom.util.Compat;
+import com.epic60869.sky2m.features.core.BindKeys;
 import com.epic60869.sky2m.features.core.Sky2MAlerts;
 import com.mojang.blaze3d.platform.InputConstants;
 import io.github.notenoughupdates.moulconfig.annotations.Category;
@@ -302,11 +303,12 @@ public final class KeyConflicts {
         }
     }
 
-    /** A MoulConfig keybind value as a key, or null when unset. Mouse buttons are stored as -100 + button. */
+    /** A MoulConfig keybind value as a key, or null when unset (see BindKeys.mouseButton for mouse buttons). */
     private static InputConstants.Key configKey(int bind) {
         if (bind == GLFW.GLFW_KEY_UNKNOWN || bind == 0) return null;
-        if (bind >= -100 && bind <= -100 + GLFW.GLFW_MOUSE_BUTTON_LAST) return InputConstants.Type.MOUSE.getOrCreate(bind + 100);
-        if (bind < 0) return null;
+        int button = BindKeys.mouseButton(bind);
+        if (button >= 0) return InputConstants.Type.MOUSE.getOrCreate(button);
+        if (bind < GLFW.GLFW_KEY_SPACE) return null;
         return InputConstants.Type.KEYSYM.getOrCreate(bind);
     }
 

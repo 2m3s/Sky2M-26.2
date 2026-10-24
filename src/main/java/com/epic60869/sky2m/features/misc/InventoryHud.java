@@ -27,7 +27,7 @@ public final class InventoryHud {
 
     private static FeatureConfigs.InventoryHud config() {
         Sky2MConfig config = Sky2MConfig.current();
-        return config == null ? null : config.misc.inventoryHud;
+        return config == null ? null : config.gui.inventoryHud;
     }
 
     public static void init() {

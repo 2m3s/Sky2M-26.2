@@ -88,7 +88,8 @@ public final class ShardTrackerDisplay {
     }
 
     private static String keyName(int key) {
-        if (key <= -100 + 8 && key >= -100) return "Mouse " + (key + 101);
+        int button = com.epic60869.sky2m.features.core.BindKeys.mouseButton(key);
+        if (button >= 0) return "Mouse " + (button + 1);
         return com.mojang.blaze3d.platform.InputConstants.Type.KEYSYM.getOrCreate(key).getDisplayName().getString();
     }
 
