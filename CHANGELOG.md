@@ -80,6 +80,7 @@ All notable changes to Sky2M are listed here, newest first.
 - The M7 dragon spawn timer can now be moved and resized in /s2 gui.
 
 ### Fixed
+- Fix the black and pink missing textures on the Assert/Send/Hold buttons in the command keybinds screen.
 - Fix the currently equipped loadout highlight in the Loadouts menu: Hypixel now shows "Left-click to equip!" on the equipped loadout too, so it is found from the last "You equipped X!" message, or else by matching its armor to what you are wearing. Opening a loadout menu also writes what the highlight saw to the game log.
 - Fix the Experimentation Table solvers (Chronomatron, Ultrasequencer, Superpairs) and their misclick prevention not working: they could be saved as off, so they are switched back on once, and the table titles are matched ignoring case and colour codes. The solvers only start in the actual game menu (for example "Ultrasequencer (Metaphysical)"), so with misclick prevention on you can still click the level buttons such as Metaphysical Experiment.
 - Fix protected items being sellable to NPC shops through number-key swaps, the Bazaar, Buy Back and auction-creation menus, or "Sell Inventory" and "Sell All" buttons, and in any menu that is not a known storage, equipment or crafting menu (NPC shops such as the Weaponsmith have many different titles).
