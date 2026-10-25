@@ -2,6 +2,11 @@
 
 All notable changes to Sky2M are listed here, newest first.
 
+## 1.0.4
+
+### Changed
+- GitHub releases and their download are named "Sky2M Mod" instead of "SkyBalls Mod".
+
 ## 1.0.3
 
 ### Added
