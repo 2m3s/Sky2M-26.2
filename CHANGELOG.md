@@ -30,6 +30,7 @@ All notable changes to Sky2M are listed here, newest first.
 - Remove the Big Drop Animation (the rainbow item name for drops worth over 5M) and its "is worth X coins!" chat line.
 
 ### Fixed
+- Armor Stack Display names Aurora's Ѫ stacks "Arcane Energy" and Fervor's ҉ stacks "Fervor" (they were swapped, and Aurora's was called "Arcane Vision").
 - Slayer profit always takes the quest's cost out, as the wiki's price for the slayer and tier (100k for a T5 Tarantula, whatever discount you got; Riftstalker costs motes, so 0), instead of "unknown" or a misread purse change.
 - Cocoon Label counts down to the hatch from the first cocoon (about 6.5s until one has been timed), and says "Hatching..." if it runs over.
 - The boss HUD finds your slayer boss again after it hatches from a cocoon (its "Spawned by" tag stays with the cocoon).
