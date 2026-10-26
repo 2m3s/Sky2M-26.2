@@ -41,6 +41,7 @@ All notable changes to Sky2M are listed here, newest first.
 
 ### Fixed
 - Dungeon splits don't time a part whose start wasn't seen, so a missed start can't print a time like 1793018752s or save a 0.20s PB over a real one. Reconnecting keeps the run's splits, and joining a run already going picks the timer up from the sidebar's Time Elapsed (only parts seen from their start count for PBs).
+- Skill Progress > Progress Bar > Textured Bar Width and Height work.
 - Slayer profit takes the tier from the sidebar's quest line when a boss's name tag doesn't show it, so its quest cost is never counted as 0.
 - Armor Stack Display names Aurora's Ѫ stacks "Arcane Energy" and Fervor's ҉ stacks "Fervor" (they were swapped, and Aurora's was called "Arcane Vision").
 - Slayer profit always takes the quest's cost out, as the wiki's price for the slayer and tier (100k for a T5 Tarantula, whatever discount you got; Riftstalker costs motes, so 0), instead of "unknown" or a misread purse change.
