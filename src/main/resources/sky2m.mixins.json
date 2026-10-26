@@ -64,6 +64,7 @@
     "Sky2MLeapMenuBackgroundMixin",
     "Sky2MCustomWardrobeMixin",
     "Sky2MCustomWardrobeBackgroundMixin",
+    "Sky2MButtonStyleMixin",
     "Sky2MWorldNickMixin",
     "Sky2MTextDisplayNickMixin",
     "Sky2MHeldItemMixin",
