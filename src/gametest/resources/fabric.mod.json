@@ -11,7 +11,8 @@
     "fabric-client-gametest": [
       "com.epic60869.sky2m.gametest.Sky2MFontGameTest",
       "com.epic60869.sky2m.gametest.Sky2MSettingsGameTest",
-      "com.epic60869.sky2m.gametest.Sky2MScreensGameTest"
+      "com.epic60869.sky2m.gametest.Sky2MScreensGameTest",
+      "com.epic60869.sky2m.gametest.Sky2MSkyblockGameTest"
     ]
   },
   "depends": {
