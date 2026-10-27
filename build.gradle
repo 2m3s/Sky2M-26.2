@@ -23,14 +23,19 @@ loom {
 }
 
 // Client game tests (src/gametest): `gradlew runClientGameTest` starts a client, opens a test world and checks Sky2M's
-// screens, saving screenshots to build/run/clientGameTest/screenshots. Not part of the mod jar.
-fabricApi {
-    configureTests {
-        createSourceSet = true
-        modId = "sky2m-gametest"
-        enableGameTests = false
-        enableClientGameTests = true
-        eula = true
+// screens, saving screenshots to build/run/clientGameTest/screenshots. Not part of the mod jar. The folder is kept
+// local (it is not pushed to GitHub), so everything that needs it is skipped when it is missing.
+def hasGameTests = file('src/gametest').directory
+
+if (hasGameTests) {
+    fabricApi {
+        configureTests {
+            createSourceSet = true
+            modId = "sky2m-gametest"
+            enableGameTests = false
+            enableClientGameTests = true
+            eula = true
+        }
     }
 }
 
@@ -51,16 +56,33 @@ if (project.hasProperty('sky2mTestConfig')) {
     }
 }
 
+// The game tests with add-on mods loaded too: gradlew runClientGameTest -Psky2mAddons="<addon.jar>[;<another.jar>]".
+if (project.hasProperty('sky2mAddons')) {
+    tasks.matching { it.name == 'runClientGameTest' }.configureEach {
+        jvmArgs "-Dfabric.addMods=${project.property('sky2mAddons')}"
+    }
+}
+
 // Scripted test client for the local server: `gradlew runBridgeClient`, then drive it over HTTP on 127.0.0.1:25599
 // (see src/gametest/.../TestBridge). Its own run dir keeps run/'s settings untouched.
-loom {
-    runs {
-        bridgeClient {
-            client()
-            source sourceSets.gametest
-            runDir 'run-bridge'
-            vmArgs '-Dsky2m.bridge=25599', '-Xmx2G', '-Dsky2m.hypixelHosts=localhost,127.0.0.1'
-            programArgs '--username', 'S2Test1', '--quickPlayMultiplayer', 'localhost:25565'
+// -Psky2mBridgeHost=<ip[:port]> joins another test server (e.g. the home server); -Psky2mBridgePort, -Psky2mBridgeUser
+// and -Psky2mBridgeDir run more than one bridge client at once; -Psky2mAddons=<jar> loads add-ons too.
+if (hasGameTests) {
+    def bridgeHost = project.findProperty('sky2mBridgeHost') ?: 'localhost:25565'
+    def bridgeIp = bridgeHost.toString().split(':')[0]
+    loom {
+        runs {
+            bridgeClient {
+                client()
+                source sourceSets.gametest
+                runDir project.findProperty('sky2mBridgeDir') ?: 'run-bridge'
+                vmArgs "-Dsky2m.bridge=${project.findProperty('sky2mBridgePort') ?: 25599}", '-Xmx2G',
+                    "-Dsky2m.hypixelHosts=localhost,127.0.0.1,${bridgeIp}"
+                if (project.hasProperty('sky2mAddons')) vmArgs "-Dfabric.addMods=${project.property('sky2mAddons')}"
+                programArgs '--username', (project.findProperty('sky2mBridgeUser') ?: 'S2Test1')
+                // -Psky2mBridgeNoJoin starts on the title screen (join later with /connect?host=).
+                if (!project.hasProperty('sky2mBridgeNoJoin')) programArgs '--quickPlayMultiplayer', bridgeHost
+            }
         }
     }
 }
@@ -85,7 +107,7 @@ dependencies {
 
 // The bridgeClient test run also loads the mods from run-bridge/mods (a copy of a real instance's mods), which need
 // newer Fabric than Sky2M builds against. Only the test runtime is raised; the mod still compiles against the above.
-afterEvaluate {
+if (hasGameTests) afterEvaluate {
     dependencies {
         gametestRuntimeOnly 'net.fabricmc:fabric-loader:0.19.5'
         gametestRuntimeOnly 'net.fabricmc.fabric-api:fabric-api:0.161.0+26.2'

@@ -23,6 +23,7 @@ All notable changes to Sky2M are listed here, newest first.
 - "Sky Mall & Lottery: Everywhere" (Chat > Spam Filters): hide or move the Sky Mall and Lottery buff messages on the mining and foraging islands too.
 
 ### Changed
+- Game tests are kept local and no longer pushed to GitHub; the build skips them when the folder is missing.
 - Tidy the source layout: the loose classes, mixins and miscellaneous features are sorted into clearer folders. Nothing changes in game, and the /s2 menu looks the same.
 - Command Tab Complete learns your friends from Hypixel's "Friend > Name joined/left" messages too, so /pv and the other commands suggest them without running /f list first.
 - Sky2M's screens fit better on GUI scale Auto: while one is open, the GUI is one step smaller (1080p: 3 instead of 4), so text and buttons aren't cut off. Other GUI scales, the HUD editor and menus Sky2M draws over are unchanged.
