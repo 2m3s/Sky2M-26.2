@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 package com.epic60869.sky2m.features.helditem;
 
-import com.epic60869.sky2m.Sky2MConfig;
+import com.epic60869.sky2m.config.Sky2MConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
