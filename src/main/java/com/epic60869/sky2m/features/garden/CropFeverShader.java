@@ -1,6 +1,6 @@
 package com.epic60869.sky2m.features.garden;
 
-import com.epic60869.sky2m.mixin.Sky2MGameRendererInvoker;
+import com.epic60869.sky2m.mixin.render.Sky2MGameRendererInvoker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.resources.Identifier;

@@ -1,8 +1,8 @@
 package com.epic60869.sky2m.features.economy;
 
-import com.epic60869.sky2m.Sky2MConfig;
+import com.epic60869.sky2m.config.Sky2MConfig;
 import com.epic60869.sky2m.custom.util.Compat;
-import com.epic60869.sky2m.mixin.Sky2MContainerScreenAccessor;
+import com.epic60869.sky2m.mixin.gui.Sky2MContainerScreenAccessor;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -30,7 +30,7 @@ public final class Economy {
     public static void init(Path configDir) {
         VALUE_BREAKDOWN = KeyMappingHelper.registerKeyMapping(new KeyMapping(
             "key.sky2m.value_breakdown", InputConstants.Type.KEYSYM, InputConstants.KEY_J,
-            com.epic60869.sky2m.Sky2MKeyMappings.CATEGORY));
+            com.epic60869.sky2m.input.Sky2MKeyMappings.CATEGORY));
 
         ItemTooltipCallback.EVENT.register((stack, context, flag, lines) -> {
             EconomyConfig c = config();
@@ -43,6 +43,7 @@ public final class Economy {
 
         ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
             if (!(screen instanceof AbstractContainerScreen<?> container)) return;
+            ScreenEvents.afterExtract(screen).register((s, g, mouseX, mouseY, delta) -> ValueBreakdown.renderPanel(g, container));
             ScreenKeyboardEvents.allowKeyPress(screen).register((s, event) -> {
                 EconomyConfig c = config();
                 if (c == null || !c.breakdownScreen || VALUE_BREAKDOWN == null || !VALUE_BREAKDOWN.matches(event)) return true;

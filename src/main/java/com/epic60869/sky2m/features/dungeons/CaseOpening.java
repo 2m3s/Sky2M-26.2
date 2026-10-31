@@ -1,9 +1,9 @@
 package com.epic60869.sky2m.features.dungeons;
 
-import com.epic60869.sky2m.Sky2MConfig;
-import com.epic60869.sky2m.Sky2MItemBackgrounds;
-import com.epic60869.sky2m.Sky2MItemRarity;
-import com.epic60869.sky2m.Sky2MPriceTooltip;
+import com.epic60869.sky2m.config.Sky2MConfig;
+import com.epic60869.sky2m.items.Sky2MItemBackgrounds;
+import com.epic60869.sky2m.items.Sky2MItemRarity;
+import com.epic60869.sky2m.price.Sky2MPriceTooltip;
 import com.epic60869.sky2m.custom.util.Compat;
 import com.epic60869.sky2m.features.FeatureConfigs;
 import net.fabricmc.fabric.api.client.item.v1.ItemTooltipCallback;
