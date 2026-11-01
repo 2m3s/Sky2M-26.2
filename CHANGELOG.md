@@ -87,6 +87,7 @@ All notable changes to Sky2M are listed here, newest first.
 - Remove the Big Drop Animation (the rainbow item name for drops worth over 5M) and its "is worth X coins!" chat line.
 
 ### Fixed
+- Fix the SkyHanni settings import listing Party Finder's Mark Low Class Level, a number setting it can't import.
 - Fix Dungeon Chest Profit and Chest Spending History leaving out shards in reward chests: shards ("Grove Shard", "Grove Shard x3") are priced at their Bazaar price, in the chest value, the chest profit colours and the saved chest history.
 - Fix the blood camp timers only working on some floors: blood mob heads and the Watcher are recognised by their skin, so floors where Hypixel signed the same skins again are tracked too. If the Watcher still isn't recognised, heads are found around you once blood opens, and any first Watcher line counts as blood opening.
 - Fix the Duplicate Class Warning and !missing remembering teammates' classes after they're gone: leaving the party (or its disbanding, being kicked, joining another party) no longer lets the dungeon tab list teach the old teammates' classes again, and members kicked for being offline or who left when the party was transferred are forgotten too. Everything is forgotten when you disconnect.
