@@ -79,6 +79,9 @@ if (hasGameTests) {
                 vmArgs "-Dsky2m.bridge=${project.findProperty('sky2mBridgePort') ?: 25599}", '-Xmx2G',
                     "-Dsky2m.hypixelHosts=localhost,127.0.0.1,${bridgeIp}"
                 if (project.hasProperty('sky2mAddons')) vmArgs "-Dfabric.addMods=${project.property('sky2mAddons')}"
+                // -Psky2mSimPartyOffline: a Dungeon Sim party hosted by this offline test client accepts the other
+                // offline test clients (dev only; the real mod always requires Mojang sign-in).
+                if (project.hasProperty('sky2mSimPartyOffline')) vmArgs '-Dsky2m.simPartyOffline=true'
                 programArgs '--username', (project.findProperty('sky2mBridgeUser') ?: 'S2Test1')
                 // -Psky2mBridgeNoJoin starts on the title screen (join later with /connect?host=).
                 if (!project.hasProperty('sky2mBridgeNoJoin')) programArgs '--quickPlayMultiplayer', bridgeHost
