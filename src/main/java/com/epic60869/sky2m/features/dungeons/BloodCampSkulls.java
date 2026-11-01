@@ -3,8 +3,18 @@ package com.epic60869.sky2m.features.dungeons;
 import java.util.Set;
 
 /** Head textures of the Watcher and of blood mobs, from Odin's BloodCamp (https://github.com/odtheking/Odin, BSD-3-Clause; mob skull data by DocilElm). */
-final class BloodCampSkulls {
+public final class BloodCampSkulls {
     private BloodCampSkulls() {}
+
+    /** One of the Watcher's head textures, for the Dungeon Sim's Watcher so this file recognises it. */
+    public static String watcherTexture() {
+        return WATCHER.stream().sorted().findFirst().orElse("");
+    }
+
+    /** The blood mobs' head textures, sorted, for the Dungeon Sim's skulls so this file recognises them. */
+    public static java.util.List<String> mobTextures() {
+        return MOBS.stream().sorted().toList();
+    }
 
     private static final java.util.regex.Pattern TEXTURE = java.util.regex.Pattern.compile("texture/([0-9a-fA-F]+)");
     private static Set<String> watcherSkins, mobSkins;
