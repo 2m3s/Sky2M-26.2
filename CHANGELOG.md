@@ -44,6 +44,7 @@ All notable changes to Sky2M are listed here, newest first.
 - "Sky Mall & Lottery: Everywhere" (Chat > Spam Filters): hide or move the Sky Mall and Lottery buff messages on the mining and foraging islands too.
 
 ### Changed
+- /s2 portfolio: clicking an item opens its own page instead of the bar at the bottom. Each purchase is its own line with its amount and price each (and its profit/loss now), "+ Add purchase" adds another copy bought at a different price, and Save prices sets the item's buy price to their average. Extra, Qty, Log sale and Remove are on the page too.
 - Livid Finder points to the real Livid straight away: it's picked the moment the wool changes or she spawns (it used to check once a second), and shown while you're blind too.
 - Inventory HUD: Rarity Background (on by default) puts each SkyBlock item on its rarity colour, in the shape and opacity set under Item Rarity, even with Item Rarity off.
 - Profile viewer Overflow Levels now covers pets: a maxed pet keeps levelling past 100 (or 200), each level taking the XP of its last one, shown in purple on the Pets page and the main page's active pet, with progress to the next level in the tooltip.
