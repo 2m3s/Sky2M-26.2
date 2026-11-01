@@ -5,6 +5,7 @@ All notable changes to Sky2M are listed here, newest first.
 ## 1.0.4
 
 ### Added
+- Dungeon Sim on/off (Dungeons > Dungeon Sim > Enabled, on by default): when it's off none of the Dungeon Sim loads, so it uses no memory or time. Takes effect after a restart; the dungeon map, puzzle solvers and other dungeon features on Hypixel work either way.
 - !missing now sends /p list and checks everyone in the party: a member's class comes from their Party Finder join or the dungeon tab list, else their selected class from the API (all looked up at once, about a second; anyone slower counts as unknown). The API can be a minute behind a class picked just now.
 - !dt and !missing party commands (Misc > Party Commands, on by default): !dt stops Auto Requeue after this run, or cancels the requeue that's waiting, and says so in party chat. !missing says which dungeon classes nobody in the party plays, from Party Finder joins and the dungeon tab list; anyone who left or was kicked doesn't count, so kicking your Healer makes it say Healer.
 - Portfolio: set a row's quantity yourself with the Qty box instead of it being counted (leave it empty and Set qty to count again), and enter copies bought at different prices as "2x1.5m + 1x1.2m" in the buy box; profit uses their average.
@@ -44,6 +45,7 @@ All notable changes to Sky2M are listed here, newest first.
 - "Sky Mall & Lottery: Everywhere" (Chat > Spam Filters): hide or move the Sky Mall and Lottery buff messages on the mining and foraging islands too.
 
 ### Changed
+- The Dungeon Sim's screens (menu, map designer, filters, sim items, loading screen) now use the /s2 settings' colours instead of black and amber, with dark buttons and text fields (purple marks the chosen or focused one).
 - /s2 portfolio: clicking an item opens its own page instead of the bar at the bottom. Each purchase is its own line with its amount and price each (and its profit/loss now), "+ Add purchase" adds another copy bought at a different price, and Save prices sets the item's buy price to their average. Extra, Qty, Log sale and Remove are on the page too.
 - Livid Finder points to the real Livid straight away: it's picked the moment the wool changes or she spawns (it used to check once a second), and shown while you're blind too.
 - Inventory HUD: Rarity Background (on by default) puts each SkyBlock item on its rarity colour, in the shape and opacity set under Item Rarity, even with Item Rarity off.

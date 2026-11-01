@@ -30,57 +30,17 @@ public final class Sky2MSim {
     private Sky2MSim() {
     }
 
-    public static void init() {
-        com.epic60869.sky2m.sim.roomsim.SimAbilities.register();
-        com.epic60869.sky2m.sim.roomsim.SimActionBar.register();
-        com.epic60869.sky2m.sim.roomsim.SimSpiritSceptre.register();
-        com.epic60869.sky2m.sim.roomsim.SimTerminator.register();
-        com.epic60869.sky2m.sim.roomsim.SimWorld.register();
-        com.epic60869.sky2m.sim.roomsim.SimBuildQueue.register();
-        com.epic60869.sky2m.sim.roomsim.SimRun.registerStartCommand();
-        com.epic60869.sky2m.sim.roomsim.SimBreakerState.register();
-        com.epic60869.sky2m.sim.roomsim.SimItemLore.register();
-        com.epic60869.sky2m.sim.roomsim.SimPauseEntry.register();
-        com.epic60869.sky2m.sim.roomsim.SimSurvival.register();
-        com.epic60869.sky2m.sim.roomsim.FloorSizeLog.register();
-        // The room library can be huge: read it ~20 s after launch (400 ticks) so it doesn't compete with start-up.
-        // Anything that needs it sooner still loads it on demand (RoomLibrary.get/has/names).
-        final int[] libraryDelay = {400};
-        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(mc -> {
-            if (libraryDelay[0] > 0 && --libraryDelay[0] == 0) com.epic60869.sky2m.sim.roomsim.RoomLibrary.loadAsync();
-        });
-        com.epic60869.sky2m.sim.roomsim.SimItems.register();
-        com.epic60869.sky2m.sim.roomsim.SimBuilder.register();
-        com.epic60869.sky2m.sim.roomsim.SimDoors.register();
-        com.epic60869.sky2m.sim.roomsim.SimMobs.register();
-        com.epic60869.sky2m.sim.roomsim.SimSecretItems.register();
-        com.epic60869.sky2m.sim.roomsim.SimRun.register();
-        com.epic60869.sky2m.sim.roomsim.SimSidebar.register();
-        com.epic60869.sky2m.sim.roomsim.SimTabList.register();
-        com.epic60869.sky2m.sim.roomsim.SimClass.register();
-        com.epic60869.sky2m.sim.roomsim.SimSpeed.register();
-        // Before SimMimic: it counts every chest click as a secret, and Fabric stops at the first non-PASS.
-        com.epic60869.sky2m.sim.roomsim.puzzles.SimTeleportMazePuzzle.registerChestGuard();
-        com.epic60869.sky2m.sim.roomsim.SimMimic.register();
-        com.epic60869.sky2m.sim.roomsim.SimScoreCommand.register();
-        com.epic60869.sky2m.sim.roomsim.SimRoomCycle.register();
-        com.epic60869.sky2m.sim.roomsim.SimLoadout.register();
-        com.epic60869.sky2m.sim.roomsim.SimSecrets.register();
-        com.epic60869.sky2m.sim.roomsim.SimRoomLevers.register();
-        com.epic60869.sky2m.sim.roomsim.puzzles.SimCreeperPuzzle.registerRender();
-        com.epic60869.sky2m.sim.roomsim.SimWhere.register();
-        com.epic60869.sky2m.sim.roomsim.puzzles.SimBlazePuzzle.register();
-        com.epic60869.sky2m.sim.roomsim.puzzles.SimCreeperPuzzle.register();
-        com.epic60869.sky2m.sim.roomsim.puzzles.SimQuizPuzzle.register();
-        com.epic60869.sky2m.sim.roomsim.puzzles.SimTicTacToePuzzle.register();
-        com.epic60869.sky2m.sim.roomsim.puzzles.SimWaterPuzzle.register();
-        com.epic60869.sky2m.sim.roomsim.puzzles.SimBoulderPuzzle.register();
-        com.epic60869.sky2m.sim.roomsim.puzzles.SimTeleportMazePuzzle.register();
-        com.epic60869.sky2m.sim.roomsim.puzzles.SimIceFillPuzzle.register();
-        com.epic60869.sky2m.sim.roomsim.puzzles.SimIcePathPuzzle.register();
-        com.epic60869.sky2m.sim.roomsim.puzzles.SimPuzzles.register();
+    /** Whether the Sim's own parts were registered at startup (see {@link #enabled}). */
+    private static boolean loaded;
 
-        // What the Sim's world reads its run from: the dungeon state, the map scan, the party and the helpers.
+    public static void init() {
+        loaded = enabled();
+        if (loaded) {
+            registerSimParts();
+        }
+
+        // What Sky2M's own dungeon features read on Hypixel too (the map styles are built from LiveMapFeature and the
+        // map scan), so these load whether or not the Sim is on.
         com.epic60869.sky2m.sim.secrets.DungeonState.register();
         com.epic60869.sky2m.sim.util.SkyblockGate.register();
         com.epic60869.sky2m.sim.leapmenu.PartyTracker.register();
@@ -96,7 +56,14 @@ public final class Sky2MSim {
         com.epic60869.sky2m.sim.puzzlesolvers.TeleportMazeSolverFeature.register();
         com.epic60869.sky2m.sim.puzzlesolvers.IcePathSolverFeature.register();
         LiveMapFeature.register();
+        com.epic60869.sky2m.sim.bossrecord.SimBossRecorder.register();
 
+        if (!loaded) {
+            // Off: none of the Sim's own parts load - no ticks, commands or screens, and the room library is never
+            // read. /s2 sim and the settings button say it is off instead.
+            registerOffCommand();
+            return;
+        }
         // The Dungeon Sim draws the selected Dungeon Map style through DungeonMapStyles (hooked from sb.skyblock.dungeon.DungeonMap); no separate sim map.
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, context) -> {
             for (String root : Compat.COMMAND_ROOTS) {
@@ -117,6 +84,91 @@ public final class Sky2MSim {
         });
     }
 
+    /** The Sim's own parts: everything that only runs inside a Sim world, and its room library. */
+    private static void registerSimParts() {
+        com.epic60869.sky2m.sim.roomsim.SimAbilities.register();
+        com.epic60869.sky2m.sim.roomsim.SimActionBar.register();
+        com.epic60869.sky2m.sim.roomsim.SimSpiritSceptre.register();
+        com.epic60869.sky2m.sim.roomsim.SimTerminator.register();
+        com.epic60869.sky2m.sim.roomsim.SimWorld.register();
+        com.epic60869.sky2m.sim.roomsim.SimBuildQueue.register();
+        com.epic60869.sky2m.sim.roomsim.SimRun.registerStartCommand();
+        com.epic60869.sky2m.sim.roomsim.SimBreakerState.register();
+        com.epic60869.sky2m.sim.roomsim.SimItemLore.register();
+        com.epic60869.sky2m.sim.roomsim.SimPauseEntry.register();
+        com.epic60869.sky2m.sim.roomsim.SimSurvival.register();
+        com.epic60869.sky2m.sim.roomsim.SimVitals.register();
+        com.epic60869.sky2m.sim.roomsim.SimStats.register();
+        com.epic60869.sky2m.sim.roomsim.SimGear.register();
+        com.epic60869.sky2m.sim.roomsim.SimClassKit.register();
+        com.epic60869.sky2m.sim.roomsim.FloorSizeLog.register();
+        // The room library can be huge: read it ~20 s after launch (400 ticks) so it doesn't compete with start-up.
+        // Anything that needs it sooner still loads it on demand (RoomLibrary.get/has/names).
+        final int[] libraryDelay = {400};
+        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(mc -> {
+            if (libraryDelay[0] > 0 && --libraryDelay[0] == 0) com.epic60869.sky2m.sim.roomsim.RoomLibrary.loadAsync();
+        });
+        com.epic60869.sky2m.sim.roomsim.SimItems.register();
+        com.epic60869.sky2m.sim.roomsim.SimBuilder.register();
+        com.epic60869.sky2m.sim.roomsim.SimDoors.register();
+        com.epic60869.sky2m.sim.roomsim.SimMobs.register();
+        com.epic60869.sky2m.sim.roomsim.SimSecretItems.register();
+        com.epic60869.sky2m.sim.roomsim.SimRun.register();
+        com.epic60869.sky2m.sim.roomsim.SimSidebar.register();
+        com.epic60869.sky2m.sim.roomsim.SimTabList.register();
+        com.epic60869.sky2m.sim.roomsim.SimClass.register();
+        com.epic60869.sky2m.sim.roomsim.SimSpeed.register();
+        // Before SimMimic: it counts every chest click as a secret, and Fabric stops at the first non-PASS.
+        com.epic60869.sky2m.sim.roomsim.puzzles.SimTeleportMazePuzzle.registerChestGuard();
+        com.epic60869.sky2m.sim.roomsim.SimMimic.register();
+        com.epic60869.sky2m.sim.roomsim.SimBoss.register();
+        com.epic60869.sky2m.sim.roomsim.SimWatcher.register();
+        com.epic60869.sky2m.sim.roomsim.SimScoreCommand.register();
+        com.epic60869.sky2m.sim.roomsim.SimScore.register();
+        com.epic60869.sky2m.sim.roomsim.SimDeath.register();
+        com.epic60869.sky2m.sim.roomsim.SimRoomCycle.register();
+        com.epic60869.sky2m.sim.roomsim.SimLoadout.register();
+        com.epic60869.sky2m.sim.roomsim.SimSecrets.register();
+        com.epic60869.sky2m.sim.roomsim.SimRoomLevers.register();
+        com.epic60869.sky2m.sim.roomsim.puzzles.SimCreeperPuzzle.registerRender();
+        com.epic60869.sky2m.sim.roomsim.SimWhere.register();
+        com.epic60869.sky2m.sim.roomsim.puzzles.SimBlazePuzzle.register();
+        com.epic60869.sky2m.sim.roomsim.puzzles.SimCreeperPuzzle.register();
+        com.epic60869.sky2m.sim.roomsim.puzzles.SimQuizPuzzle.register();
+        com.epic60869.sky2m.sim.roomsim.puzzles.SimTicTacToePuzzle.register();
+        com.epic60869.sky2m.sim.roomsim.puzzles.SimWaterPuzzle.register();
+        com.epic60869.sky2m.sim.roomsim.puzzles.SimBoulderPuzzle.register();
+        com.epic60869.sky2m.sim.roomsim.puzzles.SimTeleportMazePuzzle.register();
+        com.epic60869.sky2m.sim.roomsim.puzzles.SimIceFillPuzzle.register();
+        com.epic60869.sky2m.sim.roomsim.puzzles.SimIcePathPuzzle.register();
+        com.epic60869.sky2m.sim.roomsim.puzzles.SimPuzzles.register();
+        com.epic60869.sky2m.sim.roomsim.SimTerms.register();
+        // Sim parties: hosting, invites and the guest channel (/simparty).
+        com.epic60869.sky2m.sim.roomsim.SimParty.register();
+        // Last: who may use which sim command (party leader only, staff only). Wraps the commands registered above.
+        com.epic60869.sky2m.sim.roomsim.SimCommandGate.register();
+
+
+    }
+
+    /** Dungeons > Dungeon Sim > Enabled, as it was when the game started (the Sim loads at startup or not at all). */
+    public static boolean enabled() {
+        Sky2MConfig c = Sky2MConfig.current();
+        return c == null || c.dungeons.dungeonSim.enabled;
+    }
+
+    /** /s2 sim while the Sim is off: says so rather than "Unknown command". */
+    private static void registerOffCommand() {
+        ClientCommandRegistrationCallback.EVENT.register((dispatcher, context) -> {
+            for (String root : Compat.COMMAND_ROOTS) {
+                dispatcher.register(ClientCommands.literal(root).then(ClientCommands.literal("sim").executes(c -> {
+                    openMenu();
+                    return 1;
+                })));
+            }
+        });
+    }
+
     private static boolean titleButtonEnabled() {
         Sky2MConfig c = Sky2MConfig.current();
         return c != null && c.dungeons.dungeonSim.titleButton;
@@ -125,6 +177,11 @@ public final class Sky2MSim {
     /** Opens the Sim's menu. Picking a room there refuses (with a message) while you're on a server. */
     public static void openMenu() {
         Minecraft client = Minecraft.getInstance();
+        if (!loaded) {
+            com.epic60869.sky2m.sim.util.ModChat.send("Sim", com.epic60869.sky2m.sim.util.ModChat.text(
+                    "The Dungeon Sim is off. Turn on Dungeons > Dungeon Sim > Enabled and restart the game."));
+            return;
+        }
         Compat.queueOpenScreen(new SimMenuScreen(com.epic60869.sky2m.sim.compat.McCompat.screen(client)));
     }
 }

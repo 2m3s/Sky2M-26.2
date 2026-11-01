@@ -4,6 +4,7 @@
  */
 package com.epic60869.sky2m.sim.gui;
 
+import com.epic60869.sky2m.gui.Sky2MGuiStyle;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -35,20 +36,12 @@ import net.minecraft.network.chat.Component;
  *  is untouched: {@code onClick(...)} below is still only ever invoked by vanilla's own left-button-only
  *  {@code mouseClicked}, so every existing call site with no {@code secondaryPress} keeps behaving
  *  exactly as before (right-click on it simply does nothing, same as pre-2026-09-27). Only call sites
- *  that opt in with {@code .secondaryPress(...)} - the enum-cycling buttons - respond to right-click. */
+ *  that opt in with {@code .secondaryPress(...)} - the enum-cycling buttons - respond to right-click.
+ *  <p>
+ *  Restyled (2026-11-01) from the amber box to the /s2 settings' colours (dark greys, purple for chosen), so the
+ *  Dungeon Sim's screens match the rest of Sky2M. */
 public final class SettingsButtonWidget extends AbstractWidget {
 
-    private static final int BORDER = 0xFF663D1A;
-    private static final int BORDER_HOVER = 0xFFCC6600;
-    private static final int BG = 0xFF1A1A1A;
-    private static final int BG_HOVER = 0xFF262626;
-    private static final int TEXT = 0xFFFFFFFF;
-    /** The {@link Builder#primary()} style: an amber-filled box with a full-amber border, for a screen's one main
-     *  action (the Auto Routes node editor's Go To) so it reads first among plain buttons. */
-    private static final int PRIMARY_BORDER = 0xFFCC6600;
-    private static final int PRIMARY_BORDER_HOVER = 0xFFFFA040;
-    private static final int PRIMARY_BG = 0xFF4A2A08;
-    private static final int PRIMARY_BG_HOVER = 0xFF63380B;
 
     public interface OnPress {
         void onPress(SettingsButtonWidget button);
@@ -100,7 +93,7 @@ public final class SettingsButtonWidget extends AbstractWidget {
             return this;
         }
 
-        /** Draws this as the screen's primary action (amber fill and border) instead of the plain dark box. */
+        /** Draws this as the screen's primary action (a purple frame) so it reads first among plain buttons. */
         public Builder primary() {
             this.primary = true;
             return this;
@@ -115,24 +108,36 @@ public final class SettingsButtonWidget extends AbstractWidget {
     protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         int x0 = getX();
         int y0 = getY();
-        int bg = primary ? (isHovered ? PRIMARY_BG_HOVER : PRIMARY_BG) : (isHovered ? BG_HOVER : BG);
-        int border = primary ? (isHovered ? PRIMARY_BORDER_HOVER : PRIMARY_BORDER) : (isHovered ? BORDER_HOVER : BORDER);
-        graphics.fill(x0, y0, x0 + getWidth(), y0 + getHeight(), faded(bg));
-        graphics.outline(x0, y0, getWidth(), getHeight(), faded(border));
-        graphics.centeredText(Minecraft.getInstance().font, getMessage(), x0 + getWidth() / 2,
-                y0 + (getHeight() - 8) / 2, faded(TEXT));
+        if (this.alpha < 1f) {
+            // Fading in (the title screen's button): MoulConfig's texture draws at full opacity, so for those few
+            // frames the button is a flat box that can fade instead.
+            graphics.fill(x0, y0, x0 + getWidth(), y0 + getHeight(), faded(0xFF303036));
+            graphics.outline(x0, y0, getWidth(), getHeight(), faded(0xFF555555));
+            graphics.centeredText(Minecraft.getInstance().font, getMessage(), x0 + getWidth() / 2,
+                    y0 + (getHeight() - 8) / 2, faded(0xFFFFFFFF));
+            return;
+        }
+        drawBox(graphics, x0, y0, getWidth(), getHeight(), isHovered && active, primary);
+        var font = Minecraft.getInstance().font;
+        // Light text on the dark box, so the labels' own colour codes (chosen, set, go) read as they are.
+        Component label = Component.literal(font.plainSubstrByWidth(getMessage().getString(), getWidth() - 4));
+        graphics.text(font, label, x0 + (getWidth() - font.width(label)) / 2, y0 + (getHeight() - 8) / 2,
+                active ? Sky2MGuiStyle.TEXT : 0xFF707070, false);
     }
 
     /**
-     * Draws a box in this button's style, for a widget that has to be its own class but must look like one of these
-     * (the sim's filter chips, which carry a row and a selected state). {@code selected} is the mod's "this one is
-     * chosen" look: the full-amber border this button shows on hover, kept on, with the label in §6 by the caller.
+     * A box in this button's style, for a widget that has to be its own class but must look like one of these (the
+     * sim's filter chips, which carry a row and a selected state): a dark box on the panel's own greys (MoulConfig's
+     * light button texture stood out like a white brick on these dark screens), lighter while hovered, with a purple
+     * frame when {@code selected}, which is how these screens mark the chosen one.
      */
     public static void drawBox(GuiGraphicsExtractor graphics, int x, int y, int w, int h, boolean hovered,
             boolean selected) {
-        int border = selected ? (hovered ? PRIMARY_BORDER_HOVER : BORDER_HOVER) : (hovered ? BORDER_HOVER : BORDER);
-        graphics.fill(x, y, x + w, y + h, hovered ? BG_HOVER : BG);
-        graphics.outline(x, y, w, h, border);
+        graphics.fill(x, y, x + w, y + h, hovered ? 0xFF2C2C36 : 0xFF1C1C24);
+        graphics.outline(x, y, w, h, selected ? Sky2MGuiStyle.HEADING : hovered ? 0xFF6A6A7A : 0xFF3A3A46);
+        if (selected) {
+            graphics.outline(x + 1, y + 1, w - 2, h - 2, Sky2MGuiStyle.HEADING);
+        }
     }
 
     /**

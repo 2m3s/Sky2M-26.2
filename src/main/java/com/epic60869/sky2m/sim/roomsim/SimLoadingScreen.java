@@ -63,16 +63,15 @@ public final class SimLoadingScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
-        g.fill(0, 0, this.width, this.height, 0xFF0B0B0B);
+        g.fill(0, 0, this.width, this.height, 0xFF101010);
 
         int panelW = Math.min(this.width - 40, 420);
         int panelH = 110;
         int panelX = (this.width - panelW) / 2;
         int panelY = (this.height - panelH) / 2;
-        g.fill(panelX, panelY, panelX + panelW, panelY + panelH, ProfitPanels.PANEL_BG);
-        g.outline(panelX, panelY, panelW, panelH, ProfitPanels.BORDER);
+        com.epic60869.sky2m.gui.Sky2MGuiStyle.panel(g, panelX, panelY, panelW, panelH, true);
 
-        g.centeredText(this.font, "DUNGEON SIM", panelX + panelW / 2, panelY + 16, ProfitPanels.ACCENT);
+        g.centeredText(this.font, "Dungeon Sim", panelX + panelW / 2, panelY + 16, ProfitPanels.ACCENT);
         if (!what.isEmpty()) {
             g.centeredText(this.font, what, panelX + panelW / 2, panelY + 38, ProfitPanels.TEXT);
         }
