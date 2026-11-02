@@ -151,17 +151,54 @@ final class SimNecron extends SimBoss.Fight {
      */
     private static final int DEAD_HOLD = 20;
 
+    /** How often a wither says one of his random lines (the wiki's "Random Dialogue"; the rate is APPROXIMATE). */
+    private static final int TAUNT_EVERY = 500;
+    /** Each wither's random lines, word for word (the wiki's Dialogue tables). */
+    private static final String[] MAXOR_TAUNTS = {
+            "YOUR WEAPONS CAN'T PIERCE THROUGH MY SHIELD!",
+            "YOUR MOBILITY TRICKS DON'T WORK IN MY DOMAIN!",
+            "I HOPE YOU LIKE EXPLOSIONS TOO!",
+            "MY MINIONS WILL HAVE TO WIPE THE FLOOR AFTER I'M DONE WITH YOU ALL!"};
+    private static final String[] MAXOR_SKULL_LINES = {
+            "How about you taste some rapid fire Wither Skulls!",
+            "Eat Wither Skulls, scum!",
+            "Time for me to blast you away for good!"};
+    private static final String[] STORM_TAUNTS = {
+            "The Age of Men is over, we are creating tens, hundreds of withers!!",
+            "Not just your land, but every kingdom will soon be ruled by our army of undead!",
+            "The days are numbered until I am finally unleashed again on the world!",
+            "No more adventurers, no more heroes, death and thunder!"};
+    private static final String[] GOLDOR_TAUNTS = {
+            "Closer to me!",
+            "CLOSER!",
+            "Come Closer!",
+            "I am the death zone, you are smart to flee.",
+            "You are breaking precious materials, unforgivable."};
+    private static final String[] NECRON_TAUNTS = {
+            "You merely adopted the Catacombs! I was molded by them!",
+            "I - Necron - was destined to rule over Mankind! Dead or Alive!",
+            "The Catacombs made you stronger, but can you beat me?!",
+            "Show me how you beat Storm!!!",
+            "Not just your Village, but the whole world will end!",
+            "Fight for your life!"};
+    private static final String[] NECRON_PRE_FRENZY = {
+            "Sometimes when you have a problem, you just need to destroy it all and start again.",
+            "WITNESS MY RAW NUCLEAR POWER!"};
+    private static final String[] NECRON_FRENZY = {
+            "IF YOU WANT TO STAY COOL, DON'T LOOK!",
+            "BOOOOOOOOOOOOOOOOOOOOOOOOOM",
+            "HASTA LA VISTA, BABY!"};
+
     // ---------------------------------------------------------------------------------------------- P1
 
     /** The Energy Laser: the beacon in the middle of Maxor's room. */
     private static final Vec3 LASER = new Vec3(73.5, 221, 73.5);
     /** The two crystal pads (the pressure plates on the pillars): a placed crystal stands at y 224, as F7 Extras expects. */
     private static final int[][] PADS = {{52, 224, 41}, {94, 224, 41}};
-    /**
-     * Where the sim looks for the two high ledges the Energy Crystals spawn on, one per wing (Maxor's page: "from high
-     * ledges"; it gives no coordinates, so the spot is the highest roofed ledge found near these columns, APPROXIMATE).
-     */
-    private static final int[][] CRYSTAL_SPOTS = {{42, 60}, {104, 60}};
+    /** The two top platforms the Energy Crystals spawn on (from a recorded Hypixel P1: y 238, x 64.5 and 82.5, z 50.5). */
+    private static final double[][] CRYSTAL_SPOTS = {{64.5, 238, 50.5}, {82.5, 238, 50.5}};
+    /** How close (horizontally) Maxor has to be to the laser for a firing to stun him, feet at y 225 or above. */
+    private static final double LASER_REACH = 3.5;
     /** Hypixel's crystal respawn after a laser (F7 Extras' timer). */
     private static final int CRYSTAL_RESPAWN_TICKS = 34;
     private static final int LASER_CHARGE_TICKS = 50;
@@ -293,6 +330,8 @@ final class SimNecron extends SimBoss.Fight {
 
     final boolean master = SimState.floorLabel().toUpperCase(Locale.ROOT).startsWith("M");
     private Phase phase = Phase.MAXOR;
+    /** The phase {@link #start} begins at: Maxor for the whole fight, a later one from {@code /boss storm} etc. */
+    private Phase startAt = Phase.MAXOR;
     private int phaseTicks;
     /** Fight ticks, from {@link #tick}. */
     int now;
@@ -359,6 +398,10 @@ final class SimNecron extends SimBoss.Fight {
     private int frenzies;
     private double frenzyRadius;
     private double frenzyHp;
+    /** When the current frenzy started, for his line in it. */
+    private int frenzyAt;
+    /** Whether he has said his sword line this fight. */
+    private boolean saidSwords;
     private int nextBeam;
     private int nextSwords;
     private int swordsAt = -1;
@@ -465,12 +508,28 @@ final class SimNecron extends SimBoss.Fight {
         return master ? "Maxor, Storm, Goldor, Necron, and Wither King" : "Maxor, Storm, Goldor, and Necron";
     }
 
+    /**
+     * Starts the fight at phase {@code n} (1 Maxor to 5 the Wither King) instead of P1, before {@link #start}. Each
+     * phase's start already clears the one before and moves everyone to its landing, so a later one begins exactly
+     * as if the phases before it had just been beaten.
+     */
+    void startAt(int n) {
+        Phase[] order = {Phase.MAXOR, Phase.STORM, Phase.GOLDOR, Phase.NECRON, Phase.WITHER_KING};
+        startAt = order[Math.max(1, Math.min(order.length, n)) - 1];
+    }
+
     @Override
     void start(ServerLevel level) {
         this.level = level;
         live = this;
         patchSection3(level);
-        startMaxor(level);
+        switch (startAt) {
+            case STORM -> startStorm(level);
+            case GOLDOR -> startGoldor(level);
+            case NECRON -> startNecron(level);
+            case WITHER_KING -> startWitherKing(level);
+            default -> startMaxor(level);
+        }
     }
 
     @Override
@@ -517,6 +576,17 @@ final class SimNecron extends SimBoss.Fight {
         shots.clear();
         zones.clear();
         clearAdds();
+    }
+
+    private static String pick(String[] lines) {
+        return lines[ThreadLocalRandom.current().nextInt(lines.length)];
+    }
+
+    /** Now and then one of the phase's random lines, while its wither is alive. */
+    private void taunt(MinecraftServer server, String speaker, String[] lines) {
+        if (deadAt < 0 && phaseTicks % TAUNT_EVERY == TAUNT_EVERY / 2) {
+            SimBoss.say(server, speaker, pick(lines));
+        }
     }
 
     /**
@@ -678,6 +748,10 @@ final class SimNecron extends SimBoss.Fight {
     private void tickMaxor(ServerLevel level) {
         MinecraftServer server = level.getServer();
         if (deadAt >= 0) {
+            if (now - deadAt == DEAD_HOLD / 2) {
+                // The second of Hypixel's two death lines (the wiki).
+                SimBoss.say(server, "Maxor", "I'LL MAKE YOU REMEMBER MY DEATH!!");
+            }
             if (now - deadAt >= DEAD_HOLD) {
                 startStorm(level);
             }
@@ -688,6 +762,7 @@ final class SimNecron extends SimBoss.Fight {
         } else if (phaseTicks == 70) {
             SimBoss.say(server, "Maxor", "DON'T DISAPPOINT ME, I HAVEN'T HAD A GOOD FIGHT IN A WHILE.");
         }
+        taunt(server, "Maxor", MAXOR_TAUNTS);
         boolean stunned = stunEnd > now;
         if (stunned) {
             glide(body, new Vec3(LASER.x, LASER.y + 5, LASER.z), 0.6);
@@ -726,6 +801,10 @@ final class SimNecron extends SimBoss.Fight {
         // His attack is wither skulls (the sim's old ground blasts are gone).
         if (!stunned && now >= nextSkulls) {
             fireSkulls(level, 1.1, baseDamage());
+            // Now and then one of his Wither Skull lines as he fires (how often is APPROXIMATE).
+            if (ThreadLocalRandom.current().nextInt(8) == 0) {
+                SimBoss.say(server, "Maxor", pick(MAXOR_SKULL_LINES));
+            }
             nextSkulls = now + (enraged ? 30 : 45) - (master ? 10 : 0);
         }
         // Wither Miners and Guards pour in while he cannot be hurt.
@@ -764,9 +843,8 @@ final class SimNecron extends SimBoss.Fight {
             c.discard();
         }
         pickups.clear();
-        for (int[] s : CRYSTAL_SPOTS) {
-            double[] at = ledge(level, s[0], s[1]);
-            EndCrystal c = new EndCrystal(level, at[0] + 0.5, at[1] + 0.5, at[2] + 0.5);
+        for (double[] at : CRYSTAL_SPOTS) {
+            EndCrystal c = new EndCrystal(level, at[0], at[1], at[2]);
             c.setShowBottom(false);
             c.setInvulnerable(true);
             c.addTag(TAG);
@@ -777,39 +855,10 @@ final class SimNecron extends SimBoss.Fight {
         level.playSound(null, LASER.x, LASER.y, LASER.z, SoundEvents.BEACON_POWER_SELECT, SoundSource.HOSTILE, 2f, 1.2f);
     }
 
-    /**
-     * The crystal's high ledge near (x, z): the highest spot to stand on between the pads' height and the ceiling,
-     * with a roof over it (so not the room's roof). The floor when there is none. {x, y, z}.
-     */
-    private static double[] ledge(ServerLevel level, int x, int z) {
-        BlockPos.MutableBlockPos m = new BlockPos.MutableBlockPos();
-        for (int y = 242; y >= 226; y--) {
-            for (int dx = -4; dx <= 4; dx++) {
-                for (int dz = -4; dz <= 4; dz++) {
-                    int bx = x + dx, bz = z + dz;
-                    if (solid(level, m.set(bx, y - 1, bz)) && level.getBlockState(m.set(bx, y, bz)).isAir()
-                            && level.getBlockState(m.set(bx, y + 1, bz)).isAir() && roofed(level, bx, y + 2, bz)) {
-                        return new double[]{bx, y, bz};
-                    }
-                }
-            }
-        }
-        return new double[]{x, ground(level, x, z, 232, 214), z};
-    }
-
     private static boolean solid(ServerLevel level, BlockPos pos) {
         return !level.getBlockState(pos).getCollisionShape(level, pos).isEmpty();
     }
 
-    private static boolean roofed(ServerLevel level, int x, int fromY, int z) {
-        BlockPos.MutableBlockPos m = new BlockPos.MutableBlockPos();
-        for (int y = fromY; y < fromY + 10; y++) {
-            if (solid(level, m.set(x, y, z))) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     /** A pickup by walking into a crystal, a placement by walking a carried one up to a free pad. */
     private void tickCrystals(ServerLevel level) {
@@ -888,7 +937,13 @@ final class SimNecron extends SimBoss.Fight {
         crystalsAt = now + CRYSTAL_RESPAWN_TICKS;
         level.playSound(null, LASER.x, LASER.y, LASER.z, SoundEvents.GUARDIAN_ATTACK, SoundSource.HOSTILE, 3f, 0.6f);
         beam(level, ParticleTypes.END_ROD, new Vec3(LASER.x, LASER.y + 1, LASER.z), new Vec3(LASER.x, LASER.y + 24, LASER.z), 0.3);
-        // The laser always reaches him: Hypixel has no "missed" laser (and no such Maxor line).
+        // Only a Maxor lured into the laser is stunned; otherwise it fires for nothing (Hypixel says nothing then -
+        // there is no "missed" line) and the crystals go round again.
+        double dx = body.getX() - LASER.x;
+        double dz = body.getZ() - LASER.z;
+        if (dx * dx + dz * dz > LASER_REACH * LASER_REACH || body.getY() < 225) {
+            return;
+        }
         stuns++;
         // Hypixel's two stun lines: F7 Extras' crystal respawn timer and "Maxor Stunned!" start on them.
         SimBoss.say(server, "Maxor", stuns == 1 ? "THAT BEAM! IT HURTS! IT HURTS!!" : "YOU TRICKED ME!");
@@ -925,6 +980,16 @@ final class SimNecron extends SimBoss.Fight {
                 if (level.getBlockState(new BlockPos(p.cx, y, p.cz)).is(Blocks.POLISHED_DIORITE)) {
                     p.bottom = y;
                     break;
+                }
+            }
+            if (p.cells.isEmpty()) {
+                // Nothing at y 190 in this copy of the room: read the footprint off the pillar's own bottom layer.
+                for (int x = p.cx - 6; x <= p.cx + 6; x++) {
+                    for (int z = p.cz - 6; z <= p.cz + 6; z++) {
+                        if (level.getBlockState(new BlockPos(x, p.bottom, z)).is(Blocks.POLISHED_DIORITE)) {
+                            p.cells.add(new int[]{x, z});
+                        }
+                    }
                 }
             }
             pillars.add(p);
@@ -982,14 +1047,24 @@ final class SimNecron extends SimBoss.Fight {
         MinecraftServer server = level.getServer();
         tickPillars(level);
         if (deadAt >= 0) {
+            if (now - deadAt == DEAD_HOLD / 2) {
+                // The second of Hypixel's two death lines (the wiki).
+                SimBoss.say(server, "Storm", "At least my son died by your hands.");
+            }
             if (now - deadAt >= DEAD_HOLD) {
                 startGoldor(level);
             }
             return;
         }
-        if (phaseTicks == 40) {
-            SimBoss.say(server, "Storm", "Lure me under a pillar if you can. You will not!");
+        // The rest of Hypixel's opening, word for word (the spacing is APPROXIMATE).
+        if (phaseTicks == 30) {
+            SimBoss.say(server, "Storm", "Don't boast about beating this simple minded Wither.");
+        } else if (phaseTicks == 60) {
+            SimBoss.say(server, "Storm", "My abilities are unparalleled, in many ways I am the last bastion.");
+        } else if (phaseTicks == 90) {
+            SimBoss.say(server, "Storm", "The memory of your death will be your fondest, focus up!");
         }
+        taunt(server, "Storm", STORM_TAUNTS);
         boolean stunned = stunEnd > now;
         if (!stunned) {
             chase(body, STORM_Y, enraged ? 0.2 : 0.15, 2.5);
@@ -1115,7 +1190,10 @@ final class SimNecron extends SimBoss.Fight {
                     for (ServerPlayer p : players(level)) {
                         manned |= pl.pad.contains(p.position());
                     }
-                    if (manned && under(pl)) {
+                    // Stepping on the pad drops the crusher, as on Hypixel; it crushes Storm only if he is under it
+                    // when it lands. It used to wait for him to be under it already, so a pad stepped on early did
+                    // nothing at all.
+                    if (manned) {
                         pl.state = 1;
                         pl.layers = 0;
                         level.playSound(null, pl.cx, pl.bottom, pl.cz, SoundEvents.PISTON_EXTEND, SoundSource.BLOCKS, 2f, 0.5f);
@@ -1255,11 +1333,30 @@ final class SimNecron extends SimBoss.Fight {
             }
         }
         if (deadAt >= 0) {
+            if (now - deadAt == DEAD_HOLD / 2) {
+                // The second of Hypixel's two death lines (the wiki, Dungeons Guide's chat log).
+                SimBoss.say(server, "Goldor", "Necron, forgive me.");
+            }
             if (now - deadAt >= DEAD_HOLD) {
                 startNecron(level);
             }
             return;
         }
+        // The rest of Hypixel's opening, word for word (the spacing is APPROXIMATE).
+        if (phaseTicks == 30) {
+            SimBoss.say(server, "Goldor", "Little ants, plotting and scheming, thinking they are invincible…");
+        } else if (phaseTicks == 60) {
+            SimBoss.say(server, "Goldor", "I won't let you break the factory core, I gave my life to my Master.");
+        } else if (phaseTicks == 90) {
+            SimBoss.say(server, "Goldor", "No one matches me in close quarters.");
+        }
+        // His core lines, a couple of seconds apart after the first.
+        if (coreAt >= 0 && now - coreAt == 30) {
+            SimBoss.say(server, "Goldor", "But you have nowhere to hide anymore!");
+        } else if (coreAt >= 0 && now - coreAt == 60) {
+            SimBoss.say(server, "Goldor", "YOU ARE FACE TO FACE WITH GOLDOR!");
+        }
+        taunt(server, "Goldor", GOLDOR_TAUNTS);
         if (now >= nextFrenzyPulse) {
             nextFrenzyPulse = now + 20;
             goldorFrenzy(level);
@@ -1294,7 +1391,8 @@ final class SimNecron extends SimBoss.Fight {
             floorHp = 0;
             coreAt = now;
             nextSkulls = now + 20;
-            SimBoss.say(server, "Goldor", "You have done it, you destroyed the factory... but you will not leave the core alive!");
+            // Hypixel's line, word for word (with its "…"), as Odin and Dungeons Guide match it.
+            SimBoss.say(server, "Goldor", "You have done it, you destroyed the factory…");
             SimSurvival.setHome(BlockPos.containing(54.5, 115, 57.5));
         }
         ServerPlayer target = nearestIn(level, CORE);
@@ -1319,7 +1417,7 @@ final class SimNecron extends SimBoss.Fight {
         }
         contact(level);
         if (health.hp <= 0) {
-            SimBoss.say(server, "Goldor", "Necron, forgive me...");
+            SimBoss.say(server, "Goldor", "....");
             killBody(level);
             SimTerms.stopInArena(server);
         }
@@ -1547,9 +1645,15 @@ final class SimNecron extends SimBoss.Fight {
                 if (now - deadAt >= DEAD_HOLD + 10) {
                     startWitherKing(level);
                 }
-            } else if (now - deadAt >= DEAD_HOLD) {
-                toPhase(Phase.DONE);
-                cleanUp(level);
+            } else {
+                // F7: Hypixel's other two last lines (the wiki, Dungeons Guide's chat log), then the boss is over.
+                if (now - deadAt == DEAD_HOLD) {
+                    SimBoss.say(server, "Necron", "I understand your words now, my master.");
+                } else if (now - deadAt >= DEAD_HOLD * 2) {
+                    SimBoss.say(server, "Necron", "The Catacombs... are no more.");
+                    toPhase(Phase.DONE);
+                    cleanUp(level);
+                }
             }
             return;
         }
@@ -1557,7 +1661,12 @@ final class SimNecron extends SimBoss.Fight {
             SimBoss.say(server, "Necron", "I'm afraid, your journey ends now.");
         }
         if (phaseTicks == NECRON_DROP) {
+            // His last intro line for a party that has beaten him before, and the platform goes.
+            SimBoss.say(server, "Necron", "Goodbye.");
             dropPlatform(level);
+        }
+        if (phaseTicks == (NECRON_DROP + NECRON_OPEN) / 2) {
+            SimBoss.say(server, "Necron", "That's a very impressive trick. I guess I'll have to handle this myself.");
         }
         if (phaseTicks == NECRON_OPEN) {
             // Hypixel's line: F7 Extras arms its Necron death checks on it.
@@ -1577,6 +1686,9 @@ final class SimNecron extends SimBoss.Fight {
         }
         if ((act == 0 || act == 1) && frenzies < FRENZY_AT.length && health.fraction() <= FRENZY_AT[frenzies]) {
             startFrenzy(level);
+        }
+        if (act == 0) {
+            taunt(server, "Necron", NECRON_TAUNTS);
         }
         switch (act) {
             case 0 -> necronAttacks(level);
@@ -1654,6 +1766,11 @@ final class SimNecron extends SimBoss.Fight {
         if (swordsAt < 0 && now >= nextSwords) {
             swordsAt = now + 25;
             nextSwords = now + 240;
+            if (!saidSwords) {
+                // Hypixel's line while attacking with the swords (the wiki), the first time.
+                saidSwords = true;
+                SimBoss.say(level.getServer(), "Necron", "I ensure you, these blades are far sharper than Goldor's ever were.");
+            }
         }
         if (swordsAt >= 0) {
             // The four swords hang round him, then fly.
@@ -1726,6 +1843,9 @@ final class SimNecron extends SimBoss.Fight {
         shieldUntil = -1;
         frenzyRadius = FRENZY_START_RADIUS;
         frenzyHp = health.hp;
+        frenzyAt = now;
+        // One of Hypixel's lines before a frenzy (the wiki).
+        SimBoss.say(level.getServer(), "Necron", pick(NECRON_PRE_FRENZY));
         // Sim guard: the first frenzy cannot be skipped past half, and he cannot die mid-frenzy (APPROXIMATE).
         floorHp = frenzies >= FRENZY_AT.length ? 1 : health.max * 0.5;
         body.snapTo(P4_CENTRE.x, P4_CENTRE.y, P4_CENTRE.z, body.getYRot(), 0f);
@@ -1758,6 +1878,10 @@ final class SimNecron extends SimBoss.Fight {
         }
         if (now % 3 == 0) {
             circle(level, ParticleTypes.FLAME, floor, frenzyRadius);
+        }
+        if (now - frenzyAt == 60) {
+            // One of Hypixel's lines while in the frenzy (the wiki; when is APPROXIMATE).
+            SimBoss.say(level.getServer(), "Necron", pick(NECRON_FRENZY));
         }
         if (now % 20 == 0) {
             ThreadLocalRandom r = ThreadLocalRandom.current();
