@@ -505,6 +505,7 @@ public final class SimRelay {
             switch (type) {
                 case "code" -> {
                     code = packet.get("code").getAsString();
+                    loggedIn();
                     LOGGER.info("[Sky2M] Sim relay: hosting on port {}", port);
                     if (onCode != null) onRender(() -> {
                         if (!closed && hosting == this) onCode.accept(code);
@@ -527,11 +528,35 @@ public final class SimRelay {
             }
         }
 
+        /**
+         * Messages held until the relay has checked the login: it answers with "code" then, and anything sent before
+         * (an invite while Mojang's check is still running) makes it close the party with "Log in first".
+         */
+        private final List<JsonObject> beforeLogin = new ArrayList<>();
+        private boolean loggedIn;
+
         void send(JsonObject packet) {
+            synchronized (beforeLogin) {
+                if (!loggedIn) {
+                    beforeLogin.add(packet);
+                    return;
+                }
+            }
             thread("Sky2M sim relay send", () -> {
                 Sender s = senderWhenReady();
                 if (s != null && !closed) s.text(packet.toString());
             });
+        }
+
+        private void loggedIn() {
+            List<JsonObject> held;
+            synchronized (beforeLogin) {
+                if (loggedIn) return;
+                loggedIn = true;
+                held = new ArrayList<>(beforeLogin);
+                beforeLogin.clear();
+            }
+            held.forEach(this::send);
         }
 
         void sendInvite(String type, String key) {
