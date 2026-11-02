@@ -39,8 +39,10 @@ import java.util.Set;
  *
  * <p><b>Placed far from the grid.</b> On Hypixel the boss rooms sit next to the dungeon grid, and on the bigger
  * floors that is ground the sim's 6x6 grid can occupy. The arena goes to {@link #WORLD_X}/{@link #WORLD_Z}
- * instead, well outside any view distance from the floor, so the client never holds a stale copy of those
- * chunks and nothing has to resend them: vanilla streams them in when the player is teleported there.
+ * instead, well outside any view distance from the floor, so coming from the floor the client holds no copy of
+ * those chunks and vanilla streams them in when the player is teleported there. Every arena but F7 shares that
+ * spot, though, so a paste also clears what the last arena there left outside its own box, and re-sends its
+ * chunks to anyone still tracking them (a player who was in the last arena), like the F7 paste below.
  *
  * <p><b>Except F7/M7, which is placed natively.</b> Most of the mod's F7 features only react at the boss room's
  * fixed Hypixel coordinates (the P3 terminals, gates and devices, the crystal pads, the dragons' spawn boxes,
@@ -71,6 +73,13 @@ public final class SimBossArena {
     static final int GRID_MAX = 6;
 
     private static final Map<String, SimBossArena> CACHE = new HashMap<>();
+
+    /**
+     * The world box (min x, y, z, max x, y, z, inclusive) that the arenas pasted at {@link #WORLD_X}/{@link #WORLD_Z}
+     * may have written, or null. They all share that spot, so a smaller arena pasted after a bigger one clears what
+     * of the old box lies outside its own first ({@link PasteJob}); otherwise the old walls and floor stay standing.
+     */
+    private static int[] lastBox;
 
     final String id;
     final String name;
@@ -260,6 +269,11 @@ public final class SimBossArena {
         private int lit;
         private int sendDelay = SEND_DELAY_TICKS;
         private int sent;
+        /** This paste's own world box, as {@link #lastBox} holds one. */
+        private final int[] box;
+        /** The last arena's box at this spot, cleared to air where it lies outside {@link #box}; null for none. */
+        private final int[] clearBox;
+        private long clearCell;
 
         public PasteJob(ServerLevel level) {
             this.level = level;
@@ -268,6 +282,46 @@ public final class SimBossArena {
             for (int i = 0; i < resolved.length; i++) {
                 resolved[i] = RoomPlacer.resolve(palette.get(i));
             }
+            int y0 = sourceY + yShift();
+            this.box = new int[]{baseX(), y0, baseZ(), baseX() + sizeX - 1, y0 + sizeY - 1, baseZ() + sizeZ - 1};
+            if (isNative()) {
+                this.clearBox = null;
+            } else {
+                this.clearBox = lastBox;
+                // Both until this paste finishes: one left half done still has the old arena's blocks in it.
+                lastBox = clearBox == null ? box : new int[]{
+                        Math.min(box[0], clearBox[0]), Math.min(box[1], clearBox[1]), Math.min(box[2], clearBox[2]),
+                        Math.max(box[3], clearBox[3]), Math.max(box[4], clearBox[4]), Math.max(box[5], clearBox[5])};
+            }
+        }
+
+        /** Clears a slice of {@link #clearBox} outside this paste's own box. @return whether that is done */
+        private boolean clearOld() {
+            if (clearBox == null) {
+                return true;
+            }
+            long sx = clearBox[3] - clearBox[0] + 1L;
+            long sy = clearBox[4] - clearBox[1] + 1L;
+            long sz = clearBox[5] - clearBox[2] + 1L;
+            long total = sx * sy * sz;
+            if (clearCell >= total) {
+                return true;
+            }
+            long end = Math.min(total, clearCell + CELLS_PER_TICK);
+            BlockState air = Blocks.AIR.defaultBlockState();
+            // World y in the box; the section writer adds the altitude shift itself, so it is taken off here.
+            int shift = SimAltitude.offset();
+            for (; clearCell < end; clearCell++) {
+                int x = clearBox[0] + (int) ((clearCell / sz) % sx);
+                int y = clearBox[1] + (int) (clearCell / (sz * sx));
+                int z = clearBox[2] + (int) (clearCell % sz);
+                if (x >= box[0] && x <= box[3] && y >= box[1] && y <= box[4] && z >= box[2] && z <= box[5]) {
+                    continue;   // the new arena writes this cell itself
+                }
+                writer.set(x, y - shift, z, air);
+                chunks.add(ChunkPos.pack(x >> 4, z >> 4));
+            }
+            return clearCell >= total;
         }
 
         public boolean isDone() {
@@ -281,11 +335,14 @@ public final class SimBossArena {
                 return 0.9f * cell / total;
             }
             int n = Math.max(1, lightList.size());
-            return isNative() ? 0.9f + 0.05f * lit / n + 0.05f * sent / n : 0.9f + 0.1f * lit / n;
+            return 0.9f + 0.05f * lit / n + 0.05f * sent / n;
         }
 
         public void step() {
             if (lightList == null) {
+                if (!clearOld()) {
+                    return;
+                }
                 int end = Math.min(blocks.length, cell + CELLS_PER_TICK);
                 BlockState air = Blocks.AIR.defaultBlockState();
                 boolean natively = isNative();
@@ -313,6 +370,9 @@ public final class SimBossArena {
                 }
                 if (cell >= blocks.length) {
                     lightList = new ArrayList<>(chunks);
+                    if (!natively) {
+                        lastBox = box;
+                    }
                     if (writer.outsideWorld() > 0) {
                         LOGGER.warn("Boss arena {} lost {} block(s) outside the world", id, writer.outsideWorld());
                     }
@@ -349,16 +409,13 @@ public final class SimBossArena {
         }
 
         /**
-         * A native arena only: sends each written chunk again, a few per tick, to the players already tracking
-         * it. The paste went into the sections behind setBlock's back, so nothing told the client, and the F7
-         * room's chunks can be in its view of the grid - it would keep showing what it had before. A chunk
-         * nobody tracks yet needs nothing: vanilla sends it fresh when the player comes near.
+         * Sends each written chunk again, a few per tick, to the players already tracking it. The paste went into
+         * the sections behind setBlock's back, so nothing told the client: the F7 room's chunks can be in its view
+         * of the grid, and a boss arena pasted over another one (every other arena shares WORLD_X/WORLD_Z) can be
+         * in view of a player still there - the client would keep showing what it had before. A chunk nobody
+         * tracks yet needs nothing: vanilla sends it fresh when the player comes near.
          */
         private void resend() {
-            if (!isNative()) {
-                sent = lightList.size();
-                return;
-            }
             if (sendDelay > 0) {
                 sendDelay--;
                 return;

@@ -33,6 +33,8 @@ import java.util.function.Function;
  *
  * <p>Reached three ways: the Watcher's portal once Blood is cleared ({@link SimWatcher}), {@code /boss} for the
  * current floor's boss, and {@code /boss <name>} for any boss that is in the sim. {@code /boss leave} goes back.
+ * F7/M7 can also be started at any phase: {@code /boss maxor|storm|goldor|necron|witherking} ({@link #NECRON_PHASES}:
+ * {@code maxor} is the whole fight, what {@code /boss necron} used to be, and the Wither King is M7 only).
  *
  * <h2>Health</h2>
  * The sim's weapons hit for 10,000 and vanilla caps max health at 1,024, so a boss cannot be an ordinary mob
@@ -86,7 +88,14 @@ public final class SimBoss {
 
     private enum Stage { IDLE, BUILDING, WAITING, FIGHTING, DONE }
 
+    /** F7/M7's phases as {@code /boss} names them, P1 to P5. "necron" is P4; the whole fight is "maxor". */
+    static final String[] NECRON_PHASES = {"maxor", "storm", "goldor", "necron", "witherking"};
+    private static final String[] NECRON_PHASE_NAMES = {"P1 Maxor", "P2 Storm", "P3 Goldor", "P4 Necron",
+            "P5 the Wither King"};
+
     private static Stage stage = Stage.IDLE;
+    /** The F7/M7 phase the fight being built starts at, 1 (Maxor, the whole fight) to 5; 1 for every other boss. */
+    private static int startPhase = 1;
     private static SimBossArena arena;
 
     /**
@@ -137,8 +146,19 @@ public final class SimBoss {
                         return 1;
                     }));
             for (Kind k : Kind.values()) {
+                if (k == Kind.NECRON) {
+                    // F7/M7 by phase instead: "necron" is P4 now, the whole fight is "maxor".
+                    continue;
+                }
                 root.then(ClientCommands.literal(k.id).executes(ctx -> {
                     onServer(server -> enter(server, k));
+                    return 1;
+                }));
+            }
+            for (String name : NECRON_PHASES) {
+                int phase = necronPhase(name);
+                root.then(ClientCommands.literal(name).executes(ctx -> {
+                    onServer(server -> enter(server, Kind.NECRON, phase));
                     return 1;
                 }));
             }
@@ -166,14 +186,46 @@ public final class SimBoss {
         Kind kind = Kind.forFloor(floor);
         if (kind == null) {
             tell(server, ModChat.text("No boss room for " + (floor == null || floor.isBlank() ? "this map" : floor)
-                    + " in the sim yet. Pick one: "), ModChat.value("/boss bonzo|scarf|professor|thorn|livid|sadan|necron"));
+                    + " in the sim yet. Pick one: "), ModChat.value("/boss bonzo|scarf|professor|thorn|livid|sadan|maxor"));
             return;
         }
         enter(server, kind);
     }
 
+    /**
+     * The F7/M7 phase a {@code /boss} name starts at: 1 Maxor to 5 the Wither King, from the phase names
+     * ({@link #NECRON_PHASES}), "p1".."p5", or "wk" / "wither_king" / "wither king"; 0 for anything else.
+     */
+    static int necronPhase(String name) {
+        String n = name == null ? "" : name.trim().toLowerCase(Locale.ROOT).replace("_", "").replace(" ", "");
+        for (int i = 0; i < NECRON_PHASES.length; i++) {
+            if (n.equals(NECRON_PHASES[i]) || n.equals("p" + (i + 1))) {
+                return i + 1;
+            }
+        }
+        return n.equals("wk") ? 5 : 0;
+    }
+
     /** Builds the boss's arena and moves every player into it. Server thread. */
     static void enter(MinecraftServer server, Kind kind) {
+        enter(server, kind, 1);
+    }
+
+    /**
+     * {@link #enter(MinecraftServer, Kind)}, starting F7/M7 at {@code phase} (1 Maxor to 5 the Wither King): the
+     * fight then begins as the room is built, with everyone at that phase's landing. Server thread.
+     */
+    static void enter(MinecraftServer server, Kind kind, int phase) {
+        if (kind != Kind.NECRON) {
+            phase = 1;
+        }
+        String floor = SimState.floorLabel();
+        if (phase == 5 && (floor == null || !floor.toUpperCase(Locale.ROOT).startsWith("M"))) {
+            // Same F7/M7 choice as SimNecron's: the floor's mode. F7 ends at Necron, as on Hypixel.
+            tell(server, ModChat.text("The Wither King is M7 only. Start a Master Mode run, or "),
+                    ModChat.value("/boss necron"), ModChat.text(" for F7's last phase."));
+            return;
+        }
         if (stage == Stage.BUILDING) {
             tell(server, ModChat.text("The boss room is still being built."));
             return;
@@ -188,9 +240,18 @@ public final class SimBoss {
             tell(server, ModChat.text("The " + kind.display + " arena is missing from this build."));
             return;
         }
+        // Already in a boss room (this boss or another): end it the way /boss leave does, players back home first.
+        // The non-F7 arenas all paste at the same WORLD_X/WORLD_Z spot, so staying put would leave everyone inside
+        // the box being rewritten, with their client still showing the old room's blocks (stuck "underground").
+        BlockPos home = stage != Stage.IDLE ? homeBefore : null;
         stopNow(server);
+        sendHome(server, home);
         arena = a;
         fight = kind.factory.apply(a);
+        startPhase = phase;
+        if (fight instanceof SimNecron necron) {
+            necron.startAt(phase);
+        }
         job = a.new PasteJob(server.overworld());
         stage = Stage.BUILDING;
         lastProgressPct = -1;
@@ -205,10 +266,16 @@ public final class SimBoss {
         }
         BlockPos home = homeBefore;
         stopNow(server);
+        sendHome(server, home);
+    }
+
+    /** Every player to {@code home} (where death sent him before the boss), if there is one. Server thread. */
+    private static void sendHome(MinecraftServer server, BlockPos home) {
         if (home != null) {
             for (ServerPlayer p : server.getPlayerList().getPlayers()) {
                 p.teleportTo(server.overworld(), home.getX() + 0.5, home.getY(), home.getZ() + 0.5,
                         Set.of(), p.getYRot(), p.getXRot(), false);
+                p.fallDistance = 0;
             }
         }
     }
@@ -230,6 +297,7 @@ public final class SimBoss {
             arena = null;
             bar = null;
             homeBefore = null;
+            startPhase = 1;
         }
     }
 
@@ -249,6 +317,7 @@ public final class SimBoss {
         arena = null;
         bar = null;
         homeBefore = null;
+        startPhase = 1;
     }
 
     private static void tick(MinecraftServer server) {
@@ -274,12 +343,7 @@ public final class SimBoss {
                 // starts as you come in, and an entrance corridor to collect yourself in is part of the room.
                 for (ServerPlayer p : players(server)) {
                     if (inRing(p)) {
-                        stage = Stage.FIGHTING;
-                        fightStartMs = System.currentTimeMillis();
-                        fightTicks = 0;
-                        fight.start(level);
-                        bar = new ServerBossEvent(UUID.randomUUID(), fight.barName(), fight.barColor(),
-                                BossEvent.BossBarOverlay.PROGRESS);
+                        beginFight(level);
                         break;
                     }
                 }
@@ -297,11 +361,28 @@ public final class SimBoss {
         }
     }
 
+    private static void beginFight(ServerLevel level) {
+        stage = Stage.FIGHTING;
+        fightStartMs = System.currentTimeMillis();
+        fightTicks = 0;
+        fight.start(level);
+        bar = new ServerBossEvent(UUID.randomUUID(), fight.barName(), fight.barColor(),
+                BossEvent.BossBarOverlay.PROGRESS);
+    }
+
     private static void arrive(MinecraftServer server) {
         BlockPos entry = arena.toWorld(arena.entry);
         // Death in the boss room goes back to its entrance, not the middle of whatever room he left.
         homeBefore = SimSurvival.home();
         SimSurvival.setHome(entry);
+        if (startPhase > 1) {
+            // A later F7/M7 phase: no entrance to walk in from. The fight starts now, moves everyone to the phase's
+            // landing and sets death's home there, as the phase change before it would have.
+            beginFight(server.overworld());
+            tell(server, ModChat.text("Starting at " + NECRON_PHASE_NAMES[startPhase - 1] + ", "),
+                    ModChat.value("/boss leave"), ModChat.text(" to go back."));
+            return;
+        }
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             p.teleportTo(server.overworld(), entry.getX() + 0.5, entry.getY(), entry.getZ() + 0.5, Set.of(),
                     arena.entryYaw, 0f, false);
@@ -396,6 +477,10 @@ public final class SimBoss {
         }
         // The arena's own hazards (fire, the void) are not the player's damage.
         if (source.getEntity() == null && source.getDirectEntity() == null) {
+            return false;
+        }
+        // A ghost deals nothing: his arrows, abilities and beams as well as the melee SimDeath already stops.
+        if (SimDeath.isGhostAttack(source)) {
             return false;
         }
         // A player's hit is worth its Hypixel damage from his stats (SimDamage), not the weapon's vanilla number.

@@ -571,7 +571,8 @@ public final class SimHealth {
             // The environment (no attacker at all) and other mobs. See the class doc.
             return false;
         }
-        if (pool.invulnerable || amount <= 0) {
+        if (pool.invulnerable || amount <= 0 || SimDeath.isGhostAttack(source)) {
+            // A ghost's arrows, abilities and beams land nothing, like his melee (SimDeath).
             return false;
         }
         pool.mob = entity;

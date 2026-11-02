@@ -110,8 +110,10 @@ public final class SimDeath {
         // The masks' saves are SimItemEffects' now (Hypixel's real Bonzo's Mask / Spirit Mask, registered ahead of
         // the Phoenix); the old flat ones here would have given extra saves while those were on cooldown.
         // A ghost takes nothing.
+        // ...and deals nothing by any route (arrows, abilities, beams), for whatever has no pool of its own; the
+        // pooled mobs and boss bodies refuse a ghost's hit themselves (SimHealth, SimBoss), as they run first.
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) ->
-                !(entity instanceof ServerPlayer sp) || !isGhost(sp));
+                (!(entity instanceof ServerPlayer sp) || !isGhost(sp)) && !isGhostAttack(source));
         // ...and hits nothing. Both halves: the client's stops the swing reaching the server at all.
         AttackEntityCallback.EVENT.register((player, level, hand, target, hit) ->
                 SimState.isActive() && GHOSTS.containsKey(player.getUUID()) ? InteractionResult.FAIL
@@ -210,6 +212,14 @@ public final class SimDeath {
     /** Whether this player is a ghost right now. Any thread. */
     public static boolean isGhost(ServerPlayer sp) {
         return sp != null && GHOSTS.containsKey(sp.getUUID());
+    }
+
+    /**
+     * Whether this damage comes from a ghost in the sim (his melee, arrows, abilities or beams: the source's
+     * attacker is the player whichever it was). A ghost hits nothing. Server thread.
+     */
+    public static boolean isGhostAttack(DamageSource source) {
+        return source != null && SimState.isActive() && source.getEntity() instanceof ServerPlayer sp && isGhost(sp);
     }
 
     /** Whether the client's own player is a ghost (singleplayer: the same id as the server's). */
