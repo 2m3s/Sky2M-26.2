@@ -32,7 +32,7 @@ import java.util.Random;
  * <p>The counts and the mix are APPROXIMATE - Hypixel's real per-room spawns are not available offline. See
  * {@link #count}.
  */
-final class SimRoomMobs {
+public final class SimRoomMobs {
 
     private static final Logger LOGGER = ModLog.get("sky2m-roomsim");
 
@@ -158,23 +158,25 @@ final class SimRoomMobs {
     }
 
     /**
-     * Which miniboss a miniboss room holds. The two named rooms hold their own; the others (Default, Dragon) hold one
-     * of the adventurers or the Angry Archaeologist, picked from the seed - Hypixel rolls them by floor, which the sim
-     * approximates: the Frozen Adventurer from floor 4, the Angry Archaeologist from floor 3.
+     * Which miniboss a miniboss room holds, by Hypixel's floors (the wiki's Dungeon Mobs): King Midas only in his own
+     * room and only from floor 3, the Shadow Assassin from floor 3 (his named room holds him there), the Frozen
+     * Adventurer from floor 4, the Lost Adventurer on every floor. The Angry Archaeologist's floors are not listed;
+     * the sim keeps him from floor 3. Below those floors the named rooms hold a Lost Adventurer instead.
      */
-    private static SimMiniboss.Name miniboss(String roomName, String floor, Random rnd) {
+    public static SimMiniboss.Name miniboss(String roomName, String floor, Random rnd) {
         String lower = roomName.toLowerCase(Locale.ROOT);
-        if (lower.contains("king midas")) {
+        int n = floorNumber(floor);
+        if (n >= 3 && lower.contains("king midas")) {
             return SimMiniboss.Name.KING_MIDAS;
         }
-        if (lower.contains("shadow assassin")) {
+        if (n >= 3 && lower.contains("shadow assassin")) {
             return SimMiniboss.Name.SHADOW_ASSASSIN;
         }
-        int n = floorNumber(floor);
         List<SimMiniboss.Name> pool = new ArrayList<>();
         pool.add(SimMiniboss.Name.LOST_ADVENTURER);
         if (n >= 3) {
             pool.add(SimMiniboss.Name.ANGRY_ARCHAEOLOGIST);
+            pool.add(SimMiniboss.Name.SHADOW_ASSASSIN);
         }
         if (n >= 4) {
             pool.add(SimMiniboss.Name.FROZEN);
