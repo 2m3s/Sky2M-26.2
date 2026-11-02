@@ -394,6 +394,11 @@ public final class SimDoors {
         }
     }
 
+    /** Whether {@code pos} is one of the floor's wither or blood door blocks. Any thread. */
+    static boolean isDoorBlock(BlockPos pos) {
+        return BLOCK_INDEX.containsKey(pos);
+    }
+
     /**
      * Hooks right-click-with-a-wither-key on a registered door block, and the server-tick countdown that
      * turns a door's BARRIER blocks back to air once {@link #OPEN_DELAY_TICKS} has passed.

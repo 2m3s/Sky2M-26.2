@@ -153,6 +153,9 @@ public final class SimAbilities {
                 || clicked instanceof net.minecraft.world.level.block.ChestBlock
                 // A P3 terminal's command block: it opens the terminal whatever is held, as on Hypixel.
                 || SimTerms.BLOCKS.contains(hit.getBlockPos())
+                // A wither or blood door: a right click with a key collected opens it whatever is held, as on
+                // Hypixel. Without this an AOTV, Hyperion or Dungeonbreaker in hand fired instead.
+                || SimDoors.isDoorBlock(hit.getBlockPos())
                 || com.epic60869.sky2m.sim.util.SimRaycast.isWitherEssence(level, hit.getBlockPos()));
     }
 
@@ -255,6 +258,13 @@ public final class SimAbilities {
             return InteractionResult.PASS;
         }
         boolean sneaking = sp.isShiftKeyDown();
+        // No Instant or Ether Transmission in a boss room, as on Hypixel (the F7/M7 room included). APPROXIMATE
+        // wording: Hypixel's own refusal line isn't recorded here.
+        if (ETHERWARP_ITEMS.contains(id) && (SimBoss.isActive() || SimTerms.isActive())) {
+            sp.sendSystemMessage(net.minecraft.network.chat.Component.literal(
+                    "§cYou can't use Transmission abilities in a boss room!"));
+            return InteractionResult.FAIL;
+        }
         if (ETHERWARP_ITEMS.contains(id) && sneaking && etherwarpLocked(room)) {
             sayEtherwarpLocked(sp);
             return InteractionResult.FAIL;
