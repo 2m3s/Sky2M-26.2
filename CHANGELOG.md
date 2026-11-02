@@ -145,6 +145,7 @@ All notable changes to Sky2M are listed here, newest first.
 ### Fixed
 - Fix /s2 sim getting stuck on the loading screen with "The process cannot access the file because another process has locked a portion of the file" when you were already in the sim world (opened from the Singleplayer list) or in another singleplayer world. The sim world opened from the list now works as the sim, a floor is built into it in place, another world is closed first, and if the save really is in use the loading screen closes and says so.
 - Fix Dungeon Sim blood mobs falling out of Blood into the void when you entered it in mid-air.
+- Fix Mort not appearing at the start of a Dungeon Sim run: he was placed before you arrived, at a spot worked out from an entrance gate height that was off by the whole floor's shift, so no floor was ever found. He now appears beside the entrance gate on every floor (F1-F7, M1-M7) once you're there.
 - Fix Dungeon Sim mobs leaving their room: a mob near a doorway chased you into the next room (and a key carrier could drop its key there). Mobs now stay in their own room, don't chase you out of it, and a recorded mob that stood in another room's part of an L-shaped room's capture is no longer placed.
 - Fix the Dungeon Sim's Bonzo's Mask and Spirit Mask giving extra saves while on cooldown.
 - Fix Soulweaver Gloves and Flaming Flay getting no stats from Hypixel's item data in the Dungeon Sim.

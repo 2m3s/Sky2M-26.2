@@ -102,6 +102,9 @@ public final class SimMort {
             }
         });
         ServerTickEvents.END_SERVER_TICK.register(server -> {
+            if (pendingDoor != null && SimState.isActive()) {
+                placePending(server.overworld());
+            }
             if (!OPEN.isEmpty() && server.getTickCount() % 20 == 0) {
                 for (MortMenu menu : new ArrayList<>(OPEN)) {
                     menu.redraw(server);
@@ -126,6 +129,36 @@ public final class SimMort {
         if (level == null || door == null || room == null) {
             return;
         }
+        // Not now: the build runs while the player waits in the holding area, so the Entrance is not loaded, and an
+        // entity added there could be lost with its chunk. He is put down when a player is near (tick below), the
+        // way the room mobs are (SimMobs.queueRoomMob). Placing him straight away is why he was often missing.
+        pendingDoor = door.immutable();
+        pendingRoom = room.immutable();
+    }
+
+    /** Where Mort still has to go: the entrance gate and the Entrance's centre. Server thread. */
+    private static BlockPos pendingDoor, pendingRoom;
+
+    /** Puts Mort down once the Entrance is live. Server thread, every tick. */
+    private static void placePending(ServerLevel level) {
+        BlockPos door = pendingDoor;
+        BlockPos room = pendingRoom;
+        if (door == null || room == null || !level.isPositionEntityTicking(door)) {
+            return;
+        }
+        // Across the map, not in 3D: the gate's y is not the floor's (the entrance door on a built floor sat 116
+        // blocks under it), which also kept the old floor search below from ever finding the floor.
+        boolean near = false;
+        for (ServerPlayer p : level.players()) {
+            double hx = p.getX() - (door.getX() + 0.5);
+            double hz = p.getZ() - (door.getZ() + 0.5);
+            near |= hx * hx + hz * hz < 48 * 48;
+        }
+        if (!near) {
+            return;
+        }
+        pendingDoor = null;
+        pendingRoom = null;
         // From the gate back into the room: the axis the door sits on.
         int dx = Integer.signum(room.getX() - door.getX());
         int dz = Integer.signum(room.getZ() - door.getZ());
@@ -138,11 +171,28 @@ public final class SimMort {
             dz = 1;
         }
         // Four blocks in from the gate and three to its side, where Hypixel stands him: next to the gate, not in it.
-        int x = door.getX() + dx * 4 + dz * 3;
-        int z = door.getZ() + dz * 4 + dx * 3;
-        Integer y = floorAt(level, x, z, door.getY());
+        // An Entrance with a pit or a wall there gets the nearest spot that has a floor, then the room's middle.
+        Integer y = null;
+        int x = 0;
+        int z = 0;
+        outer:
+        for (int in : new int[]{4, 3, 5, 2, 6}) {
+            for (int side : new int[]{3, -3, 2, -2, 4, -4, 0}) {
+                x = door.getX() + dx * in + dz * side;
+                z = door.getZ() + dz * in + dx * side;
+                y = floorAt(level, x, z, door.getY());
+                if (y != null) {
+                    break outer;
+                }
+            }
+        }
         if (y == null) {
-            LOGGER.warn("Sim Mort: no floor beside the entrance gate at {},{} - not placed", x, z);
+            x = room.getX();
+            z = room.getZ();
+            y = floorAt(level, x, z, door.getY());
+        }
+        if (y == null) {
+            LOGGER.warn("Sim Mort: no floor near the entrance gate {} - not placed", door);
             return;
         }
         MortEntity mort = new MortEntity(level);
@@ -163,13 +213,19 @@ public final class SimMort {
         }
     }
 
-    /** The first standable block at this column near the gate's height: solid underneath, two air above. */
+    /**
+     * The standable block at this column nearest a dungeon room's floor (captured y 69, where the Entrance is walked
+     * in): solid underneath, two air above. {@code nearY} (the gate's y) is not used: it is not the floor's.
+     */
     private static Integer floorAt(ServerLevel level, int x, int z, int nearY) {
-        for (int y = nearY + 8; y >= nearY - 12; y--) {
-            BlockPos feet = new BlockPos(x, y, z);
-            if (level.getBlockState(feet.below()).blocksMotion() && level.getBlockState(feet).isAir()
-                    && level.getBlockState(feet.above()).isAir()) {
-                return y;
+        int base = SimAltitude.toWorld(69);
+        for (int d = 0; d <= 14; d++) {
+            for (int y : new int[]{base - d, base + d}) {
+                BlockPos feet = new BlockPos(x, y, z);
+                if (level.getBlockState(feet.below()).blocksMotion() && level.getBlockState(feet).isAir()
+                        && level.getBlockState(feet.above()).isAir()) {
+                    return y;
+                }
             }
         }
         return null;
@@ -180,6 +236,8 @@ public final class SimMort {
         READY.clear();
         SimPresets.reset();
         mortId = null;
+        pendingDoor = null;
+        pendingRoom = null;
         if (level == null) {
             return;
         }
