@@ -283,7 +283,6 @@ public final class SimTerms {
     static void startInArena(ServerLevel level, Arena hooks, int[][] levers) {
         stopNow(level.getServer());
         arena = hooks;
-        rebuildWestStrip(level);
         spawnTerminals(level);
         LEVERS.clear();
         for (int[] l : levers) {
@@ -304,25 +303,6 @@ public final class SimTerms {
         java.util.Arrays.fill(splits, 0);
         stage = Stage.RUNNING;
         LOGGER.info("Sim P3 terminals started in the boss room");
-    }
-
-    /**
-     * Section 3's west side in the real boss room. The F7 world save stops at x 0 and the converter sealed that edge
-     * with a full-height stone wall, so Hypixel's x -3..-1 strip was missing: three of section 3's terminals (x -2)
-     * stood in the air outside the room and Arrow Align's frames (x -2) had no wall behind them, so the device could
-     * not be done. Rebuilt between section 3's two gates (z 52-126, so no way round a gate): the seal and the strip
-     * continue the room's next column in (x 1), and x -3 is the wall again. Server thread.
-     */
-    private static void rebuildWestStrip(ServerLevel level) {
-        for (int z = 52; z <= 126; z++) {
-            for (int y = SimTermBuild.FLOOR_Y - 1; y <= SimTermBuild.TOP_Y; y++) {
-                BlockState inner = level.getBlockState(new BlockPos(1, y, z));
-                for (int x = -2; x <= 0; x++) {
-                    level.setBlock(new BlockPos(x, y, z), inner, Block.UPDATE_CLIENTS);
-                }
-                level.setBlock(new BlockPos(-3, y, z), Blocks.STONE_BRICKS.defaultBlockState(), Block.UPDATE_CLIENTS);
-            }
-        }
     }
 
     /** Ends the boss room's terminals (the fight is over or left). No-op for the drill. Server thread. */
