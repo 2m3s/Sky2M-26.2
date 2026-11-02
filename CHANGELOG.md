@@ -87,6 +87,7 @@ All notable changes to Sky2M are listed here, newest first.
 - "Sky Mall & Lottery: Everywhere" (Chat > Spam Filters): hide or move the Sky Mall and Lottery buff messages on the mining and foraging islands too.
 
 ### Changed
+- Terracotta Timer (F6/M6) counts 10 seconds on both floors, the wiki's respawn time (it counted 15 on F6 and 12 on M6).
 - Dungeon Sim bosses reworked to Hypixel's mechanics (checked against the wiki; numbers the wiki doesn't give are approximations), with Hypixel's lines word for word:
   - Bonzo: phase 1 is Undead summons and wither skulls; after "Oh I'm dead!" ... "Sike!" phase 2 brings melee, aimed balloons and the Balloon Barrage from the centre (hide behind the pillars). M1: more summons, faster skulls, lobbed balloons.
   - Scarf: sits behind his barrier while the Warrior (charge), Archer (Arrow Barrage, teleports), Mage (skulls, Magma Pit, Tsunami) and Priest (heals) fight; phase 2 revives them all and Scarf joins with Skull Barrage and Soul Sand Blizzard. M2: two of each, and Scarf is immune until 4 are dead.
