@@ -28,7 +28,7 @@ import java.util.Random;
  *   back to red.</li>
  *   <li>Change all to same color! (5 rows): the 3x3 in rows 1-3, columns 3-5; left click is the next colour of
  *   orange, yellow, green, blue, red, right click the one before. Solved when all nine match.</li>
- *   <li>Click in order! (4 rows): 14 red panes in rows 1-2, columns 1-7, numbered by stack size; the next number
+ *   <li>Click in order! (4 rows): 10 red panes in rows 1-2, columns 2-6 (14 before the Minister update), numbered by stack size; the next number
  *   turns lime, anything else does nothing.</li>
  *   <li>What starts with: 'X'? (5 rows) and Select all the COLOUR items! (6 rows): every matching item gets the
  *   enchantment glint when clicked; a wrong item does nothing.</li>
@@ -163,7 +163,8 @@ final class SimTermBoard {
                 }
             }
             case NUMBERS -> {
-                List<Integer> slots = area(1, 2, 1, 7);
+                // Ten numbers since the Minister update (0.27.2: "from 14 → 10"), two rows of five.
+                List<Integer> slots = area(1, 2, 2, 6);
                 List<Integer> order = new ArrayList<>();
                 for (int i = 1; i <= slots.size(); i++) {
                     order.add(i);
