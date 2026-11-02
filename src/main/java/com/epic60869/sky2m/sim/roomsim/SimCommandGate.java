@@ -25,7 +25,8 @@ import java.util.Map;
  * and go to the host with him (his stat numbers do not - {@link SimParty}).
  *
  * <p><b>Staff only, even solo.</b> {@code /simstats} (and the Player Stats screen), {@code /fly}, {@code /simrevive}
- * and {@code /summon} need {@link SbcStaff#isStaff()} ({@code /s2 stafflogin}).
+ * and {@code /summon} need {@link SbcStaff#isStaff()} ({@code /s2 stafflogin}). A staff party guest may use them too:
+ * they go to the host as actions and act on the guest alone (his own flight, stats, revive, a mob at his feet).
  *
  * <p>The checks run when a command EXECUTES, not in {@code requires()}: Fabric copies client commands into the
  * suggestion tree once, when the server's command tree arrives on join, while the sim hello that makes a client a
@@ -111,7 +112,8 @@ public final class SimCommandGate {
             return null;
         }
         if (guest) {
-            return LEADER_ONLY;
+            // Staff commands work for a staff guest too: they act on him alone, through the host (SimParty).
+            return access == Access.STAFF && staff ? null : LEADER_ONLY;
         }
         if (access == Access.STAFF && !staff) {
             return STAFF_ONLY;
@@ -145,6 +147,17 @@ public final class SimCommandGate {
             case "profile", "ultimate", "beam", "terminator", "speed", "wardrobe", "item_left" -> true;
             default -> false;
         };
+    }
+
+    /** {@link #guestActionAllowed(String)}, plus the staff commands for a guest whose client says he is staff. */
+    public static boolean guestActionAllowed(String action, boolean staff) {
+        if (staff && action != null && switch (action) {
+            case "staff_fly", "staff_summon", "revive" -> true;
+            default -> false;
+        }) {
+            return true;
+        }
+        return guestActionAllowed(action);
     }
 
     // ------------------------------------------------------------------ the tree

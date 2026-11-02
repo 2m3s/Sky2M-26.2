@@ -660,6 +660,7 @@ public final class SimParty {
             return;
         }
         MEMBERS.remove(sp.getUUID());
+        STAFF_GUESTS.remove(sp.getUUID());
         LAST_SENT.remove(sp.getUUID());
         LAST_FLOOR.remove(sp.getUUID());
         if (!SimState.isActive()) {
@@ -792,7 +793,7 @@ public final class SimParty {
         }
         // Party leader only: a guest's client never offers the commands behind give, revive or start, and this
         // refuses them (and anything else command-driven) from a modified client too. Gameplay inputs stay.
-        if (!SimCommandGate.guestActionAllowed(action.action())) {
+        if (!SimCommandGate.guestActionAllowed(action.action(), STAFF_GUESTS.contains(sp.getUUID()))) {
             LOGGER.debug("Sim party: refused {} action from guest {}", action.action(), sp.getGameProfile().name());
             sp.sendSystemMessage(ModChat.line("Sim", ModChat.bad(SimCommandGate.LEADER_ONLY)));
             return;
@@ -823,6 +824,8 @@ public final class SimParty {
                 // A left-click item ability (Gloomlock Grimoire, Gyrokinetic Wand): no packet of its own in the air.
                 case "item_left" -> SimWeapons.leftClick(sp);
                 case "speed" -> SimSpeed.applyOnServer(sp, Integer.parseInt(arg));
+                case "staff_fly" -> SimSurvival.toggleFor(sp);
+                case "staff_summon" -> summonFor(sp, arg);
                 default -> LOGGER.debug("Sim party: unknown action {} from {}", action.action(),
                         sp.getGameProfile().name());
             }
@@ -847,13 +850,38 @@ public final class SimParty {
         });
     }
 
+    /** A staff guest's /summon on the host: "ZOMBIE", or "miniboss NAME", spawned at his feet. Server thread. */
+    private static void summonFor(ServerPlayer sp, String arg) {
+        String[] parts = arg.trim().split(" ");
+        SimMobs.Kind kind = parts[0].equalsIgnoreCase("miniboss") ? SimMobs.Kind.MINIBOSS
+                : SimMobs.Kind.valueOf(parts[0].toUpperCase(java.util.Locale.ROOT));
+        SimMiniboss.Name boss = kind == SimMobs.Kind.MINIBOSS && parts.length > 1
+                ? SimMiniboss.Name.valueOf(parts[1].toUpperCase(java.util.Locale.ROOT)) : null;
+        SimMobs.spawnOnServer(sp.level(), sp.blockPosition(), kind, true,
+                boss != null ? boss : SimMobs.DEFAULT_MINIBOSS);
+        sp.sendSystemMessage(ModChat.line("Sim", ModChat.text("Summoned "), ModChat.value(
+                (boss != null ? boss.text() : kind.name().toLowerCase(java.util.Locale.ROOT)))));
+    }
+
+    /**
+     * Guests whose client says they are staff ({@code /s2 stafflogin}). The host cannot check another player's staff
+     * login, so this trusts the guest's client; a party is invite-only, so only friends the host invited get here.
+     */
+    private static final java.util.Set<UUID> STAFF_GUESTS = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     private static void receiveProfile(ServerPlayer sp, String json) {
         JsonObject o = JsonParser.parseString(json).getAsJsonObject();
-        // Only the guest's CLASS is taken: his stat numbers stay at the defaults, since editing them is staff-only
-        // and the host cannot verify a guest's staff login. Wardrobe and pet still come with him.
+        boolean staff = o.has("staff") && o.get("staff").getAsBoolean();
+        if (staff) {
+            STAFF_GUESTS.add(sp.getUUID());
+        } else {
+            STAFF_GUESTS.remove(sp.getUUID());
+        }
+        // A non-staff guest's CLASS is taken but his stat numbers stay at the defaults, since editing them is
+        // staff-only. A staff guest keeps the stats he set. Wardrobe and pet come with him either way.
         SimStats.Profile sent = o.get("profile") instanceof JsonObject po
                 ? SimStats.fromJson(po, SimStats.defaults()) : SimStats.defaults();
-        SimStats.Profile profile = SimStats.defaultsWithClass(sent.selected());
+        SimStats.Profile profile = staff ? sent : SimStats.defaultsWithClass(sent.selected());
         // His wardrobe slots, equipment, pet and Pet Rule are item CHOICES, clamped to what real items can be (stars,
         // books and levels are bounded by SimItemBuild), so they come with him; the stat numbers do not.
         SimGear.ClassGear gear;
@@ -936,6 +964,7 @@ public final class SimParty {
         o.addProperty("armour", SimGear.armourFor(p.selected()).id());
         o.addProperty("pet", SimGear.petFor(p.selected()).id());
         o.add("gear", SimGear.classGear(p.selected()).toJson());
+        o.addProperty("staff", SimCommandGate.isStaff());
         sendAction("profile", o.toString());
     }
 }

@@ -5,6 +5,8 @@ All notable changes to Sky2M are listed here, newest first.
 ## 1.0.4
 
 ### Added
+- Dungeon Sim party guests who are staff (/s2 stafflogin) can use /fly, /summon, /simrevive and /simstats: they act on the guest alone (their own flight, a mob at their feet, their own revive and stats).
+- Join Sim Party button on the title screen: paste a friend's party code (or LAN address) to join their Dungeon Sim party without opening a world first.
 - Join Sim Party button on the title screen: paste a friend's party code (or LAN address) to join their Dungeon Sim party without opening a world first.
 - Join Sim Party button on the title screen: paste a friend's party code (or LAN address) to join their Dungeon Sim party without opening a world first.
 - Terminal Waypoints (Dungeons > F7 > Extras, on by default): a beacon beam and an "Inactive Terminal" label on each inactive terminal of your P3 section, through walls. Works on Hypixel and in the Dungeon Sim.
@@ -162,6 +164,7 @@ All notable changes to Sky2M are listed here, newest first.
 - Remove the Big Drop Animation (the rainbow item name for drops worth over 5M) and its "is worth X coins!" chat line.
 
 ### Fixed
+- Fix being kicked from a Dungeon Sim party with "Failed to decode packet ... hypixel:party_info" when joining straight from Hypixel.
 - Fix being kicked from a Dungeon Sim party with "Failed to decode packet ... hypixel:party_info" when joining straight from Hypixel.
 - Fix /s2 sim getting stuck on the loading screen with "The process cannot access the file because another process has locked a portion of the file" when you were already in the sim world (opened from the Singleplayer list) or in another singleplayer world. The sim world opened from the list now works as the sim, a floor is built into it in place, another world is closed first, and if the save really is in use the loading screen closes and says so.
 - Fix Dungeon Sim blood mobs falling out of Blood into the void when you entered it in mid-air.

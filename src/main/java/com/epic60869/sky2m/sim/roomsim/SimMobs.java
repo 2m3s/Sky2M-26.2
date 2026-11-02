@@ -89,7 +89,7 @@ public final class SimMobs {
      * Which miniboss {@link Kind#MINIBOSS} places when the caller does not say: Lost Adventurer, the one that
      * turns up in the most rooms.
      */
-    private static final SimMiniboss.Name DEFAULT_MINIBOSS = SimMiniboss.Name.LOST_ADVENTURER;
+    static final SimMiniboss.Name DEFAULT_MINIBOSS = SimMiniboss.Name.LOST_ADVENTURER;
 
     /** Every entity this class has spawned (dummies and woken Fels), for {@link #clear}. */
     private static final List<UUID> SPAWNED = new CopyOnWriteArrayList<>();
@@ -343,19 +343,21 @@ public final class SimMobs {
         if (server == null) {
             return;
         }
-        server.execute(() -> {
-            ServerLevel level = server.overworld();
-            switch (kind) {
-                case ZOMBIE -> spawnDummy(level, new SimZombie(McEntities.ZOMBIE, level), pos, starred);
-                case SKELETON -> spawnDummy(level, new SimSkeleton(McEntities.SKELETON, level), pos, starred);
-                case MINIBOSS -> spawnMiniboss(level, pos, boss, starred);
-                case FEL -> spawnFel(level, pos, starred);
-                // A bat is a SECRET on Hypixel, not a mob worth points - which is exactly why it is here: a
-                // 300 run needs every secret, and a player who cannot tell a bat secret from a chest secret
-                // cannot tell why their count is short.
-                case BAT -> spawnBat(level, pos);
-            }
-        });
+        server.execute(() -> spawnOnServer(server.overworld(), pos, kind, starred, boss));
+    }
+
+    /** {@link #spawn} on the server thread: also a staff party guest's /summon, sent to the host (SimParty). */
+    static void spawnOnServer(ServerLevel level, BlockPos pos, Kind kind, boolean starred, SimMiniboss.Name boss) {
+        switch (kind) {
+            case ZOMBIE -> spawnDummy(level, new SimZombie(McEntities.ZOMBIE, level), pos, starred);
+            case SKELETON -> spawnDummy(level, new SimSkeleton(McEntities.SKELETON, level), pos, starred);
+            case MINIBOSS -> spawnMiniboss(level, pos, boss, starred);
+            case FEL -> spawnFel(level, pos, starred);
+            // A bat is a SECRET on Hypixel, not a mob worth points - which is exactly why it is here: a
+            // 300 run needs every secret, and a player who cannot tell a bat secret from a chest secret
+            // cannot tell why their count is short.
+            case BAT -> spawnBat(level, pos);
+        }
     }
 
     /**
@@ -1386,7 +1388,9 @@ public final class SimMobs {
                     com.epic60869.sky2m.sim.util.ModChat.text("Summoning only works inside the sim."));
             return 1;
         }
-        spawnMiniboss(client, client.player.blockPosition(), name, true);
+        if (!SimParty.sendAction("staff_summon", "miniboss " + name.name())) {
+            spawnMiniboss(client, client.player.blockPosition(), name, true);
+        }
         com.epic60869.sky2m.sim.util.ModChat.send("Sim",
                 com.epic60869.sky2m.sim.util.ModChat.text("Summoned "),
                 com.epic60869.sky2m.sim.util.ModChat.value(name.text()));
@@ -1401,7 +1405,9 @@ public final class SimMobs {
             return 1;
         }
         net.minecraft.core.BlockPos at = client.player.blockPosition();
-        spawnStarred(client, at, kind);
+        if (!SimParty.sendAction("staff_summon", kind.name())) {
+            spawnStarred(client, at, kind);
+        }
         com.epic60869.sky2m.sim.util.ModChat.send("Sim",
                 com.epic60869.sky2m.sim.util.ModChat.text("Summoned "),
                 com.epic60869.sky2m.sim.util.ModChat.value(kind.name().toLowerCase(java.util.Locale.ROOT)));
