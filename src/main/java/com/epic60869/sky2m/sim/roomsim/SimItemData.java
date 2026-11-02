@@ -937,6 +937,10 @@ public final class SimItemData {
 
     private static String nice(String ench) {
         String n = ench.startsWith("ultimate_") ? ench.substring(9) : ench;
+        // Hypixel's lore name where it differs from the id: ultimate_reiterate is shown as Duplex.
+        if (n.equals("reiterate")) {
+            return "Duplex";
+        }
         return prettyId(n);
     }
 

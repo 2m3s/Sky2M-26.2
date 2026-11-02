@@ -1275,7 +1275,9 @@ public final class SimGear {
         CompoundTag tag = new CompoundTag();
         tag.putString("id", b.dataId());
         stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
-        return b.applyTo(stack);
+        stack = b.applyTo(stack);
+        // A skull helmet (Necron heads, Wither Goggles, Mender Crown) wears Hypixel's own head texture.
+        return SimItems.isSkull(stack) ? SimHeads.apply(stack, b.id()) : stack;
     }
 
     /** {@link #buildPiece(SimItemBuild, int)} for a set template's piece (plain), the wardrobe's set row. */
@@ -1301,7 +1303,8 @@ public final class SimGear {
         CompoundTag tag = new CompoundTag();
         tag.putString("id", b.dataId());
         stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
-        return b.applyTo(stack);
+        // Most of Hypixel's equipment is a textured head; the stand-in icon stays for anything the repo has none for.
+        return SimHeads.apply(b.applyTo(stack), b.id());
     }
 
     /** The pet as an icon for the pets menu, with its item. */
@@ -1331,7 +1334,8 @@ public final class SimGear {
             lore.add("§" + pet.colour() + "§l" + pet.rarity().replace('_', ' '));
         }
         SimItemLore.applyCustom(stack, "§7[Lvl " + pet.level() + "] §" + pet.colour() + pet.name(), lore);
-        return stack;
+        // Hypixel's own pet head, not the vanilla stand-in.
+        return SimHeads.withTexture(stack, SimHeads.petTexture(pet.id(), pet.rarity()));
     }
 
     public static ItemStack petIcon(Pet pet) {
