@@ -237,9 +237,8 @@ public final class SimWardrobeScreen extends Screen {
         if (id.isEmpty()) {
             return SimItemBuild.EMPTY;
         }
-        // A new item keeps the old one's stars; reforge, gems and the rest start over (they may not fit).
-        SimItemBuild b = SimItemBuild.of(id).withStars(old.isEmpty() ? 0 : old.totalStars());
-        return id.equals("SKELETON_MASTER_CHESTPLATE") ? b.withSkeletonRoll(10, 50) : b;
+        // A new item comes maxed (stars, Recombobulator, books, reforge, gems, enchantments); change any of it after.
+        return SimItemData.fullBuild(id);
     }
 
     private static String gemLabel(SimItemBuild b, List<String> slots) {

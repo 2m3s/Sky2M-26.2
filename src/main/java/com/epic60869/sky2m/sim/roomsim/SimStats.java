@@ -405,7 +405,8 @@ public final class SimStats {
                 }
             }
         }
-        return SimItemBuild.of(id);
+        // Not carried: as /simitem would hand it over, maxed.
+        return SimItemData.fullBuild(id);
     }
 
     private static SimItemBuild clientBuild(String id) {

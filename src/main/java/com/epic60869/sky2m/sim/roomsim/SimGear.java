@@ -153,14 +153,14 @@ public final class SimGear {
             return d != null ? d.name() : name + " " + SimItemData.ARMOUR_SLOT_NAMES[piece];
         }
 
-        /** The four pieces as plain builds (no stars or modifiers). */
+        /** The four pieces, maxed ({@link SimItemData#fullBuild}). */
         public List<SimItemBuild> pieces() {
             if (NONE_ID.equals(id)) {
                 return EMPTY_FOUR;
             }
             List<SimItemBuild> out = new ArrayList<>(4);
             for (int i = 0; i < 4; i++) {
-                out.add(SimItemBuild.of(pieceId(this, i)));
+                out.add(SimItemData.fullBuild(pieceId(this, i)));
             }
             return List.copyOf(out);
         }
@@ -803,7 +803,7 @@ public final class SimGear {
 
         /** The item this pet holds when picked again (its last one). */
         public PetItem itemFor(String petId) {
-            return petItems.getOrDefault(petId, PetItem.NONE);
+            return petItems.getOrDefault(petId, defaultPetItem(petId));
         }
 
         public JsonObject toJson() {
@@ -1515,18 +1515,33 @@ public final class SimGear {
 
     // ------------------------------------------------------------------ defaults
 
-    /** A fresh install's slot 1 per class: its usual set, 10-starred, and the dungeon equipment at 5 stars. */
+    /** A fresh install's slot 1 per class: its usual set and the dungeon equipment, maxed, and its pet with its item. */
     static ClassGear defaultGear(SimStats.DungeonClass c) {
-        List<SimItemBuild> armour = new ArrayList<>();
-        for (SimItemBuild b : armour(defaultArmour(c)).pieces()) {
-            armour.add(b.withStars(10));
-        }
-        List<SimItemBuild> equipment = List.of(SimItemBuild.of("BONE_NECKLACE").withStars(5),
-                SimItemBuild.of("SHADOW_ASSASSIN_CLOAK").withStars(5),
-                SimItemBuild.of("ADAPTIVE_BELT").withStars(5), SimItemBuild.of("SOULWEAVER_GLOVES").withStars(5));
+        List<SimItemBuild> armour = new ArrayList<>(armour(defaultArmour(c)).pieces());
+        List<SimItemBuild> equipment = List.of(SimItemData.fullBuild("BONE_NECKLACE"),
+                SimItemData.fullBuild("SHADOW_ASSASSIN_CLOAK"), SimItemData.fullBuild("ADAPTIVE_BELT"),
+                SimItemData.fullBuild("SOULWEAVER_GLOVES"));
         Pet p = pet(defaultPet(c));
         return ClassGear.EMPTY.withSlot(0, new WardrobeSlot("", armour, equipment)).withActive(0)
-                .withPet(new PetBuild(p, PetItem.NONE));
+                .withPet(new PetBuild(p, defaultPetItem(p.id())));
+    }
+
+    /**
+     * The pet item a pet holds until one is picked: the user's presets' choices (Golden Dragon Antique Remedies,
+     * Ender Dragon Gold Claws, Black Cat Unalloyed Speed, Blue Whale Crochet Tiger Plushie), else the Hephaestus
+     * Relic (all pet stats +50%).
+     */
+    static PetItem defaultPetItem(String petId) {
+        if (petId == null || NONE_ID.equals(petId)) {
+            return PetItem.NONE;
+        }
+        return switch (petId) {
+            case "GOLDEN_DRAGON" -> PetItem.ANTIQUE_REMEDIES;
+            case "ENDER_DRAGON" -> PetItem.GOLD_CLAWS;
+            case "BLACK_CAT" -> PetItem.UNALLOYED_SPEED;
+            case "BLUE_WHALE" -> PetItem.CROCHET_TIGER_PLUSHIE;
+            default -> PetItem.HEPHAESTUS_RELIC;
+        };
     }
 
     // ------------------------------------------------------------------ file

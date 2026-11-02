@@ -294,6 +294,172 @@ public final class SimItemData {
         return false;
     }
 
+    // ------------------------------------------------------------------ full builds
+
+    /** The Mage armour that takes the Mage's enchants and Onyx in its Combat slots. */
+    private static boolean mageArmour(String id) {
+        return id.startsWith("WISE_") || id.equals("WITHER_GOGGLES");
+    }
+
+    private static boolean tankArmour(String id) {
+        return id.startsWith("TANK_");
+    }
+
+    /** A Mage weapon (Hyperion, Spirit Sceptre, Bonzo's Staff...): Sapphire and Onyx in its slots. */
+    private static boolean mageWeapon(Def d) {
+        return d.get(Stat.INTELLIGENCE) >= 200;
+    }
+
+    /**
+     * An item as a maxed Hypixel player has it, so nothing has to be put on by hand: 10 stars (5 + 5 Master Stars) on
+     * a dungeon item or 10 Crimson stars, Recombobulated, 10 Hot + 5 Fuming Potato Books, fragged when a fragged
+     * version exists, perfect gemstones in every slot, and the reforge and enchantments of the user's own maxed
+     * presets (Hyperion, 10-star Terminator and Necron sets): Ancient armour (Giant on Goldor's), Withered swords,
+     * Spiritual bows, Blended/Waxed/Bloodshot equipment. A plain build for anything the sim has no data for.
+     */
+    public static SimItemBuild fullBuild(String id) {
+        Def d = def(id);
+        if (d == null || id == null) {
+            return SimItemBuild.of(id == null ? "" : id);
+        }
+        String k = id.toUpperCase(Locale.ROOT);
+        String cat = d.category();
+        boolean armour = armourSlot(cat) >= 0;
+        boolean equipment = equipmentSlot(cat) >= 0;
+        boolean sword = "SWORD".equals(cat) || "LONGSWORD".equals(cat);
+        boolean bow = "BOW".equals(cat);
+        boolean mage = armour ? mageArmour(k) : mageWeapon(d);
+        boolean tank = armour && tankArmour(k);
+
+        String reforge = null;
+        if (armour) {
+            reforge = tank ? "giant" : "ancient";
+        } else if (equipment) {
+            reforge = switch (cat) {
+                case "CLOAK" -> "waxed";
+                case "BELT" -> "bloodshot";
+                default -> "blended";
+            };
+        } else if (bow) {
+            reforge = "spiritual";
+        } else if (sword) {
+            reforge = "withered";
+        }
+        if (reforge != null && !reforgeFits(reforge, cat)) {
+            reforge = null;
+        }
+
+        List<SimItemBuild.Gem> gems = new ArrayList<>();
+        for (String slot : d.gemSlots()) {
+            gems.add(new SimItemBuild.Gem(gemFor(slot, mage, tank), SimItemBuild.GemQuality.PERFECT));
+        }
+
+        boolean books = armourBooks(cat) || weaponBooks(cat);
+        Map<String, Integer> ench = new LinkedHashMap<>();
+        if (armour) {
+            if (tank) {
+                ench.put("ultimate_last_stand", 5);
+            } else {
+                ench.put("ultimate_legion", 5);
+            }
+            ench.put("growth", 6);
+            ench.put("protection", 6);
+            if (mage) {
+                ench.put("strong_mana", 5);
+                ench.put("art_of_peace", 1);
+            } else if (!tank) {
+                ench.put("strong_mana", 6);
+            }
+        } else if ("NECKLACE".equals(cat)) {
+            ench.put("ultimate_the_one", 5);
+        } else if (sword) {
+            ench.put("ultimate_chimera", 5);
+            ench.put("sharpness", 7);
+            ench.put("smite", 7);
+            ench.put("critical", 7);
+            ench.put("ender_slayer", 7);
+            ench.put("titan_killer", 7);
+            ench.put("thunderlord", 7);
+            ench.put("venomous", 7);
+            ench.put("prosecute", 6);
+            ench.put("lethality", 6);
+            ench.put("gravity", 6);
+            ench.put("triple_strike", 5);
+            ench.put("fire_aspect", 3);
+        } else if (bow) {
+            ench.put("ultimate_reiterate", 5);
+            ench.put("power", 7);
+            ench.put("gravity", 6);
+            ench.put("overload", 5);
+            ench.put("snipe", 3);
+            ench.put("toxophilite", 1);
+        }
+
+        boolean recomb = !"NONE".equals(cat) && !"WAND".equals(cat);
+        // Fragged only on what is worn: a held weapon's id would turn into STARRED_..., and its ability is found by
+        // the plain id (SimAbilities' "BAT_WAND").
+        boolean fragged = (armour || equipment) && hasFragged(d.id());
+        SimItemBuild b = new SimItemBuild(d.id(), 0, 0, 0, reforge, List.copyOf(gems), books ? 10 : 0,
+                books ? 5 : 0, recomb, fragged, 0, 0, Map.copyOf(ench), null);
+        if (d.dungeon() || crimson(d.id())) {
+            b = b.withStars(10);
+        }
+        if (k.equals("SKELETON_MASTER_CHESTPLATE")) {
+            b = b.withSkeletonRoll(10, 50);
+        }
+        return b;
+    }
+
+    /** The perfect gem a maxed build puts in a slot. */
+    private static SimItemBuild.GemType gemFor(String slot, boolean mage, boolean tank) {
+        return switch (slot) {
+            case "COMBAT", "UNIVERSAL" -> mage ? SimItemBuild.GemType.ONYX
+                    : tank ? SimItemBuild.GemType.AMETHYST : SimItemBuild.GemType.JASPER;
+            case "DEFENSIVE" -> tank ? SimItemBuild.GemType.AMETHYST : SimItemBuild.GemType.RUBY;
+            case "OFFENSIVE" -> mage ? SimItemBuild.GemType.SAPPHIRE : SimItemBuild.GemType.JASPER;
+            default -> {
+                try {
+                    yield SimItemBuild.GemType.valueOf(slot);
+                } catch (IllegalArgumentException e) {
+                    yield SimItemBuild.GemType.JASPER;
+                }
+            }
+        };
+    }
+
+    /**
+     * A ready-made preset's build, maxed: the preset's own choices stay (its reforge, enchantments, power scroll, the
+     * gem types it picked and a Skeleton Master roll) and everything else is {@link #fullBuild}'s - full stars, the
+     * Recombobulator, all Potato Books, fragged, and every gem slot filled with a perfect gem.
+     */
+    public static SimItemBuild maxed(SimItemBuild preset) {
+        if (preset == null || preset.isEmpty()) {
+            return preset;
+        }
+        SimItemBuild full = fullBuild(preset.id());
+        Def d = def(preset.id());
+        if (d == null) {
+            return preset;
+        }
+        String reforge = preset.reforge() != null && reforgeFits(preset.reforge(), d.category())
+                ? preset.reforge() : full.reforge();
+        List<SimItemBuild.Gem> gems = new ArrayList<>();
+        List<String> slots = d.gemSlots();
+        for (int i = 0; i < slots.size(); i++) {
+            SimItemBuild.GemType type = i < preset.gems().size() && fits(slots.get(i), preset.gems().get(i).type())
+                    ? preset.gems().get(i).type() : full.gems().get(i).type();
+            gems.add(new SimItemBuild.Gem(type, SimItemBuild.GemQuality.PERFECT));
+        }
+        Map<String, Integer> ench = preset.enchantments().isEmpty() ? full.enchantments() : preset.enchantments();
+        int floor = preset.skeletonFloor() > 0 ? preset.skeletonFloor() : full.skeletonFloor();
+        int quality = preset.skeletonQuality() > 0 ? preset.skeletonQuality() : full.skeletonQuality();
+        return new SimItemBuild(full.id(), full.stars(), full.masterStars(), full.crimsonStars(), reforge,
+                List.copyOf(gems), full.hotPotato(), full.fuming(), full.recombobulated(),
+                full.fragged() || (preset.fragged() && (armourSlot(d.category()) >= 0
+                        || equipmentSlot(d.category()) >= 0)), floor, quality, ench,
+                preset.powerScroll() != null ? preset.powerScroll() : full.powerScroll());
+    }
+
     // ------------------------------------------------------------------ slots
 
     /** Armour piece index (0 helmet .. 3 boots) for a category, or -1. */

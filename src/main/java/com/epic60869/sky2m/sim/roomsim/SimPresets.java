@@ -188,6 +188,10 @@ public final class SimPresets {
         if (o.get("pets") instanceof JsonArray arr) {
             for (JsonElement el : arr) {
                 SimGear.PetBuild p = SimGear.PetBuild.fromJson(el);
+                if (p.item() == SimGear.PetItem.NONE) {
+                    // Maxed like the items: a pet the preset gives no item holds its usual one.
+                    p = new SimGear.PetBuild(p.pet(), SimGear.defaultPetItem(p.id()));
+                }
                 if (SimGear.NONE_ID.equals(p.id())) {
                     LOGGER.info("Sim presets: {} - pet {} is not in the sim, skipped", name, el);
                 } else {
@@ -227,14 +231,15 @@ public final class SimPresets {
                 return p;
             }
         }
-        return new SimGear.PetBuild(SimGear.pet(id), SimGear.PetItem.NONE);
+        return new SimGear.PetBuild(SimGear.pet(id), SimGear.defaultPetItem(id));
     }
 
+    /** A preset's items, each maxed ({@link SimItemData#maxed}): the preset picks them, the sim maxes them. */
     private static List<SimItemBuild> builds(JsonElement el) {
         List<SimItemBuild> out = new ArrayList<>();
         if (el instanceof JsonArray a) {
             for (JsonElement e : a) {
-                out.add(SimItemBuild.fromJson(e));
+                out.add(SimItemData.maxed(SimItemBuild.fromJson(e)));
             }
         }
         return out;
