@@ -296,6 +296,24 @@ public final class SimClassKit {
         server.execute(() -> ensureOrbOnServer(server.getPlayerList().getPlayer(id)));
     }
 
+    /**
+     * A new floor starts with an empty inventory: everything in the main inventory, hotbar and off hand from the last
+     * sim is cleared (worn armour stays - the wardrobe owns it), and the class orb is given back. Mort's class presets
+     * fill it again. Server thread, every player in the sim (party guests too).
+     */
+    public static void resetInventories(ServerLevel level) {
+        for (ServerPlayer sp : level.getServer().getPlayerList().getPlayers()) {
+            var inv = sp.getInventory();
+            for (int i = 0; i < 36; i++) {
+                inv.setItem(i, ItemStack.EMPTY);
+            }
+            sp.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND, ItemStack.EMPTY);
+            sp.containerMenu.setCarried(ItemStack.EMPTY);
+            ensureOrbOnServer(sp);
+            sp.inventoryMenu.broadcastChanges();
+        }
+    }
+
     /** {@link #ensureOrb} on the server thread, for any player in the sim (a party guest too). */
     static void ensureOrbOnServer(ServerPlayer sp) {
         ItemStack orb = SimItems.build(ORB_ID);
