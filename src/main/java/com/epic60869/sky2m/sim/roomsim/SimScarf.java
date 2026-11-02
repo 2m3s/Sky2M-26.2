@@ -14,6 +14,8 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.BossEvent;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -25,152 +27,265 @@ import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
-import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Floor 2's boss, Scarf, the Apprentice Necromancer.
  *
- * <p>The fight goes the way it does on Hypixel, in two parts:
+ * <p>The fight in Hypixel's order (https://hypixelskyblock.minecraft.wiki/w/Scarf):
  * <ol>
- * <li><b>His Undead.</b> Scarf hangs back over the far end of the arena, untouchable, while four guardians fight
- * for him:
+ * <li><b>Phase 1, his Undead.</b> Scarf sits behind his barrier over the far end of the arena, untouchable, while
+ * his four Undead fight - two of each on Master Mode:
  * <ul>
- * <li><b>Undead Warrior</b> - the melee one: quick, hard-hitting, the most health.</li>
- * <li><b>Undead Priest</b> - heals the other guardians every few seconds and brings a fallen one back a while
- * after it dies. Kill him first, or kill the others and then race the revive. He blows up when he dies, so do
- * it from range or step away.</li>
- * <li><b>Undead Mage</b> - stands off and throws fire bolts at the nearest player.</li>
- * <li><b>Undead Archer</b> - a skeleton with a bow.</li>
+ * <li><b>Undead Warrior</b> - <b>Charge</b>: winds up, then rushes in a straight line through whoever is in the
+ * way. The others call him in on whoever has been hurting them most.</li>
+ * <li><b>Undead Archer</b> - <b>Arrow Barrage</b> in every direction; <b>teleports</b> itself away from a player who
+ * gets close, or pulls a player in front of a Warrior for a Charge.</li>
+ * <li><b>Undead Mage</b> - stands still to fire <b>Wither Skulls</b>, opens a <b>Magma Pit</b> under a player and
+ * sends a <b>Tsunami</b> wave.</li>
+ * <li><b>Undead Priest</b> - heals itself and the Undead near it (and, in phase 2, Scarf).</li>
  * </ul>
- * </li>
- * <li><b>Scarf himself.</b> With the four down he drops into the arena and fights: he teleports next to a player
- * every few seconds, throws fire bolts, and slams the ground round himself (a ring telegraph to step out of). At
- * half health he calls his Undead back once - the Warrior and the Archer on a Normal floor, all four on Master
- * Mode.</li>
+ * All of them also run at players to hit them.</li>
+ * <li><b>Phase 2.</b> With all of them dead Scarf revives every one of them, stronger, and comes down to fight like
+ * a Warrior - in melee - with two attacks of his own: <b>Skull Barrage</b> (he rises a little and fires explosive
+ * skulls in a wide arc) and <b>Soul Sand Blizzard</b> (a trail of soul sand runs at a player; standing on it costs a
+ * share of max health as true damage, plus Slowness). On Master Mode his damage resistance scales with how many of
+ * his Undead are alive, and he is immune until at least four of them are dead.</li>
  * </ol>
  *
- * <p><b>Health and damage are Hypixel's</b> (https://hypixelskyblock.minecraft.wiki/w/Scarf): Scarf 1,000,000 on F2
- * and 375,000,000 on M2 with a base damage of 3,456 / 81,000; his Undead with their own pages' numbers
- * ({@link SimHealth#UNDEAD_WARRIOR} and the rest), the Mage's bolts 1,094 / 29,640 (its Wither Skulls). The wiki has no
- * number for Scarf's own bolts and slam or the Priest's death blast, so those deal the caster's base damage
- * (APPROXIMATE). Every hit is before the player's Defense ({@link SimVitals#dealHypixel}).
+ * <p><b>Health and damage are Hypixel's</b> where the wiki has them: Scarf 1,000,000 / 375,000,000 and a base damage
+ * (his melee) of 3,456 / 81,000; his Undead's health and hits from their table ({@link SimHealth#UNDEAD_WARRIOR} and
+ * the rest: Warrior 500k / 75M, Archer 400k / 60M, Mage 400k / 60M, Priest 600k / 90M); the Warrior's Charge 864 /
+ * 54,000, the Mage's Wither Skulls 1,094 / 29,640, Magma Pit 365 / 27,360 and Tsunami 608 / 22,800. Every hit is
+ * before the player's Defense ({@link SimVitals#dealHypixel}). The wiki has no cooldowns, no heal amount, no Soul
+ * Sand share, no number for Scarf's skulls or the Archer's barrage, and no measure of "stronger" - those are the
+ * sim's guesses, each marked APPROXIMATE where it is set.
  *
- * <p><b>Master Mode (M2)</b> is the same fight with its pace turned up (the sim's own tuning): a faster heal and
- * revive from the Priest, a
- * Mage that throws three bolts at a time, Scarf throwing bolts at you even while he hangs back, and once he is
- * down, more teleports, triple bolts, bigger and quicker slams, and the half-health wave makes him untouchable
- * again until it is dead.
- *
- * <p>The opening line and the death line are Hypixel's exact words: Boss Phases, the splits and the boss-dead
- * clutter all read them ({@code BossPhases}, {@code DungeonFeatures}, {@code DungeonClutter}). The lines between
- * them are nothing the mod parses.
+ * <p>Every line is Hypixel's, word for word. Boss Phases opens "Minions" on the first one and "Scarf" on "Did you
+ * forget? I was taught by the best! Let's dance." (the start of phase 2), so those must not change.
  */
 final class SimScarf extends SimBoss.Fight {
 
-    /** Scarf's health: 1,000,000 on F2, 375,000,000 on M2 (https://hypixelskyblock.minecraft.wiki/w/Scarf). */
+    /** Scarf's health: 1,000,000 on F2, 375,000,000 on M2. */
     private static double bossHealth() {
         return SimHealth.byMode(1_000_000, 375_000_000);
     }
 
-    /** Scarf's base damage, 3,456 / 81,000, which his bolts and slam deal (the wiki gives them no own number). */
+    /** Scarf's base damage, 3,456 / 81,000: his melee. */
     private static double scarfDamage() {
         return SimHealth.byMode(3_456, 81_000);
     }
 
-    /** The Undead Mage's Wither Skulls: 1,094 on F2, 29,640 on M2. */
-    private static double mageBolt() {
+    /** One of Scarf's explosive skulls: half his base damage. APPROXIMATE (the wiki gives no number). */
+    private static double scarfSkull() {
+        return scarfDamage() * 0.5;
+    }
+
+    /** The Warrior's Charge: 0.3x base (864) on F2, 1x base (54,000) on M2. */
+    private static double chargeDamage() {
+        return SimHealth.byMode(864, 54_000);
+    }
+
+    /** The Mage's Wither Skulls: 1,094 on F2, 29,640 on M2. */
+    private static double mageSkull() {
         return SimHealth.byMode(1_094, 29_640);
     }
 
-    /**
-     * His four guardians. Their health and hit are Hypixel's, looked up by name when their pools are registered
-     * ({@link SimHealth#statsFor}); the factors here only size the vanilla attack the mob carries.
-     */
+    /** The Mage's Magma Pit, per tick of burning: 365 on F2, 27,360 on M2. */
+    private static double magmaPit() {
+        return SimHealth.byMode(365, 27_360);
+    }
+
+    /** The Mage's Tsunami: 608 on F2, 22,800 on M2. */
+    private static double tsunami() {
+        return SimHealth.byMode(608, 22_800);
+    }
+
+    /** Soul Sand Blizzard: this share of max health as true damage, each half second on it. APPROXIMATE. */
+    private static final double SAND_SHARE = 0.05;
+    /** Phase 2's Undead are "stronger": hits and abilities times this, cooldowns divided by it. APPROXIMATE. */
+    private static final double STRONGER = 1.25;
+
+    /** His four kinds of Undead, and where each rises relative to the arena's centre in source coordinates. */
     private enum Guardian {
-        WARRIOR("Undead Warrior", 1.2, 1.4, 0, -3),
-        PRIEST("Undead Priest", 0.8, 0.8, 0, -8),
-        MAGE("Undead Mage", 1.0, 0.8, -6, -6),
-        ARCHER("Undead Archer", 0.9, 1.0, 6, -6);
+        WARRIOR("Undead Warrior", 0, -3),
+        PRIEST("Undead Priest", 0, -8),
+        MAGE("Undead Mage", -6, -6),
+        ARCHER("Undead Archer", 6, -6);
 
         final String display;
-        final double healthFactor;
-        final float damageFactor;
-        /** Where it rises, relative to the arena's centre in source coordinates. */
         final int dx;
         final int dz;
 
-        Guardian(String display, double healthFactor, double damageFactor, int dx, int dz) {
+        Guardian(String display, int dx, int dz) {
             this.display = display;
-            this.healthFactor = healthFactor;
-            this.damageFactor = (float) damageFactor;
             this.dx = dx;
             this.dz = dz;
         }
     }
 
-    private enum Phase { INTRO, MINIONS, DESCEND, FIGHT, DEAD }
+    private enum Phase { INTRO, MINIONS, RISE, FIGHT, DYING, DEAD }
 
-    private static final int INTRO_TICKS = 50;
-    private static final int DESCEND_TICKS = 40;
-    private static final double BOLT_SPEED = 0.7;
-    private static final int BOLT_LIFE = 70;
-    private static final double BOLT_HIT_RADIUS = 1.1;
-    /** How high over his spawn point he hangs while his Undead fight. */
+    private static final String[] KILL_LINES = {"I'll make you take the %s's place!",
+            "Oh, you killed my %s? No problem.", "Darn! My %s!", "RIP %s. F", "I expected better from you, %s."};
+    private static final String[] BARRAGE_LINES = {"No more hiding!", "I'll send you to the Wither Realm!",
+            "Just who do you think I am!", "Dodge this!", "Soon I'll be shooting your skull!", "Necro no Jutsu!",
+            "Yare yare daze...", "I'm going to be the Wither King!", "Wither Ultra!"};
+    private static final String[] HURT_LINES = {"OUCH!", "Oof"};
+    private static final String[] TAUNT_LINES = {"You'd make a great Undead minion!",
+            "I can't believe Bonzo lost to someone so weak!"};
+
+    private static final int SHOT_LIFE = 70;
+    private static final double SHOT_HIT_RADIUS = 1.1;
+    /** How high over his spawn point he sits behind his barrier while his Undead fight. */
     private static final double PERCH_HEIGHT = 4;
+    /** "Did you forget?..." to the fight proper: the Undead rise and he comes down. */
+    private static final int DESCEND_TICKS = 40;
 
     private final boolean master = SimState.floorLabel().toUpperCase(Locale.ROOT).startsWith("M");
     private Phase phase = Phase.INTRO;
     private int phaseTicks;
-    /** Ticks since the fight started; the bolts and telegraphs count on this, it never resets. */
+    /** Ticks since the fight started; everything timed counts on this, it never resets. */
     private int now;
     private final SimBoss.Health health = new SimBoss.Health(bossHealth());
     private Zombie body;
 
-    private final Map<Guardian, UUID> guardians = new EnumMap<>(Guardian.class);
-    /** A fallen guardian's last spot and the tick the Priest brings it back, while the Priest lives. */
-    private final Map<Guardian, Vec3> fallenAt = new EnumMap<>(Guardian.class);
-    private final Map<Guardian, Integer> reviveAt = new EnumMap<>(Guardian.class);
-    /** Health of the wave that is up, for the bar while they fight. */
+    /** Every Undead: one of each kind, two on Master Mode (the wiki: "2 of each" in both phases). */
+    private final List<Minion> minions = new ArrayList<>();
+    /** Health of the Undead that are up, for the bar while they fight. */
     private double waveMaxHealth;
-    private boolean secondWave;
-    private int nextHeal;
+    private boolean phaseTwo;
+    private boolean saidAlone;
+    private boolean saidPriest;
 
-    private final List<Bolt> bolts = new ArrayList<>();
-    private final List<Blast> blasts = new ArrayList<>();
-    private int nextBolt;
-    private int nextTeleport;
-    private int nextSlam;
+    private final List<Shot> shots = new ArrayList<>();
+    private final List<Pit> pits = new ArrayList<>();
+    private final List<Wave> waves = new ArrayList<>();
+    private final List<Trail> trails = new ArrayList<>();
+    /** Soul sand laid by the Blizzard, with the block it replaced, put back when it melts away. */
+    private final Map<BlockPos, Sand> sands = new LinkedHashMap<>();
+    private final Map<UUID, Integer> lastSandHit = new HashMap<>();
+
+    private int nextMelee;
+    private int nextBarrage;
+    private int nextBlizzard;
+    private int nextTaunt;
+    /** The Skull Barrage under way: ticks into it, or -1 when there is none. */
+    private int barrageTicks = -1;
     private int lastImmuneNote = -1000;
+    private int lastKillLine = -1000;
+    private int lastHurtLine = -1000;
+    private int lastHealLine = -1000;
+    private int lastCallLine = -1000;
 
-    /** A fire bolt in flight: drawn with particles, hurts the first player it touches. */
-    private static final class Bolt {
+    /** One Undead and what it is doing. */
+    private static final class Minion {
+        final Guardian kind;
+        final int copy;
+        UUID id;
+        boolean alive;
+        Vec3 lastPos;
+        double lastHp = -1;
+        int lastHurt = -1000;
+        /** Damage taken, by the player most likely to have dealt it, for the Help call. */
+        final Map<UUID, Double> damageBy = new HashMap<>();
+        int nextA;
+        int nextB;
+        int nextC;
+        int nextHelp;
+        /** The Mage standing still to fire its skulls: ticks left. */
+        int rooted;
+        UUID rootTarget;
+        /** The Warrior's Charge: wind-up ticks left, then rush ticks left; -1 for neither. */
+        int windup = -1;
+        int rushing = -1;
+        UUID chargeTarget;
+        Vec3 chargeDir;
+        final Set<UUID> chargeHit = new HashSet<>();
+
+        Minion(Guardian kind, int copy) {
+            this.kind = kind;
+            this.copy = copy;
+        }
+
+        boolean charging() {
+            return windup >= 0 || rushing >= 0;
+        }
+    }
+
+    /** A skull or arrow in flight: hurts the first player it touches, or blows up when {@code blast} > 0. */
+    private static final class Shot {
         Vec3 pos;
         final Vec3 vel;
-        int life;
+        int life = SHOT_LIFE;
         final double damage;
+        final double blast;
+        final boolean arrow;
 
-        Bolt(Vec3 pos, Vec3 vel, double damage) {
+        Shot(Vec3 pos, Vec3 vel, double damage, double blast, boolean arrow) {
             this.pos = pos;
             this.vel = vel;
-            this.life = BOLT_LIFE;
+            this.damage = damage;
+            this.blast = blast;
+            this.arrow = arrow;
+        }
+    }
+
+    /** The Mage's Magma Pit: a warning ring, then burning ground from {@code burnAt} to {@code endAt}. */
+    private record Pit(Vec3 at, double radius, int burnAt, int endAt, double damage) {
+    }
+
+    /** The Mage's Tsunami: a wall of water moving out along {@code dir}. */
+    private static final class Wave {
+        final Vec3 origin;
+        final Vec3 dir;
+        double dist;
+        final double damage;
+        final Set<UUID> hit = new HashSet<>();
+
+        Wave(Vec3 origin, Vec3 dir, double damage) {
+            this.origin = origin;
+            this.dir = dir;
             this.damage = damage;
         }
     }
 
-    /** A ring on the ground that blows up at {@code explodeAt} (the slam, the Priest's death). */
-    private record Blast(Vec3 at, double radius, int explodeAt, double damage) {
+    /** A Soul Sand Blizzard trail running at a player, a block every couple of ticks. */
+    private static final class Trail {
+        Vec3 at;
+        final UUID target;
+        int steps;
+
+        Trail(Vec3 at, UUID target, int steps) {
+            this.at = at;
+            this.target = target;
+            this.steps = steps;
+        }
+    }
+
+    private record Sand(BlockState original, int meltAt) {
     }
 
     SimScarf(SimBossArena arena) {
         super(arena);
+        for (int copy = 0; copy < (master ? 2 : 1); copy++) {
+            for (Guardian g : Guardian.values()) {
+                minions.add(new Minion(g, copy));
+            }
+        }
     }
 
     @Override
@@ -191,74 +306,73 @@ final class SimScarf extends SimBoss.Fight {
     void tick(ServerLevel level, int t) {
         now = t;
         phaseTicks++;
-        if (body == null || body.isRemoved()) {
-            if (phase != Phase.DEAD) {
-                spawnBody(level);
-            }
+        if ((body == null || body.isRemoved()) && phase != Phase.DYING && phase != Phase.DEAD) {
+            spawnBody(level);
         }
         switch (phase) {
             case INTRO -> {
                 perch(level);
-                if (phaseTicks >= INTRO_TICKS) {
+                // Hypixel's opening, a couple of seconds a line (the spacing is APPROXIMATE).
+                if (phaseTicks == 40) {
+                    SimBoss.say(level.getServer(), "Scarf",
+                            "The last few who tried fighting me are now in those Crypts.");
+                } else if (phaseTicks == 80) {
+                    SimBoss.say(level.getServer(), "Scarf",
+                            "If you can beat my Undeads, I'll personally grant you the privilege to replace them.");
+                } else if (phaseTicks >= 120) {
                     SimBoss.say(level.getServer(), "Scarf", "ARISE, MY CREATIONS!");
-                    for (Guardian g : Guardian.values()) {
-                        raise(level, g, spawnSpot(g));
+                    for (Minion m : minions) {
+                        raise(level, m, spawnSpot(m), false);
                     }
-                    waveMaxHealth = waveHealthNow(level);
-                    nextHeal = healInterval();
-                    nextBolt = 100;
+                    waveMaxHealth = waveHealth(level, true);
                     toPhase(Phase.MINIONS);
                 }
             }
             case MINIONS -> {
                 perch(level);
-                tickGuardians(level);
-                // Master Mode: he does not just watch.
-                if (master && --nextBolt <= 0) {
-                    ServerPlayer target = randomPlayer(level);
-                    if (target != null && body != null) {
-                        throwBolts(level, body.position().add(0, 1.6, 0), target, 1, scarfDamage());
-                    }
-                    nextBolt = 100;
+                if (phaseTicks == 30) {
+                    SimBoss.say(level.getServer(), "Scarf", "This should be interesting.");
                 }
+                tickMinions(level);
                 if (allDown()) {
                     SimBoss.say(level.getServer(), "Scarf", "Those toys are not strong enough I see.");
-                    toPhase(Phase.DESCEND);
+                    toPhase(Phase.RISE);
                 }
             }
-            case DESCEND -> {
-                if (body != null) {
-                    // Floats down from his perch onto the arena floor.
-                    BlockPos spawn = arena.toWorld(arena.bossSpawn);
-                    double y = spawn.getY() + PERCH_HEIGHT * Math.max(0, 1 - (double) phaseTicks / DESCEND_TICKS);
-                    body.snapTo(spawn.getX() + 0.5, y, spawn.getZ() + 0.5, body.getYRot(), 0f);
-                    level.sendParticles(ParticleTypes.SOUL, body.getX(), body.getY() + 1, body.getZ(), 2,
-                            0.3, 0.5, 0.3, 0.01);
-                }
-                if (phaseTicks >= DESCEND_TICKS) {
-                    SimBoss.say(level.getServer(), "Scarf", "Don't get too excited though.");
-                    health.invulnerable = false;
-                    if (body != null) {
-                        body.setGlowingTag(false);
-                    }
-                    nextBolt = 30;
-                    nextTeleport = 60;
-                    nextSlam = 120;
-                    toPhase(Phase.FIGHT);
-                }
-            }
+            case RISE -> rise(level);
             case FIGHT -> fight(level);
+            case DYING -> {
+                // Hypixel's lines for a won fight, then it is over.
+                if (phaseTicks == 30) {
+                    SimBoss.say(level.getServer(), "Scarf", "You'll never beat my teacher..");
+                } else if (phaseTicks == 60) {
+                    SimBoss.say(level.getServer(), "Scarf", "His technique.. is too advanced..");
+                    toPhase(Phase.DEAD);
+                }
+            }
             default -> {
             }
         }
-        tickBolts(level);
-        tickBlasts(level);
+        tickShots(level);
+        tickPits(level);
+        tickWaves(level);
+        tickBlizzard(level);
         nameTag();
     }
 
     private void toPhase(Phase p) {
         phase = p;
         phaseTicks = 0;
+    }
+
+    /** A cooldown, shortened for Master Mode and for phase 2's stronger Undead. APPROXIMATE. */
+    private int cd(int base) {
+        double pace = (master ? 0.8 : 1.0) / (phaseTwo ? STRONGER : 1.0);
+        return Math.max(10, (int) Math.round(base * pace));
+    }
+
+    private double strength() {
+        return phaseTwo ? STRONGER : 1.0;
     }
 
     // ------------------------------------------------------------------ Scarf
@@ -273,7 +387,7 @@ final class SimScarf extends SimBoss.Fight {
         z.setPersistenceRequired();
         z.setCustomNameVisible(true);
         z.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.BLAZE_ROD));
-        double y = phase == Phase.FIGHT ? at.getY() : at.getY() + PERCH_HEIGHT;
+        double y = phase == Phase.FIGHT ? ground(level, at.getX(), at.getZ(), at.getY() + 4) : at.getY() + PERCH_HEIGHT;
         z.snapTo(at.getX() + 0.5, y, at.getZ() + 0.5, 0f, 0f);
         z.setGlowingTag(health.invulnerable);
         level.addFreshEntity(z);
@@ -281,7 +395,7 @@ final class SimScarf extends SimBoss.Fight {
         nameTag();
     }
 
-    /** Hangs over his spawn point facing the nearest player, glowing while he cannot be hurt. */
+    /** Sits behind his barrier over his spawn point facing the nearest player, glowing while he cannot be hurt. */
     private void perch(ServerLevel level) {
         if (body == null) {
             return;
@@ -297,49 +411,86 @@ final class SimScarf extends SimBoss.Fight {
         body.setGlowingTag(true);
         if (now % 10 == 0) {
             level.sendParticles(ParticleTypes.SOUL_FIRE_FLAME, x, y + 0.2, z, 4, 0.4, 0.1, 0.4, 0.01);
+            // The barrier in front of him: a thin sheet of light between him and the arena.
+            Vec3 toward = Vec3.atBottomCenterOf(arena.toWorld(arena.centre)).subtract(x, 0, z);
+            if (toward.horizontalDistanceSqr() > 0.01) {
+                Vec3 d = new Vec3(toward.x, 0, toward.z).normalize();
+                Vec3 side = new Vec3(-d.z, 0, d.x);
+                for (int i = -4; i <= 4; i++) {
+                    level.sendParticles(ParticleTypes.END_ROD, x + d.x * 2 + side.x * i * 0.6, y + 0.5,
+                            z + d.z * 2 + side.z * i * 0.6, 1, 0, 0.6, 0, 0);
+                }
+            }
         }
     }
 
-    /** His own part of the fight: teleports, bolts, slams, and the half-health wave. */
+    /** "Those toys..." to the fight proper: Hypixel's lines, every Undead back up, and Scarf coming down. */
+    private void rise(ServerLevel level) {
+        if (phaseTicks < 80) {
+            perch(level);
+        }
+        if (phaseTicks == 40) {
+            SimBoss.say(level.getServer(), "Scarf", "Don't get too excited though.");
+        } else if (phaseTicks == 80) {
+            // Hypixel's start of phase 2, word for word: Boss Phases opens "Scarf" on it.
+            SimBoss.say(level.getServer(), "Scarf", "Did you forget? I was taught by the best! Let's dance.");
+            phaseTwo = true;
+            for (Minion m : minions) {
+                raise(level, m, m.lastPos != null ? BlockPos.containing(m.lastPos) : spawnSpot(m), true);
+            }
+            waveMaxHealth = waveHealth(level, true);
+        } else if (phaseTicks > 80 && body != null) {
+            // Floats down from behind his barrier onto the arena floor.
+            BlockPos spawn = arena.toWorld(arena.bossSpawn);
+            int floor = ground(level, spawn.getX(), spawn.getZ(), spawn.getY() + 4);
+            double k = Math.max(0, 1 - (double) (phaseTicks - 80) / DESCEND_TICKS);
+            double y = floor + (spawn.getY() + PERCH_HEIGHT - floor) * k;
+            body.snapTo(spawn.getX() + 0.5, y, spawn.getZ() + 0.5, body.getYRot(), 0f);
+            level.sendParticles(ParticleTypes.SOUL, body.getX(), body.getY() + 1, body.getZ(), 2, 0.3, 0.5, 0.3, 0.01);
+        }
+        if (phaseTicks > 80) {
+            tickMinions(level);
+        }
+        if (phaseTicks >= 80 + DESCEND_TICKS) {
+            nextMelee = 20;
+            nextBarrage = 120;
+            nextBlizzard = 200;
+            nextTaunt = 600;
+            toPhase(Phase.FIGHT);
+        }
+    }
+
+    /** Phase 2: his Undead, his melee, his Skull Barrage and Soul Sand Blizzard. */
     private void fight(ServerLevel level) {
         if (body == null) {
             return;
         }
-        tickGuardians(level);
-        // Master Mode's wave shields him; a Normal floor's only gets in the way.
-        boolean shielded = master && secondWave && !allDown();
+        tickMinions(level);
+        // Master Mode: immune until at least four Undead are dead (the wiki); the rest is in hit().
+        boolean shielded = master && deadCount() < 4;
         health.invulnerable = shielded;
         body.setGlowingTag(shielded);
-        float yaw = face(level, body.getX(), body.getZ(), body.getYRot());
-        body.setYRot(yaw);
-        body.setYHeadRot(yaw);
-        body.setYBodyRot(yaw);
 
-        if (--nextTeleport <= 0) {
-            teleport(level);
-            nextTeleport = master ? 60 : 100;
-        }
-        if (--nextBolt <= 0) {
-            ServerPlayer target = nearest(level, body.position());
-            if (target != null) {
-                body.swing(InteractionHand.MAIN_HAND);
-                throwBolts(level, body.position().add(0, 1.6, 0), target, master ? 3 : 1, scarfDamage());
+        if (barrageTicks >= 0) {
+            skullBarrage(level);
+        } else {
+            chase(level);
+            if (--nextBarrage <= 0) {
+                barrageTicks = 0;
+                SimBoss.say(level.getServer(), "Scarf", pick(BARRAGE_LINES));
             }
-            nextBolt = master ? 25 : 40;
-        }
-        if (--nextSlam <= 0) {
-            slam(level);
-            nextSlam = master ? 110 : 160;
-        }
-        if (!secondWave && health.hp <= health.max / 2) {
-            secondWave = true;
-            SimBoss.say(level.getServer(), "Scarf", "ARISE, MY CREATIONS!");
-            List<Guardian> wave = master ? List.of(Guardian.values()) : List.of(Guardian.WARRIOR, Guardian.ARCHER);
-            for (Guardian g : wave) {
-                raise(level, g, spawnSpotNear(body.position(), g));
+            if (--nextBlizzard <= 0) {
+                blizzard(level);
+                nextBlizzard = master ? 180 : 240; // APPROXIMATE
             }
-            waveMaxHealth = waveHealthNow(level);
-            nextHeal = healInterval();
+        }
+        if (--nextTaunt <= 0) {
+            SimBoss.say(level.getServer(), "Scarf", pick(TAUNT_LINES));
+            nextTaunt = 600 + ThreadLocalRandom.current().nextInt(400);
+        }
+        if (!saidAlone && allDown()) {
+            saidAlone = true;
+            SimBoss.say(level.getServer(), "Scarf", "Fine then! I'll take you myself!");
         }
         if (health.hp <= 0) {
             die(level);
@@ -347,172 +498,197 @@ final class SimScarf extends SimBoss.Fight {
     }
 
     private void die(ServerLevel level) {
-        // Hypixel's last line, word for word: the splits and the boss-dead clutter read it as Scarf being down.
-        SimBoss.say(level.getServer(), "Scarf", "Did you forget? I was taught by the best! Let's dance.");
+        SimBoss.say(level.getServer(), "Scarf", "Whatever...");
         if (body != null) {
             level.sendParticles(ParticleTypes.EXPLOSION, body.getX(), body.getY() + 1, body.getZ(), 3,
                     0.5, 0.5, 0.5, 0);
             body.discard();
             body = null;
         }
-        discardGuardians(level);
-        bolts.clear();
-        blasts.clear();
-        toPhase(Phase.DEAD);
+        clearAll(level);
+        toPhase(Phase.DYING);
     }
 
-    /** Blinks to a spot a few blocks from a random player, inside the arena and on open floor. */
-    private void teleport(ServerLevel level) {
-        ServerPlayer target = randomPlayer(level);
-        if (target == null || body == null) {
+    /** Walks at the nearest player and hits him, the way his Warrior does. */
+    private void chase(ServerLevel level) {
+        ServerPlayer target = nearest(level, body.position());
+        if (target == null) {
             return;
         }
-        ThreadLocalRandom rnd = ThreadLocalRandom.current();
-        BlockPos c = arena.toWorld(arena.centre);
-        BlockPos lo = arena.toWorld(-30, 70, -29);
-        BlockPos hi = arena.toWorld(14, 70, 11);
-        for (int attempt = 0; attempt < 8; attempt++) {
-            double a = rnd.nextDouble() * Math.PI * 2;
-            double d = 4 + rnd.nextDouble() * 3;
-            double x = target.getX() + Math.cos(a) * d;
-            double z = target.getZ() + Math.sin(a) * d;
-            if (x < Math.min(lo.getX(), hi.getX()) || x > Math.max(lo.getX(), hi.getX()) + 1
-                    || z < Math.min(lo.getZ(), hi.getZ()) || z > Math.max(lo.getZ(), hi.getZ()) + 1) {
-                continue;
+        double d = horizontal(body.position(), target.position());
+        if (d > 1.8) {
+            Vec3 next = step(level, body.position(), target.position(), master ? 0.22 : 0.18, 0);
+            if (next != null) {
+                body.snapTo(next.x, next.y, next.z, body.getYRot(), 0f);
             }
-            BlockPos feet = BlockPos.containing(x, c.getY(), z);
-            if (!level.getBlockState(feet).isAir() || !level.getBlockState(feet.above()).isAir()
-                    || level.getBlockState(feet.below()).isAir()) {
-                continue;
+        }
+        turn(body, target.getX() - body.getX(), target.getZ() - body.getZ());
+        if (nextMelee > 0) {
+            nextMelee--;
+        } else if (d < 2.6 && Math.abs(target.getY() - body.getY()) < 2.5) {
+            body.swing(InteractionHand.MAIN_HAND);
+            hurtPlayer(level, target, scarfDamage(), target.getX() - body.getX(), target.getZ() - body.getZ(),
+                    0.6, 0.3);
+            nextMelee = 20; // APPROXIMATE: a swing a second
+            if (now - lastHurtLine > 200 && ThreadLocalRandom.current().nextInt(4) == 0) {
+                lastHurtLine = now;
+                SimBoss.say(level.getServer(), "Scarf", "Back off!");
             }
-            level.sendParticles(ParticleTypes.PORTAL, body.getX(), body.getY() + 1, body.getZ(), 30, 0.4, 0.8, 0.4,
-                    0.3);
-            body.snapTo(x, c.getY(), z, body.getYRot(), 0f);
-            level.sendParticles(ParticleTypes.PORTAL, x, c.getY() + 1, z, 30, 0.4, 0.8, 0.4, 0.3);
-            level.playSound(null, x, c.getY(), z, SoundEvents.ENDERMAN_TELEPORT, SoundSource.HOSTILE, 1f, 0.8f);
-            return;
         }
     }
 
-    /** A ring round where he stands that blows up a moment later: step out of it. */
-    private void slam(ServerLevel level) {
-        if (body == null) {
-            return;
+    /**
+     * Skull Barrage: he rises a little off the ground and fires explosive skulls in a wide arc at a player, a fan
+     * every half second or so. Wide enough that many miss - and land on whoever stands near the target. The count,
+     * arc and timing are APPROXIMATE.
+     */
+    private void skullBarrage(ServerLevel level) {
+        barrageTicks++;
+        int floor = ground(level, (int) Math.floor(body.getX()), (int) Math.floor(body.getZ()),
+                (int) Math.floor(body.getY()) + 1);
+        double y = body.getY() + Math.max(-0.2, Math.min(0.2, floor + 2.0 - body.getY()));
+        ServerPlayer target = nearest(level, body.position());
+        if (target != null) {
+            turn(body, target.getX() - body.getX(), target.getZ() - body.getZ());
         }
-        double r = master ? 5.5 : 4.5;
-        int warn = master ? 18 : 25;
-        blasts.add(new Blast(body.position(), r, now + warn, scarfDamage()));
-        body.swing(InteractionHand.MAIN_HAND);
-        level.playSound(null, body.getX(), body.getY(), body.getZ(), SoundEvents.BLAZE_SHOOT, SoundSource.HOSTILE,
-                1f, 0.6f);
-    }
-
-    /** Fire bolts from {@code from} at a player: one straight at him, or three in a narrow fan. */
-    private void throwBolts(ServerLevel level, Vec3 from, ServerPlayer target, int count, double damage) {
-        Vec3 aim = target.position().add(0, 1.0, 0).subtract(from);
-        if (aim.lengthSqr() < 0.01) {
-            return;
-        }
-        aim = aim.normalize();
-        for (int i = 0; i < count; i++) {
-            double spread = count == 1 ? 0 : Math.toRadians(-15 + 30.0 * i / (count - 1));
-            double cos = Math.cos(spread);
-            double sin = Math.sin(spread);
-            Vec3 dir = new Vec3(aim.x * cos - aim.z * sin, aim.y, aim.x * sin + aim.z * cos).normalize();
-            bolts.add(new Bolt(from, dir.scale(BOLT_SPEED), damage));
-        }
-        level.playSound(null, from.x, from.y, from.z, SoundEvents.BLAZE_SHOOT, SoundSource.HOSTILE, 0.8f, 1.2f);
-    }
-
-    private void tickBolts(ServerLevel level) {
-        if (bolts.isEmpty()) {
-            return;
-        }
-        List<ServerPlayer> players = SimBoss.playersInRing(level);
-        List<Bolt> done = new ArrayList<>();
-        for (Bolt b : bolts) {
-            boolean gone = --b.life <= 0;
-            // Two half steps a tick, so a bolt cannot skip over a player or through a thin wall.
-            for (int step = 0; step < 2 && !gone; step++) {
-                b.pos = b.pos.add(b.vel.scale(0.5));
-                BlockPos bp = BlockPos.containing(b.pos);
-                if (!level.getBlockState(bp).getCollisionShape(level, bp).isEmpty()) {
-                    level.sendParticles(ParticleTypes.SMOKE, b.pos.x, b.pos.y, b.pos.z, 6, 0.1, 0.1, 0.1, 0.02);
-                    gone = true;
-                    break;
-                }
-                for (ServerPlayer p : players) {
-                    if (p.position().add(0, 1.0, 0).distanceToSqr(b.pos) <= BOLT_HIT_RADIUS * BOLT_HIT_RADIUS) {
-                        hurtPlayer(level, p, b.damage, b.vel.x, b.vel.z, 0.5, 0.3);
-                        level.sendParticles(ParticleTypes.LAVA, b.pos.x, b.pos.y, b.pos.z, 4, 0.2, 0.2, 0.2, 0);
-                        gone = true;
-                        break;
-                    }
-                }
-            }
-            if (gone) {
-                done.add(b);
-                continue;
-            }
-            level.sendParticles(ParticleTypes.FLAME, b.pos.x, b.pos.y, b.pos.z, 2, 0.05, 0.05, 0.05, 0.01);
-            level.sendParticles(ParticleTypes.SMOKE, b.pos.x, b.pos.y, b.pos.z, 1, 0.05, 0.05, 0.05, 0.01);
-        }
-        bolts.removeAll(done);
-    }
-
-    private void tickBlasts(ServerLevel level) {
-        if (blasts.isEmpty()) {
-            return;
-        }
-        DustParticleOptions orange = new DustParticleOptions(0xFF8020, 1.2f);
-        List<Blast> done = new ArrayList<>();
-        for (Blast b : blasts) {
-            if (b.explodeAt() > now) {
-                if (now % 3 == 0) {
-                    int n = (int) Math.max(16, b.radius() * 5);
+        body.snapTo(body.getX(), y, body.getZ(), body.getYRot(), 0f);
+        level.sendParticles(ParticleTypes.SOUL, body.getX(), body.getY(), body.getZ(), 2, 0.3, 0.1, 0.3, 0.01);
+        int waves = master ? 6 : 4;
+        if (barrageTicks >= 15 && (barrageTicks - 15) % 12 == 0 && (barrageTicks - 15) / 12 < waves) {
+            ServerPlayer aim = randomPlayer(level);
+            if (aim != null) {
+                Vec3 from = body.position().add(0, 1.6, 0);
+                Vec3 dir = aim.position().add(0, 1.0, 0).subtract(from);
+                if (dir.lengthSqr() > 0.01) {
+                    dir = dir.normalize();
+                    int n = master ? 9 : 7;
                     for (int i = 0; i < n; i++) {
-                        double a = Math.PI * 2 * i / n;
-                        level.sendParticles(orange, b.at().x + Math.cos(a) * b.radius(), b.at().y + 0.1,
-                                b.at().z + Math.sin(a) * b.radius(), 1, 0, 0, 0, 0);
+                        double spread = Math.toRadians(-55 + 110.0 * i / (n - 1));
+                        Vec3 d = rotate(dir, spread);
+                        shots.add(new Shot(from, d.scale(0.8), scarfSkull(), 2.5, false));
                     }
+                    body.swing(InteractionHand.MAIN_HAND);
+                    level.playSound(null, from.x, from.y, from.z, SoundEvents.WITHER_SHOOT, SoundSource.HOSTILE,
+                            0.8f, 1f);
                 }
-                continue;
             }
-            Vec3 at = b.at();
-            level.sendParticles(ParticleTypes.EXPLOSION, at.x, at.y + 0.5, at.z, 3, b.radius() / 3, 0.3,
-                    b.radius() / 3, 0);
-            level.playSound(null, at.x, at.y, at.z, SoundEvents.GENERIC_EXPLODE, SoundSource.HOSTILE, 1f, 1f);
-            for (ServerPlayer p : SimBoss.playersInRing(level)) {
-                double dx = p.getX() - at.x;
-                double dz = p.getZ() - at.z;
-                if (dx * dx + dz * dz > b.radius() * b.radius() || Math.abs(p.getY() - at.y) > 3) {
+        }
+        if (barrageTicks >= 15 + waves * 12 + 10) {
+            barrageTicks = -1;
+            nextBarrage = master ? 220 : 300; // APPROXIMATE
+            nextMelee = 10;
+        }
+    }
+
+    /** Soul Sand Blizzard: a trail of soul sand from Scarf running at a player. */
+    private void blizzard(ServerLevel level) {
+        ServerPlayer target = randomPlayer(level);
+        if (target == null) {
+            return;
+        }
+        trails.add(new Trail(body.position(), target.getUUID(), 24));
+        level.playSound(null, body.getX(), body.getY(), body.getZ(), SoundEvents.SOUL_ESCAPE.value(),
+                SoundSource.HOSTILE, 1.5f, 0.6f);
+        body.swing(InteractionHand.MAIN_HAND);
+    }
+
+    private void tickBlizzard(ServerLevel level) {
+        if (!trails.isEmpty() && now % 2 == 0) {
+            for (var it = trails.iterator(); it.hasNext(); ) {
+                Trail tr = it.next();
+                if (--tr.steps < 0) {
+                    it.remove();
                     continue;
                 }
-                hurtPlayer(level, p, b.damage(), dx, dz, 1.2, 0.6);
+                // Homes on its player, a block a step.
+                ServerPlayer p = level.getServer().getPlayerList().getPlayer(tr.target);
+                if (p != null) {
+                    Vec3 to = p.position().subtract(tr.at);
+                    double len = Math.sqrt(to.x * to.x + to.z * to.z);
+                    if (len > 0.5) {
+                        tr.at = tr.at.add(to.x / len, 0, to.z / len);
+                    }
+                }
+                laySand(level, tr.at);
+                // A little either side, so it cannot be stepped over.
+                laySand(level, tr.at.add(0.8, 0, 0));
+                laySand(level, tr.at.add(0, 0, 0.8));
             }
-            done.add(b);
         }
-        blasts.removeAll(done);
+        if (sands.isEmpty()) {
+            return;
+        }
+        for (var it = sands.entrySet().iterator(); it.hasNext(); ) {
+            var e = it.next();
+            if (e.getValue().meltAt() <= now) {
+                if (level.getBlockState(e.getKey()).is(Blocks.SOUL_SAND)) {
+                    level.setBlock(e.getKey(), e.getValue().original(), 3);
+                }
+                it.remove();
+            } else if (now % 8 == 0) {
+                BlockPos b = e.getKey();
+                level.sendParticles(ParticleTypes.SNOWFLAKE, b.getX() + 0.5, b.getY() + 1.2, b.getZ() + 0.5, 1,
+                        0.3, 0.2, 0.3, 0.01);
+            }
+        }
+        for (ServerPlayer p : SimBoss.playersInRing(level)) {
+            BlockPos under = BlockPos.containing(p.getX(), p.getY() - 0.3, p.getZ());
+            if (!sands.containsKey(under)) {
+                continue;
+            }
+            Integer last = lastSandHit.get(p.getUUID());
+            if (last != null && now - last < 10) {
+                continue;
+            }
+            lastSandHit.put(p.getUUID(), now);
+            // A share of max health as true damage (the share is APPROXIMATE), and Slowness.
+            SimVitals.dealMaxHealthShare(level, p, level.damageSources().magic(), SAND_SHARE, true);
+            p.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 40, 1));
+        }
+    }
+
+    /** Turns the floor block under a spot to soul sand for a few seconds. */
+    private void laySand(ServerLevel level, Vec3 at) {
+        int feet = ground(level, (int) Math.floor(at.x), (int) Math.floor(at.z), (int) Math.floor(at.y) + 2);
+        BlockPos floor = new BlockPos((int) Math.floor(at.x), feet - 1, (int) Math.floor(at.z));
+        int melt = now + 120; // APPROXIMATE: six seconds
+        Sand had = sands.get(floor);
+        if (had != null) {
+            sands.put(floor, new Sand(had.original(), melt));
+            return;
+        }
+        BlockState state = level.getBlockState(floor);
+        if (state.isAir() || state.hasBlockEntity() || !state.isCollisionShapeFullBlock(level, floor)
+                || !inArena(floor.getX() + 0.5, floor.getZ() + 0.5)) {
+            return;
+        }
+        sands.put(floor, new Sand(state, melt));
+        level.setBlock(floor, Blocks.SOUL_SAND.defaultBlockState(), 3);
+        level.sendParticles(ParticleTypes.SOUL, floor.getX() + 0.5, floor.getY() + 1.1, floor.getZ() + 0.5, 2,
+                0.3, 0.1, 0.3, 0.01);
+    }
+
+    private void restoreSand(ServerLevel level) {
+        for (var e : sands.entrySet()) {
+            if (level.getBlockState(e.getKey()).is(Blocks.SOUL_SAND)) {
+                level.setBlock(e.getKey(), e.getValue().original(), 3);
+            }
+        }
+        sands.clear();
+        trails.clear();
     }
 
     // ------------------------------------------------------------------ the Undead
 
-    private BlockPos spawnSpot(Guardian g) {
+    private BlockPos spawnSpot(Minion m) {
         BlockPos c = arena.toWorld(arena.centre);
-        return c.offset(g.dx, 0, g.dz);
+        return c.offset(m.kind.dx + m.copy * 2, 0, m.kind.dz + m.copy * 2);
     }
 
-    /** The half-health wave rises round Scarf, wherever he has got to. */
-    private BlockPos spawnSpotNear(Vec3 at, Guardian g) {
-        BlockPos c = arena.toWorld(arena.centre);
-        double a = Math.PI / 2 * g.ordinal() + ThreadLocalRandom.current().nextDouble() * 0.5;
-        return BlockPos.containing(at.x + Math.cos(a) * 3, c.getY(), at.z + Math.sin(a) * 3);
-    }
-
-    /** Raises one guardian with its pool and its kit. */
-    private void raise(ServerLevel level, Guardian g, BlockPos at) {
+    /** Raises one Undead with its pool and its kit; phase 2's come back stronger. */
+    private void raise(ServerLevel level, Minion m, BlockPos at, boolean stronger) {
         String floor = SimState.floorLabel();
-        Mob mob = switch (g) {
+        Mob mob = switch (m.kind) {
             case ARCHER -> {
                 Archer s = new Archer(McEntities.SKELETON, level);
                 s.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.BOW));
@@ -529,21 +705,21 @@ final class SimScarf extends SimBoss.Fight {
                 UndeadZombie z = new UndeadZombie(level);
                 z.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.GOLDEN_HOE));
                 z.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.GOLDEN_HELMET));
-                z.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(0.2);
+                z.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(0.22);
                 yield z;
             }
             case MAGE -> {
                 UndeadZombie z = new UndeadZombie(level);
                 z.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.BLAZE_ROD));
                 z.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.CHAINMAIL_HELMET));
-                z.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(0.18);
+                z.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(0.22);
                 yield z;
             }
         };
         mob.setPersistenceRequired();
         var attack = mob.getAttribute(Attributes.ATTACK_DAMAGE);
         if (attack != null) {
-            attack.setBaseValue(SimHealth.meleeDamage(floor, SimHealth.Role.STARRED) * g.damageFactor);
+            attack.setBaseValue(SimHealth.meleeDamage(floor, SimHealth.Role.STARRED));
         }
         var range = mob.getAttribute(Attributes.FOLLOW_RANGE);
         if (range != null) {
@@ -552,6 +728,12 @@ final class SimScarf extends SimBoss.Fight {
         var reinforcements = mob.getAttribute(Attributes.SPAWN_REINFORCEMENTS_CHANCE);
         if (reinforcements != null) {
             reinforcements.setBaseValue(0);
+        }
+        if (stronger) {
+            var speed = mob.getAttribute(Attributes.MOVEMENT_SPEED);
+            if (speed != null) {
+                speed.setBaseValue(speed.getBaseValue() * 1.1); // APPROXIMATE
+            }
         }
         if (mob instanceof Archer s) {
             s.reassessWeaponGoal();
@@ -565,116 +747,403 @@ final class SimScarf extends SimBoss.Fight {
             return;
         }
         // Registered by its Hypixel name, the pool takes the wiki's health and hit (SimHealth.statsFor).
-        SimHealth.register(mob, SimHealth.maxHealth(floor, SimHealth.Role.STARRED) * g.healthFactor, g.display,
-                false, null);
+        SimHealth.Pool pool = SimHealth.register(mob, SimHealth.maxHealth(floor, SimHealth.Role.STARRED),
+                m.kind.display, false, null);
+        if (stronger && pool != null) {
+            pool.hit *= STRONGER;
+        }
         level.sendParticles(ParticleTypes.LARGE_SMOKE, mob.getX(), mob.getY() + 1, mob.getZ(), 15, 0.3, 0.6, 0.3,
                 0.02);
         level.playSound(null, mob.getX(), mob.getY(), mob.getZ(), SoundEvents.ZOMBIE_VILLAGER_CURE,
                 SoundSource.HOSTILE, 0.5f, 1.4f);
-        guardians.put(g, mob.getUUID());
-        fallenAt.remove(g);
-        reviveAt.remove(g);
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+        m.id = mob.getUUID();
+        m.alive = true;
+        m.lastHp = -1;
+        m.damageBy.clear();
+        m.rooted = 0;
+        m.windup = -1;
+        m.rushing = -1;
+        // Staggered so the four do not all go off on the same tick.
+        m.nextA = 60 + rnd.nextInt(60);
+        m.nextB = 120 + rnd.nextInt(80);
+        m.nextC = 180 + rnd.nextInt(100);
+        m.nextHelp = 100;
     }
 
-    private Mob guardian(ServerLevel level, Guardian g) {
-        UUID id = guardians.get(g);
-        return id != null && level.getEntity(id) instanceof Mob m && m.isAlive() ? m : null;
+    private static Mob mob(ServerLevel level, Minion m) {
+        return m.id != null && level.getEntity(m.id) instanceof Mob mob && mob.isAlive() ? mob : null;
     }
 
-    /** Deaths, the Priest's heal and revives, the Mage's bolts. */
-    private void tickGuardians(ServerLevel level) {
-        for (Guardian g : Guardian.values()) {
-            UUID id = guardians.get(g);
-            if (id == null) {
+    /** Deaths, damage bookkeeping and every Undead's abilities. */
+    private void tickMinions(ServerLevel level) {
+        for (Minion m : minions) {
+            if (!m.alive) {
                 continue;
             }
-            Entity e = level.getEntity(id);
-            if (e != null && e.isAlive()) {
-                if (e instanceof Mob m && m.getTarget() == null) {
-                    ServerPlayer target = nearest(level, m.position());
-                    if (target != null) {
-                        m.setTarget(target);
+            Mob mob = mob(level, m);
+            if (mob == null) {
+                died(level, m);
+                continue;
+            }
+            m.lastPos = mob.position();
+            if (!m.charging() && m.rooted <= 0 && mob.getTarget() == null) {
+                ServerPlayer target = nearest(level, mob.position());
+                if (target != null) {
+                    mob.setTarget(target);
+                }
+            }
+            SimHealth.Pool pool = SimHealth.get(mob);
+            if (pool != null) {
+                if (m.lastHp >= 0 && pool.hp < m.lastHp) {
+                    ServerPlayer by = likelyAttacker(level, mob);
+                    if (by != null) {
+                        m.damageBy.merge(by.getUUID(), m.lastHp - pool.hp, Double::sum);
+                    }
+                    m.lastHurt = now;
+                }
+                m.lastHp = pool.hp;
+            }
+            switch (m.kind) {
+                case WARRIOR -> warrior(level, m, mob);
+                case ARCHER -> archer(level, m, mob);
+                case MAGE -> mage(level, m, mob);
+                case PRIEST -> priest(level, m, mob);
+            }
+            if (m.kind != Guardian.WARRIOR) {
+                help(level, m);
+            }
+        }
+    }
+
+    private void died(ServerLevel level, Minion m) {
+        m.alive = false;
+        m.windup = -1;
+        m.rushing = -1;
+        m.rooted = 0;
+        if (now - lastKillLine > 40) {
+            lastKillLine = now;
+            SimBoss.say(level.getServer(), "Scarf", String.format(Locale.ROOT, pick(KILL_LINES), m.kind.display));
+        }
+        if (phaseTwo && m.kind == Guardian.PRIEST && !saidPriest && !anyAlive(Guardian.PRIEST)) {
+            saidPriest = true;
+            SimBoss.say(level.getServer(), "Scarf", "Where is my Priest!");
+        }
+    }
+
+    /**
+     * The player who most likely landed the hit on {@code mob}: the pools do not record who hit them, so the one
+     * looking straight at it (or, failing that, the nearest) takes the credit. APPROXIMATE, and exact solo.
+     */
+    private static ServerPlayer likelyAttacker(ServerLevel level, Mob mob) {
+        ServerPlayer best = null;
+        double bestScore = -Double.MAX_VALUE;
+        Vec3 at = mob.position().add(0, mob.getBbHeight() / 2, 0);
+        for (ServerPlayer p : SimBoss.playersInRing(level)) {
+            Vec3 to = at.subtract(p.getEyePosition());
+            double dist = to.length();
+            double aim = dist < 0.01 ? 1 : p.getLookAngle().dot(to.scale(1 / dist));
+            double score = aim - dist * 0.02;
+            if (score > bestScore) {
+                bestScore = score;
+                best = p;
+            }
+        }
+        return best;
+    }
+
+    /** Help: the Archer, the Mage and the Priest call a Warrior to Charge whoever has hurt them most. */
+    private void help(ServerLevel level, Minion m) {
+        if (--m.nextHelp > 0 || m.damageBy.isEmpty() || now - m.lastHurt > 60) {
+            return;
+        }
+        UUID top = null;
+        double most = 0;
+        for (var e : m.damageBy.entrySet()) {
+            if (e.getValue() > most) {
+                most = e.getValue();
+                top = e.getKey();
+            }
+        }
+        ServerPlayer target = top == null ? null : level.getServer().getPlayerList().getPlayer(top);
+        Minion warrior = freeWarrior(level);
+        if (target == null || warrior == null || !SimBoss.playersInRing(level).contains(target)) {
+            return;
+        }
+        m.nextHelp = cd(240); // APPROXIMATE
+        startCharge(level, warrior, mob(level, warrior), target, 20);
+        if (phaseTwo && now - lastCallLine > 200) {
+            lastCallLine = now;
+            SimBoss.say(level.getServer(), "Scarf", "Warrior! Charge this fool!");
+        }
+    }
+
+    private Minion freeWarrior(ServerLevel level) {
+        for (Minion w : minions) {
+            if (w.kind == Guardian.WARRIOR && w.alive && !w.charging() && mob(level, w) != null) {
+                return w;
+            }
+        }
+        return null;
+    }
+
+    // ---- the Warrior
+
+    private void warrior(ServerLevel level, Minion m, Mob mob) {
+        if (m.charging()) {
+            tickCharge(level, m, mob);
+            return;
+        }
+        if (--m.nextA <= 0) {
+            ServerPlayer target = mob.getTarget() instanceof ServerPlayer sp ? sp : nearest(level, mob.position());
+            if (target != null && target.distanceToSqr(mob) < 20 * 20) {
+                startCharge(level, m, mob, target, 20);
+            }
+            m.nextA = cd(160); // APPROXIMATE
+        }
+    }
+
+    /** Stops, roars and shows the line he will run down; then {@link #tickCharge} runs it. */
+    private void startCharge(ServerLevel level, Minion m, Mob mob, ServerPlayer target, int windup) {
+        if (mob == null) {
+            return;
+        }
+        m.windup = windup;
+        m.rushing = -1;
+        m.chargeTarget = target.getUUID();
+        m.chargeDir = null;
+        mob.setNoAi(true);
+        level.playSound(null, mob.getX(), mob.getY(), mob.getZ(), SoundEvents.RAVAGER_ROAR, SoundSource.HOSTILE,
+                0.8f, 1.3f);
+    }
+
+    private void tickCharge(ServerLevel level, Minion m, Mob mob) {
+        if (m.windup >= 0) {
+            ServerPlayer target = level.getServer().getPlayerList().getPlayer(m.chargeTarget);
+            if (target != null) {
+                Vec3 to = target.position().subtract(mob.position());
+                double len = Math.sqrt(to.x * to.x + to.z * to.z);
+                if (len > 0.1) {
+                    // Tracks him through the wind-up, then locks for the last few ticks: that is the dodge.
+                    if (m.windup > 6 || m.chargeDir == null) {
+                        m.chargeDir = new Vec3(to.x / len, 0, to.z / len);
+                    }
+                    turn(mob, m.chargeDir.x, m.chargeDir.z);
+                }
+            }
+            if (m.chargeDir != null && now % 2 == 0) {
+                DustParticleOptions red = new DustParticleOptions(m.windup <= 6 ? 0xFF2020 : 0xFF9090, 1f);
+                for (int i = 1; i <= 12; i++) {
+                    level.sendParticles(red, mob.getX() + m.chargeDir.x * i, mob.getY() + 0.2,
+                            mob.getZ() + m.chargeDir.z * i, 1, 0, 0, 0, 0);
+                }
+                level.sendParticles(ParticleTypes.ANGRY_VILLAGER, mob.getX(), mob.getY() + 2.2, mob.getZ(), 1,
+                        0.2, 0.1, 0.2, 0);
+            }
+            if (--m.windup < 0) {
+                if (m.chargeDir == null) {
+                    endCharge(m, mob);
+                    return;
+                }
+                m.rushing = 14; // APPROXIMATE: about 12 blocks
+                m.chargeHit.clear();
+            }
+            return;
+        }
+        Vec3 next = step(level, mob.position(), mob.position().add(m.chargeDir.scale(5)), 0.9, 1.2);
+        if (next == null || --m.rushing < 0) {
+            endCharge(m, mob);
+            return;
+        }
+        mob.snapTo(next.x, next.y, next.z, mob.getYRot(), 0f);
+        level.sendParticles(ParticleTypes.CLOUD, mob.getX(), mob.getY() + 0.2, mob.getZ(), 3, 0.2, 0.1, 0.2, 0.02);
+        for (ServerPlayer p : SimBoss.playersInRing(level)) {
+            if (!m.chargeHit.contains(p.getUUID()) && horizontal(p.position(), mob.position()) < 1.5
+                    && Math.abs(p.getY() - mob.getY()) < 2) {
+                m.chargeHit.add(p.getUUID());
+                hurtPlayer(level, p, chargeDamage() * strength(), m.chargeDir.x, m.chargeDir.z, 1.4, 0.5);
+            }
+        }
+    }
+
+    private static void endCharge(Minion m, Mob mob) {
+        m.windup = -1;
+        m.rushing = -1;
+        mob.setNoAi(false);
+    }
+
+    // ---- the Archer
+
+    private void archer(ServerLevel level, Minion m, Mob mob) {
+        if (--m.nextA <= 0) {
+            arrowBarrage(level, mob);
+            m.nextA = cd(200); // APPROXIMATE
+        }
+        if (--m.nextB <= 0) {
+            m.nextB = cd(220); // APPROXIMATE
+            ServerPlayer close = nearest(level, mob.position());
+            if (close != null && close.distanceToSqr(mob) < 5 * 5) {
+                // Away from danger.
+                Vec3 to = floorSpot(level, close.position(), 9, 14);
+                if (to != null) {
+                    blink(level, mob.position(), to);
+                    mob.snapTo(to.x, to.y, to.z, mob.getYRot(), 0f);
+                    mob.getNavigation().stop();
+                }
+            } else {
+                // A player into danger: in front of a Warrior, who Charges him.
+                Minion warrior = freeWarrior(level);
+                ServerPlayer victim = randomPlayer(level);
+                Mob wMob = warrior == null ? null : mob(level, warrior);
+                if (wMob != null && victim != null && ThreadLocalRandom.current().nextBoolean()) {
+                    Vec3 to = floorSpot(level, wMob.position(), 5, 7);
+                    if (to != null) {
+                        blink(level, victim.position(), to);
+                        victim.teleportTo(level, to.x, to.y, to.z, Set.of(), victim.getYRot(), victim.getXRot(),
+                                false);
+                        startCharge(level, warrior, wMob, victim, 12);
                     }
                 }
-                continue;
-            }
-            guardians.remove(g);
-            Vec3 at = e != null ? e.position() : Vec3.atBottomCenterOf(spawnSpot(g));
-            if (g == Guardian.PRIEST) {
-                // He goes out with a bang: a short ring round where he fell.
-                blasts.add(new Blast(at, master ? 5 : 4, now + 15, SimHealth.byMode(1_920, 36_000)));
-                fallenAt.clear();
-                reviveAt.clear();
-            } else if (guardian(level, Guardian.PRIEST) != null) {
-                fallenAt.put(g, at);
-                reviveAt.put(g, now + (master ? 140 : 200));
-                SimBoss.tell(level.getServer(), ModChat.text("The Undead Priest will raise the " + g.display
-                        + " again - kill him!"));
-            }
-        }
-
-        Mob priest = guardian(level, Guardian.PRIEST);
-        if (priest != null) {
-            if (--nextHeal <= 0) {
-                nextHeal = healInterval();
-                priestHeal(level, priest);
-            }
-            for (Guardian g : List.copyOf(reviveAt.keySet())) {
-                Vec3 at = fallenAt.get(g);
-                int left = reviveAt.get(g) - now;
-                if (at != null && left > 0 && left <= 40 && now % 4 == 0) {
-                    level.sendParticles(ParticleTypes.SOUL, at.x, at.y + 0.3, at.z, 6, 0.4, 0.2, 0.4, 0.02);
-                }
-                if (left <= 0) {
-                    raise(level, g, at == null ? spawnSpot(g) : BlockPos.containing(at));
-                    level.sendParticles(ParticleTypes.TOTEM_OF_UNDYING, priest.getX(), priest.getY() + 2,
-                            priest.getZ(), 20, 0.4, 0.4, 0.4, 0.3);
-                }
-            }
-        }
-
-        Mob mage = guardian(level, Guardian.MAGE);
-        if (mage != null && now % (master ? 40 : 60) == 0) {
-            ServerPlayer target = nearest(level, mage.position());
-            if (target != null && target.distanceToSqr(mage) < 24 * 24) {
-                mage.swing(InteractionHand.MAIN_HAND);
-                throwBolts(level, mage.position().add(0, 1.5, 0), target, master ? 3 : 1, mageBolt());
             }
         }
     }
 
-    /** Heals every living guardian (himself too) by a share of its pool. */
-    private void priestHeal(ServerLevel level, Mob priest) {
-        double share = master ? 0.2 : 0.12;
-        for (Guardian g : Guardian.values()) {
-            Mob m = guardian(level, g);
-            SimHealth.Pool pool = m == null ? null : SimHealth.get(m);
-            if (pool == null || pool.hp >= pool.max) {
+    /** Arrows out in every direction from the Archer. Half its own hit each (APPROXIMATE: no wiki number). */
+    private void arrowBarrage(ServerLevel level, Mob mob) {
+        double damage = SimHealth.hitOf(mob) * 0.5;
+        if (damage <= 0) {
+            damage = SimHealth.byMode(2_752, 51_600) * 0.5;
+        }
+        Vec3 from = mob.position().add(0, 1.5, 0);
+        double off = ThreadLocalRandom.current().nextDouble() * Math.PI * 2;
+        int n = 24;
+        for (int i = 0; i < n; i++) {
+            double a = off + Math.PI * 2 * i / n;
+            Vec3 dir = new Vec3(Math.cos(a), 0.04, Math.sin(a)).normalize();
+            shots.add(new Shot(from, dir.scale(1.1), damage, 0, true));
+        }
+        mob.swing(InteractionHand.MAIN_HAND);
+        level.playSound(null, from.x, from.y, from.z, SoundEvents.ARROW_SHOOT, SoundSource.HOSTILE, 1.2f, 0.8f);
+    }
+
+    // ---- the Mage
+
+    private void mage(ServerLevel level, Minion m, Mob mob) {
+        if (m.rooted > 0) {
+            // Stands still while it fires its skulls.
+            m.rooted--;
+            ServerPlayer target = level.getServer().getPlayerList().getPlayer(m.rootTarget);
+            if (target != null) {
+                turn(mob, target.getX() - mob.getX(), target.getZ() - mob.getZ());
+                if (m.rooted % 8 == 4) {
+                    mob.swing(InteractionHand.MAIN_HAND);
+                    Vec3 from = mob.position().add(0, 1.5, 0);
+                    Vec3 dir = target.position().add(0, 1.0, 0).subtract(from);
+                    if (dir.lengthSqr() > 0.01) {
+                        shots.add(new Shot(from, dir.normalize().scale(0.7), mageSkull() * strength(), 0, false));
+                        level.playSound(null, from.x, from.y, from.z, SoundEvents.WITHER_SHOOT, SoundSource.HOSTILE,
+                                0.5f, 1.3f);
+                    }
+                }
+            }
+            if (m.rooted <= 0) {
+                mob.setNoAi(false);
+            }
+            return;
+        }
+        ServerPlayer target = nearest(level, mob.position());
+        if (target == null || target.distanceToSqr(mob) > 24 * 24) {
+            return;
+        }
+        if (--m.nextA <= 0) {
+            m.nextA = cd(90); // APPROXIMATE
+            m.rooted = master ? 26 : 18;
+            m.rootTarget = target.getUUID();
+            mob.setNoAi(true);
+            return;
+        }
+        if (--m.nextB <= 0) {
+            m.nextB = cd(240); // APPROXIMATE
+            // Magma Pit: a warning ring under him, then burning ground.
+            int feet = ground(level, (int) Math.floor(target.getX()), (int) Math.floor(target.getZ()),
+                    (int) Math.floor(target.getY()) + 1);
+            Vec3 at = new Vec3(target.getX(), feet, target.getZ());
+            pits.add(new Pit(at, master ? 3.0 : 2.5, now + 25, now + 125, magmaPit() * strength()));
+            mob.swing(InteractionHand.MAIN_HAND);
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.LAVA_AMBIENT, SoundSource.HOSTILE, 1.2f, 0.8f);
+        }
+        if (--m.nextC <= 0) {
+            m.nextC = cd(300); // APPROXIMATE
+            Vec3 to = target.position().subtract(mob.position());
+            double len = Math.sqrt(to.x * to.x + to.z * to.z);
+            if (len > 0.1) {
+                waves.add(new Wave(mob.position(), new Vec3(to.x / len, 0, to.z / len), tsunami() * strength()));
+                mob.swing(InteractionHand.MAIN_HAND);
+                level.playSound(null, mob.getX(), mob.getY(), mob.getZ(), SoundEvents.GENERIC_SPLASH,
+                        SoundSource.HOSTILE, 1.5f, 0.6f);
+            }
+        }
+    }
+
+    // ---- the Priest
+
+    private void priest(ServerLevel level, Minion m, Mob mob) {
+        if (--m.nextA > 0) {
+            return;
+        }
+        m.nextA = cd(120); // APPROXIMATE
+        // Heals itself and the Undead near it a share of their health (APPROXIMATE: the wiki has no amount).
+        double share = master ? 0.1 : 0.08;
+        for (Minion other : minions) {
+            Mob o = other.alive ? mob(level, other) : null;
+            SimHealth.Pool pool = o == null ? null : SimHealth.get(o);
+            if (pool == null || pool.hp >= pool.max || o.distanceToSqr(mob) > 12 * 12) {
                 continue;
             }
             pool.heal(pool.max * share);
-            level.sendParticles(ParticleTypes.HEART, m.getX(), m.getY() + 2, m.getZ(), 4, 0.4, 0.3, 0.4, 0.1);
+            other.lastHp = pool.hp;
+            level.sendParticles(ParticleTypes.HEART, o.getX(), o.getY() + 2, o.getZ(), 4, 0.4, 0.3, 0.4, 0.1);
         }
-        priest.swing(InteractionHand.MAIN_HAND);
-        level.sendParticles(ParticleTypes.HAPPY_VILLAGER, priest.getX(), priest.getY() + 1, priest.getZ(), 20,
+        // And Scarf, once he is fighting (APPROXIMATE: 2% of his health).
+        if (phase == Phase.FIGHT && body != null && body.distanceToSqr(mob) < 12 * 12 && health.hp < health.max) {
+            health.hp = Math.min(health.max, health.hp + health.max * 0.02);
+            level.sendParticles(ParticleTypes.HEART, body.getX(), body.getY() + 2, body.getZ(), 6, 0.4, 0.3, 0.4,
+                    0.1);
+        }
+        mob.swing(InteractionHand.MAIN_HAND);
+        level.sendParticles(ParticleTypes.HAPPY_VILLAGER, mob.getX(), mob.getY() + 1, mob.getZ(), 20,
                 1.5, 0.8, 1.5, 0.1);
     }
 
-    private int healInterval() {
-        return master ? 70 : 100;
+    private boolean anyAlive(Guardian kind) {
+        for (Minion m : minions) {
+            if (m.kind == kind && m.alive) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    /** No guardian standing and none waiting on a revive. */
     private boolean allDown() {
-        return guardians.isEmpty() && reviveAt.isEmpty();
+        return deadCount() == minions.size();
     }
 
-    /** The living guardians' health, summed; their max when {@code max}. */
+    private int deadCount() {
+        int n = 0;
+        for (Minion m : minions) {
+            if (!m.alive) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /** The living Undead's health, summed; their max when {@code max}. */
     private double waveHealth(ServerLevel level, boolean max) {
         double sum = 0;
-        for (Guardian g : Guardian.values()) {
-            Mob m = guardian(level, g);
-            SimHealth.Pool pool = m == null ? null : SimHealth.get(m);
+        for (Minion m : minions) {
+            Mob mob = m.alive ? mob(level, m) : null;
+            SimHealth.Pool pool = mob == null ? null : SimHealth.get(mob);
             if (pool != null) {
                 sum += max ? pool.max : Math.max(0, pool.hp);
             }
@@ -682,20 +1151,154 @@ final class SimScarf extends SimBoss.Fight {
         return sum;
     }
 
-    private double waveHealthNow(ServerLevel level) {
-        return waveHealth(level, true);
+    private void discardMinions(ServerLevel level) {
+        for (Minion m : minions) {
+            if (m.id != null) {
+                Entity e = level.getEntity(m.id);
+                if (e != null) {
+                    e.discard();
+                }
+            }
+            m.alive = false;
+            m.id = null;
+        }
     }
 
-    private void discardGuardians(ServerLevel level) {
-        for (UUID id : guardians.values()) {
-            Entity e = level.getEntity(id);
-            if (e != null) {
-                e.discard();
+    // ------------------------------------------------------------------ shots, pits, waves
+
+    private void tickShots(ServerLevel level) {
+        if (shots.isEmpty()) {
+            return;
+        }
+        List<ServerPlayer> players = SimBoss.playersInRing(level);
+        List<Shot> done = new ArrayList<>();
+        for (Shot s : shots) {
+            boolean gone = --s.life <= 0;
+            // Two half steps a tick, so a shot cannot skip over a player or through a thin wall.
+            for (int step = 0; step < 2 && !gone; step++) {
+                s.pos = s.pos.add(s.vel.scale(0.5));
+                BlockPos bp = BlockPos.containing(s.pos);
+                if (!level.getBlockState(bp).getCollisionShape(level, bp).isEmpty()) {
+                    if (s.blast > 0) {
+                        explode(level, s.pos, s.blast, s.damage);
+                    } else {
+                        level.sendParticles(ParticleTypes.SMOKE, s.pos.x, s.pos.y, s.pos.z, 4, 0.1, 0.1, 0.1, 0.02);
+                    }
+                    gone = true;
+                    break;
+                }
+                for (ServerPlayer p : players) {
+                    if (p.position().add(0, 1.0, 0).distanceToSqr(s.pos) <= SHOT_HIT_RADIUS * SHOT_HIT_RADIUS) {
+                        if (s.blast > 0) {
+                            explode(level, s.pos, s.blast, s.damage);
+                        } else {
+                            hurtPlayer(level, p, s.damage, s.vel.x, s.vel.z, 0.4, 0.2);
+                        }
+                        gone = true;
+                        break;
+                    }
+                }
+            }
+            if (gone) {
+                done.add(s);
+                continue;
+            }
+            if (s.arrow) {
+                level.sendParticles(ParticleTypes.CRIT, s.pos.x, s.pos.y, s.pos.z, 1, 0, 0, 0, 0);
+            } else {
+                level.sendParticles(ParticleTypes.LARGE_SMOKE, s.pos.x, s.pos.y, s.pos.z, 1, 0.05, 0.05, 0.05, 0.01);
+                level.sendParticles(ParticleTypes.SOUL_FIRE_FLAME, s.pos.x, s.pos.y, s.pos.z, 1, 0.05, 0.05, 0.05,
+                        0.01);
             }
         }
-        guardians.clear();
-        fallenAt.clear();
-        reviveAt.clear();
+        shots.removeAll(done);
+    }
+
+    private static void explode(ServerLevel level, Vec3 at, double radius, double damage) {
+        level.sendParticles(ParticleTypes.EXPLOSION, at.x, at.y, at.z, 2, radius / 3, 0.3, radius / 3, 0);
+        level.playSound(null, at.x, at.y, at.z, SoundEvents.GENERIC_EXPLODE, SoundSource.HOSTILE, 0.8f, 1.2f);
+        for (ServerPlayer p : SimBoss.playersInRing(level)) {
+            Vec3 d = p.position().add(0, 1.0, 0).subtract(at);
+            if (d.lengthSqr() <= radius * radius) {
+                hurtPlayer(level, p, damage, d.x, d.z, 0.8, 0.5);
+            }
+        }
+    }
+
+    private void tickPits(ServerLevel level) {
+        if (pits.isEmpty()) {
+            return;
+        }
+        DustParticleOptions orange = new DustParticleOptions(0xFF6010, 1.2f);
+        for (var it = pits.iterator(); it.hasNext(); ) {
+            Pit p = it.next();
+            if (now >= p.endAt()) {
+                it.remove();
+                continue;
+            }
+            if (now < p.burnAt()) {
+                if (now % 3 == 0) {
+                    int n = (int) Math.max(16, p.radius() * 6);
+                    for (int i = 0; i < n; i++) {
+                        double a = Math.PI * 2 * i / n;
+                        level.sendParticles(orange, p.at().x + Math.cos(a) * p.radius(), p.at().y + 0.1,
+                                p.at().z + Math.sin(a) * p.radius(), 1, 0, 0, 0, 0);
+                    }
+                }
+                continue;
+            }
+            if (now % 4 == 0) {
+                level.sendParticles(ParticleTypes.LAVA, p.at().x, p.at().y + 0.1, p.at().z, 3, p.radius() / 2, 0,
+                        p.radius() / 2, 0);
+                level.sendParticles(ParticleTypes.FLAME, p.at().x, p.at().y + 0.2, p.at().z, 6, p.radius() / 2,
+                        0.1, p.radius() / 2, 0.01);
+            }
+            // Burns every half second while you stand in it (APPROXIMATE rate).
+            if ((now - p.burnAt()) % 10 == 0) {
+                for (ServerPlayer pl : SimBoss.playersInRing(level)) {
+                    if (horizontal(pl.position(), p.at()) <= p.radius() && Math.abs(pl.getY() - p.at().y) < 2) {
+                        SimVitals.dealHypixel(level, pl, level.damageSources().magic(), p.damage(), false);
+                    }
+                }
+            }
+        }
+    }
+
+    private void tickWaves(ServerLevel level) {
+        if (waves.isEmpty()) {
+            return;
+        }
+        double half = 2.5;
+        for (var it = waves.iterator(); it.hasNext(); ) {
+            Wave w = it.next();
+            w.dist += 0.55;
+            if (w.dist > 22) {
+                it.remove();
+                continue;
+            }
+            Vec3 side = new Vec3(-w.dir.z, 0, w.dir.x);
+            Vec3 front = w.origin.add(w.dir.scale(w.dist));
+            for (double s = -half; s <= half; s += 0.5) {
+                level.sendParticles(ParticleTypes.SPLASH, front.x + side.x * s, front.y + 0.6, front.z + side.z * s,
+                        2, 0.1, 0.4, 0.1, 0);
+            }
+            if (now % 2 == 0) {
+                level.sendParticles(ParticleTypes.BUBBLE_POP, front.x, front.y + 1, front.z, 6, half / 2, 0.4,
+                        half / 2, 0.02);
+            }
+            for (ServerPlayer p : SimBoss.playersInRing(level)) {
+                if (w.hit.contains(p.getUUID())) {
+                    continue;
+                }
+                Vec3 rel = p.position().subtract(w.origin);
+                double along = rel.x * w.dir.x + rel.z * w.dir.z;
+                double across = rel.x * side.x + rel.z * side.z;
+                if (Math.abs(along - w.dist) < 0.9 && Math.abs(across) <= half && Math.abs(rel.y) < 2.5) {
+                    w.hit.add(p.getUUID());
+                    hurtPlayer(level, p, w.damage, w.dir.x, w.dir.z, 1.3, 0.45);
+                }
+            }
+        }
     }
 
     // ------------------------------------------------------------------ shared bits
@@ -717,6 +1320,108 @@ final class SimScarf extends SimBoss.Fight {
         }
         p.setDeltaMovement(dx / len * push, lift, dz / len * push);
         p.hurtMarked = true;
+    }
+
+    /**
+     * One step of {@code speed} blocks from {@code from} toward {@code to}, onto the ground there; null if that
+     * would climb or drop more than {@code maxRise} (0: a block, the way a walker steps up) or leave the arena.
+     */
+    private Vec3 step(ServerLevel level, Vec3 from, Vec3 to, double speed, double maxRise) {
+        double dx = to.x - from.x;
+        double dz = to.z - from.z;
+        double d = Math.sqrt(dx * dx + dz * dz);
+        if (d < 0.01) {
+            return null;
+        }
+        double s = Math.min(d, speed);
+        double nx = from.x + dx / d * s;
+        double nz = from.z + dz / d * s;
+        if (!inArena(nx, nz)) {
+            return null;
+        }
+        int y = ground(level, (int) Math.floor(nx), (int) Math.floor(nz), (int) Math.floor(from.y) + 1);
+        double rise = maxRise > 0 ? maxRise : 1.5;
+        if (Math.abs(y - from.y) > rise || !open(level, nx, y, nz)) {
+            return null;
+        }
+        return new Vec3(nx, y, nz);
+    }
+
+    /** Whether the two blocks from {@code y} up at a column are free to stand in (a wall taller than a hop is not). */
+    private static boolean open(ServerLevel level, double x, int y, double z) {
+        BlockPos feet = BlockPos.containing(x, y, z);
+        return level.getBlockState(feet).getCollisionShape(level, feet).isEmpty()
+                && level.getBlockState(feet.above()).getCollisionShape(level, feet.above()).isEmpty();
+    }
+
+    /** The standing height at a column: the first open block with something solid under it, from {@code fromY} down. */
+    private static int ground(ServerLevel level, int x, int z, int fromY) {
+        for (int y = fromY; y > fromY - 12; y--) {
+            BlockPos feet = new BlockPos(x, y, z);
+            if (level.getBlockState(feet).getCollisionShape(level, feet).isEmpty()
+                    && level.getBlockState(feet.above()).getCollisionShape(level, feet.above()).isEmpty()
+                    && !level.getBlockState(feet.below()).getCollisionShape(level, feet.below()).isEmpty()) {
+                return y;
+            }
+        }
+        return fromY;
+    }
+
+    /** A spot on open floor {@code min}-{@code max} blocks from {@code around}, inside the arena; null if none. */
+    private Vec3 floorSpot(ServerLevel level, Vec3 around, double min, double max) {
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+        int floorY = arena.toWorld(arena.centre).getY();
+        for (int attempt = 0; attempt < 10; attempt++) {
+            double a = rnd.nextDouble() * Math.PI * 2;
+            double d = min + rnd.nextDouble() * (max - min);
+            double x = around.x + Math.cos(a) * d;
+            double z = around.z + Math.sin(a) * d;
+            if (!inArena(x, z)) {
+                continue;
+            }
+            int y = ground(level, (int) Math.floor(x), (int) Math.floor(z), floorY + 3);
+            if (Math.abs(y - floorY) <= 3 && open(level, x, y, z)) {
+                return new Vec3(Math.floor(x) + 0.5, y, Math.floor(z) + 0.5);
+            }
+        }
+        return null;
+    }
+
+    private boolean inArena(double x, double z) {
+        BlockPos c = arena.toWorld(arena.centre);
+        double dx = x - (c.getX() + 0.5);
+        double dz = z - (c.getZ() + 0.5);
+        double r = arena.radius - 1;
+        return dx * dx + dz * dz <= r * r;
+    }
+
+    private static void blink(ServerLevel level, Vec3 from, Vec3 to) {
+        level.sendParticles(ParticleTypes.PORTAL, from.x, from.y + 1, from.z, 30, 0.4, 0.8, 0.4, 0.3);
+        level.sendParticles(ParticleTypes.PORTAL, to.x, to.y + 1, to.z, 30, 0.4, 0.8, 0.4, 0.3);
+        level.playSound(null, to.x, to.y, to.z, SoundEvents.ENDERMAN_TELEPORT, SoundSource.HOSTILE, 1f, 0.8f);
+    }
+
+    private static Vec3 rotate(Vec3 v, double angle) {
+        double cos = Math.cos(angle);
+        double sin = Math.sin(angle);
+        return new Vec3(v.x * cos - v.z * sin, v.y, v.x * sin + v.z * cos).normalize();
+    }
+
+    private static void turn(Mob mob, double dx, double dz) {
+        float yaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90);
+        mob.setYRot(yaw);
+        mob.setYHeadRot(yaw);
+        mob.setYBodyRot(yaw);
+    }
+
+    private static double horizontal(Vec3 a, Vec3 b) {
+        double dx = a.x - b.x;
+        double dz = a.z - b.z;
+        return Math.sqrt(dx * dx + dz * dz);
+    }
+
+    private static String pick(String[] lines) {
+        return lines[ThreadLocalRandom.current().nextInt(lines.length)];
     }
 
     private float face(ServerLevel level, double x, double z, float fallback) {
@@ -758,19 +1463,52 @@ final class SimScarf extends SimBoss.Fight {
         body.setCustomName(tag);
     }
 
+    private void clearAll(ServerLevel level) {
+        discardMinions(level);
+        shots.clear();
+        pits.clear();
+        waves.clear();
+        restoreSand(level);
+        barrageTicks = -1;
+    }
+
     @Override
     boolean isBoss(Entity entity) {
         return entity == body;
     }
 
+    /**
+     * A hit on Scarf. On Master Mode his damage resistance scales with how many Undead are alive (the wiki); here
+     * the share that lands is the share of them that is dead (APPROXIMATE), none until four are.
+     */
     @Override
     boolean hit(ServerLevel level, LivingEntity hitBody, float amount) {
-        if (phase == Phase.FIGHT && health.hit(amount)) {
+        if (phase == Phase.FIGHT && !health.invulnerable) {
+            double taken = master ? (double) deadCount() / minions.size() : 1.0;
+            float dealt = (float) (amount * taken);
+            if (!health.hit(dealt)) {
+                return false;
+            }
+            if (dealt >= health.max * 0.02 && anyAlive(Guardian.PRIEST) && now - lastHealLine > 200) {
+                // "After dealing major damage to Scarf" (the threshold is APPROXIMATE) - and his Priest heals.
+                lastHealLine = now;
+                SimBoss.say(level.getServer(), "Scarf", "That was nothing my Priest can't heal!");
+                for (Minion m : minions) {
+                    if (m.kind == Guardian.PRIEST && m.alive) {
+                        m.nextA = 0;
+                    }
+                }
+            } else if (health.hp > 0 && now - lastHurtLine > 160 && ThreadLocalRandom.current().nextInt(4) == 0) {
+                lastHurtLine = now;
+                SimBoss.say(level.getServer(), "Scarf", pick(HURT_LINES));
+            }
             return true;
         }
-        if (phase != Phase.DEAD && now - lastImmuneNote > 60 && health.invulnerable) {
+        if (phase != Phase.DEAD && phase != Phase.DYING && now - lastImmuneNote > 60) {
             lastImmuneNote = now;
-            SimBoss.tell(level.getServer(), ModChat.text("Scarf can't be hurt while his Undead stand."));
+            SimBoss.tell(level.getServer(), ModChat.text(phase == Phase.FIGHT
+                    ? "Scarf is immune until 4 of his Undead are dead."
+                    : "Scarf can't be hurt while his Undead stand."));
         }
         return false;
     }
@@ -786,12 +1524,10 @@ final class SimScarf extends SimBoss.Fight {
             body.discard();
             body = null;
         }
-        discardGuardians(level);
-        bolts.clear();
-        blasts.clear();
+        clearAll(level);
     }
 
-    /** While a wave is up the bar is theirs: "Scarf's Undead (3/4)", their summed health. */
+    /** While his Undead fight the bar is theirs: "Scarf's Undead (3/4)", their summed health. */
     private boolean waveBar() {
         return phase == Phase.MINIONS || (phase == Phase.FIGHT && health.invulnerable);
     }
@@ -799,9 +1535,9 @@ final class SimScarf extends SimBoss.Fight {
     @Override
     Component barName() {
         if (waveBar()) {
-            int up = guardians.size();
-            int total = secondWave && !master ? 2 : 4;
-            return Component.literal("Scarf's Undead (" + up + "/" + total + ")").withStyle(ChatFormatting.GOLD);
+            int up = minions.size() - deadCount();
+            return Component.literal("Scarf's Undead (" + up + "/" + minions.size() + ")")
+                    .withStyle(ChatFormatting.GOLD);
         }
         return Component.literal("Scarf").withStyle(ChatFormatting.RED);
     }
@@ -813,7 +1549,7 @@ final class SimScarf extends SimBoss.Fight {
 
     @Override
     float barProgress() {
-        if (phase == Phase.INTRO || phase == Phase.DESCEND) {
+        if (phase == Phase.INTRO || phase == Phase.RISE) {
             return 1f;
         }
         if (waveBar() && body != null && body.level() instanceof ServerLevel level) {

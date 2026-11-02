@@ -10,6 +10,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.BossEvent;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -26,77 +27,112 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * Floor 1's boss, Bonzo, in his circus ring.
  *
- * <p>Two health bars, the way the fight goes on Hypixel: he "dies", comes back, and has to be killed again.
- * The mechanics are the ones a run has to deal with, tuned for practice rather than copied number for number:
- * <ul>
- * <li><b>Balloon volleys.</b> Every few seconds he marks the ground under each player with a red ring and the
- * spot blows up a second and a half later - move out of it. In his second life the volleys come faster
- * and also land on extra spots around you.</li>
- * <li><b>Undead.</b> He calls zombie adds into the ring now and then, which chase and hit. Kill them or kite
- * them while you burst Bonzo.</li>
- * <li><b>The revive.</b> At 0 health in his first life he is untouchable for three seconds, then returns with a
- * fresh bar.</li>
- * <li><b>Pounce</b> (second life). Stand next to him for a second and he knocks everyone near him away.</li>
- * </ul>
+ * <p>The fight in Hypixel's order (https://hypixelskyblock.minecraft.wiki/w/Bonzo):
+ * <ol>
+ * <li><b>Phase 1.</b> Bonzo does not fight himself. He runs round the ring away from the players (hopping up onto
+ * the short pillars round its edge as he goes), keeps summoning <b>Undead</b> - ordinary chasing zombies - and fires
+ * <b>Wither Skulls</b> at a player. No melee, no balloons.</li>
+ * <li><b>"Oh I'm dead!" ... "Sike!"</b> At 0 health he goes down, is untouchable for a moment and comes back healed
+ * to full.</li>
+ * <li><b>Phase 2.</b> Now he fights: he walks at the nearest player and hits in <b>melee</b>, throws an aimed
+ * <b>balloon</b> at one player (it does what a Wither Skull does), and every so often runs to the middle for a
+ * <b>Balloon Barrage</b> - balloons out in every direction. A balloon stops on the first block it meets, so the
+ * answer is to put a pillar between you and him.</li>
+ * </ol>
  *
- * <p><b>Health and damage are Hypixel's</b> (https://hypixelskyblock.minecraft.wiki/w/Bonzo): each life 250,000 on
- * F1 and 200,000,000 on M1 (the second life is the first healed back to full), a balloon 1,598 / 22,500, his own
- * hit (the pounce) his base damage of 2,664 / 45,000, and the Undead 45,000 / 15,000,000 health with a 1,440 /
- * 36,000 hit ({@link SimHealth#BONZO_UNDEAD}); all before the player's Defense ({@link SimVitals#dealHypixel}).
+ * <p><b>Health and damage are Hypixel's</b>: each life 250,000 on F1 and 200,000,000 on M1, a Wither Skull or
+ * balloon 1,598 / 22,500, his melee his base damage of 2,664 / 45,000, and the Undead 45,000 / 15,000,000 health with
+ * a 1,440 / 36,000 hit ({@link SimHealth#BONZO_UNDEAD}); all before the player's Defense
+ * ({@link SimVitals#dealHypixel}). The wiki gives no cooldowns, so every timing here is APPROXIMATE.
  *
- * <p><b>Master Mode (M1)</b> is the same fight turned up in its pace (the sim's own tuning, not Hypixel's): the
- * balloons give less warning, come more often and land on extra spots from the first life on, the Undead come in
- * bigger groups, the second life pounces sooner, and every so often rains a ring of balloons round the middle of
- * the ring that has to be walked out of.
+ * <p><b>Master Mode (M1)</b>, as the wiki has it: Undead come more often, the skulls fire more quickly, and his
+ * balloons tend to go off at an upward angle (here: lobbed high, falling back down onto the target - which also
+ * reaches a player on a pillar). How much more often and how much faster are the sim's guesses.
  *
- * <p>The opening line and the death line are Hypixel's exact words, which is what starts and ends the Boss
- * Phases splits; the lines in between are the sim's own.
+ * <p>Every line is Hypixel's, word for word. Boss Phases opens "Bonzo 1" on the first and "Bonzo 2" on "Oh I'm
+ * dead!", so those two must not change.
  */
 final class SimBonzo extends SimBoss.Fight {
 
     /**
-     * A life's health: 250,000 on F1, 200,000,000 on M1 (https://hypixelskyblock.minecraft.wiki/w/Bonzo). The second
-     * life is the same bar again - Hypixel's Bonzo "heals himself back to his max health". /boss bonzo from another
-     * floor uses the number for that floor's mode.
+     * A life's health: 250,000 on F1, 200,000,000 on M1. The second life is the same bar again - Hypixel's Bonzo
+     * "heals to max". /boss bonzo from another floor uses the number for that floor's mode.
      */
     private static double lifeHealth() {
         return SimHealth.byMode(250_000, 200_000_000);
     }
 
-    /** A balloon's blast: 1,598 on F1, 22,500 on M1 (the Bonzo page's Attacks section). */
-    private static double balloonDamage() {
+    /** A Wither Skull or a balloon: 1,598 on F1, 22,500 on M1 (the wiki: a balloon is "identical to" a skull). */
+    private static double skullDamage() {
         return SimHealth.byMode(1_598, 22_500);
     }
 
-    /** His base damage, which the pounce deals: 2,664 on F1, 45,000 on M1. */
+    /** His base damage, which his phase 2 melee deals: 2,664 on F1, 45,000 on M1. */
     private static double baseDamage() {
         return SimHealth.byMode(2_664, 45_000);
     }
-    private static final int REVIVE_TICKS = 60;
-    private static final double BALLOON_RADIUS = 3.0;
 
-    private enum Phase { INTRO, LIFE_ONE, REVIVING, LIFE_TWO, DEAD }
+    /** "Oh I'm dead!" to "Sike!": untouchable for this long. APPROXIMATE. */
+    private static final int REVIVE_TICKS = 50;
+    private static final int SHOT_LIFE = 80;
+    private static final double SHOT_HIT_RADIUS = 1.0;
+    /** A Balloon Barrage: this many waves, this far apart, this many balloons a wave. APPROXIMATE. */
+    private static final int BARRAGE_WAVES = 5;
+    private static final int BARRAGE_WAVE_GAP = 10;
+    private static final int BARRAGE_BALLOONS = 20;
+
+    private enum Phase { INTRO, LIFE_ONE, REVIVING, LIFE_TWO, DYING, DEAD }
+
+    private static final String[] PHASE_ONE_LINES = {"Stop.", "You're not funny.", "Wait..", "Cringe.",
+            "Give me 1 sec..", "Lame.", "Leave me alone!", "Fight my Undeads instead.", "Why are you running?",
+            "Cheater!", "Hacker!", "Not fair!", "OUCH!"};
+    private static final String[] BARRAGE_LINES = {"All I have are positive thoughts.", "Do you want a balloon?",
+            "Run, run, run, RUN!", "Weeeeeeeee"};
+    private static final String[] PHASE_TWO_LINES = {"Hoho, looks like you killed me!", "You fools!",
+            "You fell victim to one of the classic blunders!", "Check mate.",
+            "I can revive myself and become much stronger!"};
 
     /** Fixed when the fight is made: the floor does not change mid-fight. */
     private final boolean master = SimState.floorLabel().toUpperCase(java.util.Locale.ROOT).startsWith("M");
-    /** A balloon's warning before it blows: a second and a half, a little over one on Master Mode. */
-    private final int telegraphTicks = master ? 22 : 30;
-    private final int maxUndead = master ? 9 : 6;
+    /** Undead up at once: more on Master Mode. APPROXIMATE. */
+    private final int maxUndead = master ? 10 : 6;
     private Phase phase = Phase.INTRO;
     private int phaseTicks;
+    /** Ticks since the fight started; shots count on it, it never resets. */
+    private int now;
     private final SimBoss.Health health = new SimBoss.Health(lifeHealth());
-    private int nextRain;
     private Zombie body;
     private final List<UUID> undead = new ArrayList<>();
-    private final List<Balloon> balloons = new ArrayList<>();
-    private int nextVolley;
+    private final List<Shot> shots = new ArrayList<>();
+    private int nextSkull;
     private int nextUndead;
-    private int closeTicks;
-    private int pounceCooldown;
-    /** Where he is circling, in radians round the ring. */
-    private double orbit;
+    private int nextBalloon;
+    private int nextBarrage;
+    private int nextMelee;
+    private int lastTaunt = -1000;
+    /** Where he is running to in phase 1; null to pick a new spot. */
+    private Vec3 runTo;
+    /** The Balloon Barrage under way: ticks into it, or -1 when there is none. */
+    private int barrageTicks = -1;
+    private double barrageSpin;
+    /** Ticks spent walking to the middle for a barrage; he starts where he is if he cannot get there. */
+    private int barrageWalk;
 
-    private record Balloon(Vec3 at, int explodeAt, double damage) {
+    /** A Wither Skull or a balloon in flight. Hurts the first player it touches and stops on any block. */
+    private static final class Shot {
+        Vec3 pos;
+        Vec3 vel;
+        int life = SHOT_LIFE;
+        final boolean balloon;
+        /** Pull per tick for a lobbed Master Mode balloon; 0 flies straight. */
+        final double gravity;
+
+        Shot(Vec3 pos, Vec3 vel, boolean balloon, double gravity) {
+            this.pos = pos;
+            this.vel = vel;
+            this.balloon = balloon;
+            this.gravity = gravity;
+        }
     }
 
     SimBonzo(SimBossArena arena) {
@@ -112,50 +148,48 @@ final class SimBonzo extends SimBoss.Fight {
     void start(ServerLevel level) {
         // Hypixel's first line, word for word: Boss Phases opens "Bonzo 1" on it.
         SimBoss.say(level.getServer(), "Bonzo", "Gratz for making it this far, but I'm basically unbeatable.");
-        phase = Phase.INTRO;
-        phaseTicks = 0;
+        spawnBody(level);
+        health.invulnerable = true;
+        toPhase(Phase.INTRO);
     }
 
     @Override
     void tick(ServerLevel level, int t) {
+        now = t;
         phaseTicks++;
+        if ((body == null || body.isRemoved()) && phase != Phase.DYING && phase != Phase.DEAD) {
+            spawnBody(level);
+        }
         switch (phase) {
             case INTRO -> {
+                // The rest of Hypixel's opening, a couple of seconds apart (the spacing is APPROXIMATE).
                 if (phaseTicks == 40) {
-                    spawnBody(level);
-                    SimBoss.say(level.getServer(), "Bonzo", "Let's see how long you last in my ring!");
+                    SimBoss.say(level.getServer(), "Bonzo", "I don't even need to fight, this is the life!");
+                } else if (phaseTicks == 80) {
+                    SimBoss.say(level.getServer(), "Bonzo", "I can summon lots of undead! Check this out.");
+                    health.invulnerable = false;
+                    summonUndead(level, master ? 4 : 3);
+                    nextUndead = undeadInterval();
+                    nextSkull = 30;
                     toPhase(Phase.LIFE_ONE);
-                    nextVolley = 40;
-                    nextUndead = 100;
                 }
             }
-            case LIFE_ONE, LIFE_TWO -> {
-                if (body == null || body.isRemoved()) {
-                    spawnBody(level);
-                }
-                boolean second = phase == Phase.LIFE_TWO;
-                move(level, second);
-                if (--nextVolley <= 0) {
-                    volley(level, second);
-                    nextVolley = master ? (second ? 35 : 60) : (second ? 50 : 80);
-                }
+            case LIFE_ONE -> {
+                run(level);
                 if (--nextUndead <= 0) {
-                    summonUndead(level, (second ? 3 : 2) + (master ? 1 : 0));
-                    nextUndead = master ? (second ? 200 : 240) : (second ? 240 : 300);
+                    summonUndead(level, master ? 3 : 2);
+                    nextUndead = undeadInterval();
                 }
-                if (second) {
-                    pounce(level);
-                    if (master && --nextRain <= 0) {
-                        balloonRain(level);
-                        nextRain = 200;
+                if (--nextSkull <= 0) {
+                    ServerPlayer target = randomPlayer(level);
+                    if (target != null && body != null) {
+                        shoot(level, target, false);
                     }
+                    // Master Mode "fires more quickly" (the wiki); both cadences APPROXIMATE.
+                    nextSkull = master ? 25 : 40;
                 }
                 if (health.hp <= 0) {
-                    if (second) {
-                        die(level);
-                    } else {
-                        revive(level);
-                    }
+                    fallDown(level);
                 }
             }
             case REVIVING -> {
@@ -164,23 +198,23 @@ final class SimBonzo extends SimBoss.Fight {
                             0.4, 0.8, 0.4, 0.05);
                 }
                 if (phaseTicks >= REVIVE_TICKS) {
-                    health.max = lifeHealth();
-                    health.hp = health.max;
-                    health.invulnerable = false;
-                    if (body != null) {
-                        body.setGlowingTag(false);
-                    }
-                    SimBoss.say(level.getServer(), "Bonzo", "Round two! Did you really think that was it?");
-                    toPhase(Phase.LIFE_TWO);
-                    nextVolley = 20;
-                    nextUndead = 60;
-                    nextRain = 120;
+                    sike(level);
+                }
+            }
+            case LIFE_TWO -> lifeTwo(level);
+            case DYING -> {
+                // Hypixel's closing lines after the kill, then the fight is over.
+                if (phaseTicks == 30) {
+                    SimBoss.say(level.getServer(), "Bonzo", "But my masters are a lot stronger..");
+                } else if (phaseTicks == 60) {
+                    SimBoss.say(level.getServer(), "Bonzo", "Just you wait...");
+                    toPhase(Phase.DEAD);
                 }
             }
             default -> {
             }
         }
-        tickBalloons(level);
+        tickShots(level);
         nameTag();
     }
 
@@ -189,21 +223,73 @@ final class SimBonzo extends SimBoss.Fight {
         phaseTicks = 0;
     }
 
-    private void revive(ServerLevel level) {
-        SimBoss.say(level.getServer(), "Bonzo", "Oh no, you got me... or did you?");
+    private int undeadInterval() {
+        // Master Mode's Undead "spawn more often" (the wiki); both intervals APPROXIMATE.
+        return master ? 180 : 280;
+    }
+
+    // ------------------------------------------------------------------ the two lives
+
+    /** End of phase 1: Hypixel's "Oh I'm dead!" - Boss Phases starts "Bonzo 2" on it. */
+    private void fallDown(ServerLevel level) {
+        SimBoss.say(level.getServer(), "Bonzo", "Oh I'm dead!");
         health.invulnerable = true;
         if (body != null) {
             body.setGlowingTag(true);
             level.playSound(null, body.getX(), body.getY(), body.getZ(), SoundEvents.WITHER_SPAWN,
                     SoundSource.HOSTILE, 0.6f, 1.6f);
         }
-        balloons.clear();
+        shots.clear();
         toPhase(Phase.REVIVING);
     }
 
+    /** "Sike!": back to full health, and phase 2 begins. */
+    private void sike(ServerLevel level) {
+        SimBoss.say(level.getServer(), "Bonzo", "Sike!");
+        SimBoss.say(level.getServer(), "Bonzo", pick(PHASE_TWO_LINES));
+        health.max = lifeHealth();
+        health.hp = health.max;
+        health.invulnerable = false;
+        if (body != null) {
+            body.setGlowingTag(false);
+            level.sendParticles(ParticleTypes.TOTEM_OF_UNDYING, body.getX(), body.getY() + 1, body.getZ(), 30,
+                    0.5, 0.8, 0.5, 0.3);
+        }
+        nextBalloon = 40;
+        nextBarrage = 200;
+        nextMelee = 20;
+        toPhase(Phase.LIFE_TWO);
+    }
+
+    private void lifeTwo(ServerLevel level) {
+        if (body == null) {
+            return;
+        }
+        if (barrageTicks >= 0) {
+            barrage(level);
+        } else {
+            chase(level);
+            if (--nextBalloon <= 0) {
+                ServerPlayer target = randomPlayer(level);
+                if (target != null) {
+                    shoot(level, target, true);
+                }
+                nextBalloon = master ? 35 : 50; // APPROXIMATE
+            }
+            if (--nextBarrage <= 0) {
+                barrageTicks = 0;
+                barrageWalk = 0;
+                barrageSpin = ThreadLocalRandom.current().nextDouble() * Math.PI * 2;
+                SimBoss.say(level.getServer(), "Bonzo", pick(BARRAGE_LINES));
+            }
+        }
+        if (health.hp <= 0) {
+            die(level);
+        }
+    }
+
     private void die(ServerLevel level) {
-        // Hypixel's last line, word for word: the splits and the score read it as the boss being down.
-        SimBoss.say(level.getServer(), "Bonzo", "Oh I'm dead!");
+        SimBoss.say(level.getServer(), "Bonzo", "Alright, maybe I'm just weak after all..");
         if (body != null) {
             level.sendParticles(ParticleTypes.EXPLOSION, body.getX(), body.getY() + 1, body.getZ(), 3,
                     0.5, 0.5, 0.5, 0);
@@ -211,9 +297,12 @@ final class SimBonzo extends SimBoss.Fight {
             body = null;
         }
         discardUndead(level);
-        balloons.clear();
-        toPhase(Phase.DEAD);
+        shots.clear();
+        barrageTicks = -1;
+        toPhase(Phase.DYING);
     }
+
+    // ------------------------------------------------------------------ moving
 
     private void spawnBody(ServerLevel level) {
         BlockPos at = arena.toWorld(arena.bossSpawn);
@@ -225,151 +314,243 @@ final class SimBonzo extends SimBoss.Fight {
         z.setPersistenceRequired();
         z.setCustomNameVisible(true);
         z.snapTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5, 0f, 0f);
+        z.setGlowingTag(health.invulnerable && phase == Phase.REVIVING);
         level.addFreshEntity(z);
         body = z;
         nameTag();
     }
 
-    /** Circles the middle of the ring, facing the nearest player. Faster in his second life. */
-    private void move(ServerLevel level, boolean second) {
+    /**
+     * Phase 1: runs from spot to spot round the ring, each one picked away from the nearest player, hopping up and
+     * down whatever is in the way - the short pillars round the edge included.
+     */
+    private void run(ServerLevel level) {
         if (body == null) {
             return;
         }
-        BlockPos c = arena.toWorld(arena.centre);
-        orbit += second ? 0.035 : 0.02;
-        double r = 7;
-        double x = c.getX() + 0.5 + Math.cos(orbit) * r;
-        double z = c.getZ() + 0.5 + Math.sin(orbit) * r;
-        ServerPlayer target = nearest(level, body.position());
-        float yaw = body.getYRot();
-        if (target != null) {
-            yaw = (float) (Math.toDegrees(Math.atan2(target.getZ() - z, target.getX() - x)) - 90);
+        Vec3 from = body.position();
+        if (runTo == null || horizontal(from, runTo) < 1.0 || phaseTicks % 100 == 0) {
+            runTo = pickRunSpot(level);
         }
-        body.snapTo(x, c.getY(), z, yaw, 0f);
+        step(level, runTo, master ? 0.3 : 0.25);
+        face(level, body.position());
+    }
+
+    /** A spot in the ring, the best of a few random ones by distance from the nearest player. */
+    private Vec3 pickRunSpot(ServerLevel level) {
+        BlockPos c = arena.toWorld(arena.centre);
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+        Vec3 best = null;
+        double bestScore = -1;
+        for (int i = 0; i < 6; i++) {
+            double a = rnd.nextDouble() * Math.PI * 2;
+            double d = 4 + rnd.nextDouble() * Math.max(1, arena.radius - 6);
+            Vec3 spot = new Vec3(c.getX() + 0.5 + Math.cos(a) * d, c.getY(), c.getZ() + 0.5 + Math.sin(a) * d);
+            ServerPlayer p = nearest(level, spot);
+            double score = p == null ? 0 : horizontal(p.position(), spot);
+            if (score > bestScore) {
+                bestScore = score;
+                best = spot;
+            }
+        }
+        return best;
+    }
+
+    /** Phase 2: walks at the nearest player and hits whoever he reaches. */
+    private void chase(ServerLevel level) {
+        ServerPlayer target = nearest(level, body.position());
+        if (target == null) {
+            return;
+        }
+        double d = horizontal(body.position(), target.position());
+        if (d > 1.8) {
+            step(level, target.position(), master ? 0.2 : 0.16);
+        }
+        face(level, body.position());
+        if (nextMelee > 0) {
+            nextMelee--;
+        } else if (d < 2.6 && Math.abs(target.getY() - body.getY()) < 2.5) {
+            body.swing(InteractionHand.MAIN_HAND);
+            hurtPlayer(level, target, baseDamage(), target.getX() - body.getX(), target.getZ() - body.getZ(),
+                    0.5, 0.3);
+            nextMelee = 20; // APPROXIMATE: a swing a second
+        }
+    }
+
+    /**
+     * One step of {@code speed} blocks toward {@code to}, onto whatever ground is there. A rise of up to a pillar's
+     * height is a hop rather than a wall (Bonzo gets on top of them on Hypixel); anything taller stops him.
+     */
+    private void step(ServerLevel level, Vec3 to, double speed) {
+        Vec3 from = body.position();
+        double dx = to.x - from.x;
+        double dz = to.z - from.z;
+        double d = Math.sqrt(dx * dx + dz * dz);
+        if (d < 0.01) {
+            return;
+        }
+        double s = Math.min(d, speed);
+        double nx = from.x + dx / d * s;
+        double nz = from.z + dz / d * s;
+        int ground = ground(level, (int) Math.floor(nx), (int) Math.floor(nz), (int) Math.floor(from.y) + 5);
+        if (ground - from.y > 4.5 || from.y - ground > 6 || !open(level, nx, ground, nz)) {
+            runTo = null;
+            return;
+        }
+        // Rise or fall half a block a tick at most, so a hop onto a pillar is a hop and not a blink.
+        double ny = from.y + Math.max(-0.5, Math.min(0.5, ground - from.y));
+        body.snapTo(nx, ny, nz, body.getYRot(), 0f);
+    }
+
+    private void face(ServerLevel level, Vec3 from) {
+        ServerPlayer target = nearest(level, from);
+        if (target == null || body == null) {
+            return;
+        }
+        float yaw = (float) (Math.toDegrees(Math.atan2(target.getZ() - from.z, target.getX() - from.x)) - 90);
+        body.setYRot(yaw);
         body.setYHeadRot(yaw);
         body.setYBodyRot(yaw);
     }
 
-    /**
-     * Marks a spot under each player (and round them: two more in his second life, and on Master Mode one more in
-     * the first and four in the second) to blow up.
-     */
-    private void volley(ServerLevel level, boolean second) {
-        List<ServerPlayer> targets = SimBoss.playersInRing(level);
-        if (targets.isEmpty()) {
-            return;
-        }
-        int now = phaseTicks;
-        double damage = balloonDamage();
-        int extra = master ? (second ? 4 : 1) : (second ? 2 : 0);
-        ThreadLocalRandom rnd = ThreadLocalRandom.current();
-        for (ServerPlayer p : targets) {
-            balloons.add(new Balloon(new Vec3(p.getX(), p.getY(), p.getZ()), now + telegraphTicks, damage));
-            for (int i = 0; i < extra; i++) {
-                double a = rnd.nextDouble() * Math.PI * 2;
-                double d = 3 + rnd.nextDouble() * 3;
-                balloons.add(new Balloon(new Vec3(p.getX() + Math.cos(a) * d, p.getY(),
-                        p.getZ() + Math.sin(a) * d), now + telegraphTicks + 5 * (i + 1), damage));
+    /** Whether the two blocks from {@code y} up at a column are free to stand in (a wall taller than a hop is not). */
+    private static boolean open(ServerLevel level, double x, int y, double z) {
+        BlockPos feet = BlockPos.containing(x, y, z);
+        return level.getBlockState(feet).getCollisionShape(level, feet).isEmpty()
+                && level.getBlockState(feet.above()).getCollisionShape(level, feet.above()).isEmpty();
+    }
+
+    /** The standing height at a column: the first open block with something solid under it, from {@code fromY} down. */
+    private static int ground(ServerLevel level, int x, int z, int fromY) {
+        for (int y = fromY; y > fromY - 14; y--) {
+            BlockPos feet = new BlockPos(x, y, z);
+            if (level.getBlockState(feet).getCollisionShape(level, feet).isEmpty()
+                    && level.getBlockState(feet.above()).getCollisionShape(level, feet.above()).isEmpty()
+                    && !level.getBlockState(feet.below()).getCollisionShape(level, feet.below()).isEmpty()) {
+                return y;
             }
         }
-        if (body != null) {
-            body.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
-            level.playSound(null, body.getX(), body.getY(), body.getZ(), SoundEvents.FIREWORK_ROCKET_LAUNCH,
-                    SoundSource.HOSTILE, 1f, 0.8f);
+        return fromY - 5;
+    }
+
+    // ------------------------------------------------------------------ skulls and balloons
+
+    /**
+     * A Wither Skull (phase 1) or a balloon (phase 2) at one player. A Master Mode balloon goes up at an angle and
+     * falls back onto him (APPROXIMATE: the wiki only says they "tend to fire at an upward angle").
+     */
+    private void shoot(ServerLevel level, ServerPlayer target, boolean balloon) {
+        Vec3 from = body.position().add(0, 1.6, 0);
+        Vec3 aim = target.position().add(0, 1.0, 0).subtract(from);
+        if (aim.lengthSqr() < 0.01) {
+            return;
         }
+        body.swing(InteractionHand.MAIN_HAND);
+        if (balloon && master) {
+            // A lob: flight time from the distance, the upward speed to land on him in that time.
+            double g = 0.03;
+            double flat = Math.sqrt(aim.x * aim.x + aim.z * aim.z);
+            double ticks = Math.max(10, flat / 0.6);
+            Vec3 vel = new Vec3(aim.x / ticks, aim.y / ticks + g * ticks / 2, aim.z / ticks);
+            shots.add(new Shot(from, vel, true, g));
+        } else {
+            // Master Mode's skulls are faster (the wiki); both speeds APPROXIMATE.
+            double speed = balloon ? 0.6 : master ? 1.0 : 0.7;
+            shots.add(new Shot(from, aim.normalize().scale(speed), balloon, 0));
+        }
+        level.playSound(null, from.x, from.y, from.z,
+                balloon ? SoundEvents.FIREWORK_ROCKET_LAUNCH : SoundEvents.WITHER_SHOOT, SoundSource.HOSTILE,
+                balloon ? 1f : 0.6f, balloon ? 0.8f : 1.2f);
     }
 
     /**
-     * Master Mode, second life: two rings of balloons round the middle of the ring, the inner and outer offset so
-     * the safe spots are the gaps between them. A little longer warning than a volley - it covers much more ground.
+     * The Balloon Barrage: he runs to the middle of the ring, then sends waves of balloons out in every direction,
+     * each wave turned a little from the last so the gaps move. A balloon stops on a block, so a pillar between him
+     * and you is the cover. Some go out a little upward, which is what reaches a player standing on a pillar.
      */
-    private void balloonRain(ServerLevel level) {
+    private void barrage(ServerLevel level) {
         BlockPos c = arena.toWorld(arena.centre);
-        double off = ThreadLocalRandom.current().nextDouble() * Math.PI * 2;
-        int at = phaseTicks + telegraphTicks + 10;
-        for (int ring = 0; ring < 2; ring++) {
-            double r = ring == 0 ? 5 : 11;
-            int n = ring == 0 ? 6 : 10;
-            for (int i = 0; i < n; i++) {
-                double a = off + Math.PI * 2 * (i + ring * 0.5) / n;
-                balloons.add(new Balloon(new Vec3(c.getX() + 0.5 + Math.cos(a) * r, c.getY(),
-                        c.getZ() + 0.5 + Math.sin(a) * r), at, balloonDamage()));
-            }
+        Vec3 mid = new Vec3(c.getX() + 0.5, c.getY(), c.getZ() + 0.5);
+        if (horizontal(body.position(), mid) > 1.0 && barrageTicks == 0 && barrageWalk++ < 80) {
+            step(level, mid, 0.45);
+            face(level, body.position());
+            return;
         }
-        SimBoss.say(level.getServer(), "Bonzo", "Balloons for everyone!");
-        if (body != null) {
+        barrageTicks++;
+        int t = barrageTicks - 15;
+        if (t == 0) {
             level.playSound(null, body.getX(), body.getY(), body.getZ(), SoundEvents.FIREWORK_ROCKET_LARGE_BLAST,
-                    SoundSource.HOSTILE, 1f, 0.7f);
+                    SoundSource.HOSTILE, 1.2f, 0.7f);
+        }
+        if (t >= 0 && t % BARRAGE_WAVE_GAP == 0 && t / BARRAGE_WAVE_GAP < BARRAGE_WAVES) {
+            int wave = t / BARRAGE_WAVE_GAP;
+            Vec3 from = body.position().add(0, 1.6, 0);
+            for (int i = 0; i < BARRAGE_BALLOONS; i++) {
+                double a = barrageSpin + Math.PI * 2 * (i + (wave % 2) * 0.5) / BARRAGE_BALLOONS;
+                double up = i % 3 == 0 ? 0.12 : -0.02;
+                Vec3 dir = new Vec3(Math.cos(a), up, Math.sin(a)).normalize();
+                shots.add(new Shot(from, dir.scale(0.55), true, 0));
+            }
+            body.swing(InteractionHand.MAIN_HAND);
+            level.playSound(null, from.x, from.y, from.z, SoundEvents.FIREWORK_ROCKET_LAUNCH, SoundSource.HOSTILE,
+                    1f, 0.9f + wave * 0.1f);
+        }
+        if (t >= BARRAGE_WAVES * BARRAGE_WAVE_GAP + 10) {
+            barrageTicks = -1;
+            nextBarrage = master ? 260 : 340; // APPROXIMATE
+            nextBalloon = 30;
         }
     }
 
-    private void tickBalloons(ServerLevel level) {
-        if (balloons.isEmpty()) {
+    private void tickShots(ServerLevel level) {
+        if (shots.isEmpty()) {
             return;
         }
-        DustParticleOptions red = new DustParticleOptions(0xFF3030, 1.2f);
-        List<Balloon> done = new ArrayList<>();
-        for (Balloon b : balloons) {
-            int left = b.explodeAt() - phaseTicks;
-            if (left > 0) {
-                if (phaseTicks % 3 == 0) {
-                    // The warning ring on the ground, the thing to step out of.
-                    for (int i = 0; i < 16; i++) {
-                        double a = Math.PI * 2 * i / 16;
-                        level.sendParticles(red, b.at().x + Math.cos(a) * BALLOON_RADIUS, b.at().y + 0.1,
-                                b.at().z + Math.sin(a) * BALLOON_RADIUS, 1, 0, 0, 0, 0);
+        List<ServerPlayer> players = SimBoss.playersInRing(level);
+        DustParticleOptions[] colours = {new DustParticleOptions(0xFF3030, 1.4f),
+                new DustParticleOptions(0x3080FF, 1.4f), new DustParticleOptions(0xFFD030, 1.4f)};
+        List<Shot> done = new ArrayList<>();
+        for (Shot s : shots) {
+            boolean gone = --s.life <= 0;
+            // Two half steps a tick, so a shot cannot skip over a player or through a thin wall.
+            for (int step = 0; step < 2 && !gone; step++) {
+                s.pos = s.pos.add(s.vel.scale(0.5));
+                BlockPos bp = BlockPos.containing(s.pos);
+                if (!level.getBlockState(bp).getCollisionShape(level, bp).isEmpty()) {
+                    pop(level, s);
+                    gone = true;
+                    break;
+                }
+                for (ServerPlayer p : players) {
+                    if (p.position().add(0, 1.0, 0).distanceToSqr(s.pos) <= SHOT_HIT_RADIUS * SHOT_HIT_RADIUS) {
+                        hurtPlayer(level, p, skullDamage(), s.vel.x, s.vel.z, 0.5, 0.3);
+                        pop(level, s);
+                        gone = true;
+                        break;
                     }
                 }
+            }
+            if (s.gravity > 0) {
+                s.vel = s.vel.add(0, -s.gravity, 0);
+            }
+            if (gone) {
+                done.add(s);
                 continue;
             }
-            explode(level, b);
-            done.add(b);
-        }
-        balloons.removeAll(done);
-    }
-
-    private void explode(ServerLevel level, Balloon b) {
-        Vec3 at = b.at();
-        level.sendParticles(ParticleTypes.EXPLOSION, at.x, at.y + 0.5, at.z, 2, 0.5, 0.3, 0.5, 0);
-        level.playSound(null, at.x, at.y, at.z, SoundEvents.GENERIC_EXPLODE, SoundSource.HOSTILE, 1f, 1.2f);
-        for (ServerPlayer p : SimBoss.playersInRing(level)) {
-            double dx = p.getX() - at.x;
-            double dz = p.getZ() - at.z;
-            if (dx * dx + dz * dz > BALLOON_RADIUS * BALLOON_RADIUS || Math.abs(p.getY() - at.y) > 3) {
-                continue;
-            }
-            hurtPlayer(level, p, b.damage(), dx, dz, 0.7, 0.6);
-        }
-    }
-
-    /** Second life: stay next to him for a second and he throws everyone near him back. */
-    private void pounce(ServerLevel level) {
-        if (body == null) {
-            return;
-        }
-        if (pounceCooldown > 0) {
-            pounceCooldown--;
-            return;
-        }
-        List<ServerPlayer> near = new ArrayList<>();
-        for (ServerPlayer p : SimBoss.playersInRing(level)) {
-            if (p.distanceToSqr(body) < 3.5 * 3.5) {
-                near.add(p);
+            if (s.balloon) {
+                DustParticleOptions colour = colours[Math.floorMod(System.identityHashCode(s), colours.length)];
+                level.sendParticles(colour, s.pos.x, s.pos.y, s.pos.z, 3, 0.12, 0.12, 0.12, 0);
+            } else {
+                level.sendParticles(ParticleTypes.LARGE_SMOKE, s.pos.x, s.pos.y, s.pos.z, 2, 0.05, 0.05, 0.05, 0.01);
+                level.sendParticles(ParticleTypes.SMOKE, s.pos.x, s.pos.y, s.pos.z, 1, 0.05, 0.05, 0.05, 0.01);
             }
         }
-        closeTicks = near.isEmpty() ? 0 : closeTicks + 1;
-        if (closeTicks < (master ? 12 : 20)) {
-            return;
-        }
-        closeTicks = 0;
-        pounceCooldown = master ? 70 : 100;
-        level.sendParticles(ParticleTypes.CLOUD, body.getX(), body.getY() + 0.2, body.getZ(), 30, 1.5, 0.1, 1.5,
-                0.05);
-        level.playSound(null, body.getX(), body.getY(), body.getZ(), SoundEvents.GENERIC_EXPLODE,
-                SoundSource.HOSTILE, 0.7f, 0.7f);
-        for (ServerPlayer p : near) {
-            hurtPlayer(level, p, baseDamage(), p.getX() - body.getX(), p.getZ() - body.getZ(), 1.6, 0.7);
-        }
+        shots.removeAll(done);
+    }
+
+    private static void pop(ServerLevel level, Shot s) {
+        level.sendParticles(s.balloon ? ParticleTypes.POOF : ParticleTypes.SMOKE, s.pos.x, s.pos.y, s.pos.z, 6,
+                0.15, 0.15, 0.15, 0.02);
     }
 
     /**
@@ -390,6 +571,8 @@ final class SimBonzo extends SimBoss.Fight {
         p.setDeltaMovement(dx / len * push, lift, dz / len * push);
         p.hurtMarked = true;
     }
+
+    // ------------------------------------------------------------------ the Undead
 
     private void summonUndead(ServerLevel level, int count) {
         undead.removeIf(id -> {
@@ -438,6 +621,18 @@ final class SimBonzo extends SimBoss.Fight {
         undead.clear();
     }
 
+    // ------------------------------------------------------------------ shared bits
+
+    private static double horizontal(Vec3 a, Vec3 b) {
+        double dx = a.x - b.x;
+        double dz = a.z - b.z;
+        return Math.sqrt(dx * dx + dz * dz);
+    }
+
+    private static String pick(String[] lines) {
+        return lines[ThreadLocalRandom.current().nextInt(lines.length)];
+    }
+
     private static ServerPlayer nearest(ServerLevel level, Vec3 from) {
         ServerPlayer best = null;
         double bestD = Double.MAX_VALUE;
@@ -449,6 +644,11 @@ final class SimBonzo extends SimBoss.Fight {
             }
         }
         return best;
+    }
+
+    private static ServerPlayer randomPlayer(ServerLevel level) {
+        List<ServerPlayer> in = SimBoss.playersInRing(level);
+        return in.isEmpty() ? null : in.get(ThreadLocalRandom.current().nextInt(in.size()));
     }
 
     private void nameTag() {
@@ -469,7 +669,14 @@ final class SimBonzo extends SimBoss.Fight {
 
     @Override
     boolean hit(ServerLevel level, LivingEntity hitBody, float amount) {
-        return (phase == Phase.LIFE_ONE || phase == Phase.LIFE_TWO) && health.hit(amount);
+        boolean landed = (phase == Phase.LIFE_ONE || phase == Phase.LIFE_TWO) && health.hit(amount);
+        // Phase 1's random lines, one now and then as he gets hit (how often is APPROXIMATE).
+        if (landed && phase == Phase.LIFE_ONE && health.hp > 0 && now - lastTaunt > 120
+                && ThreadLocalRandom.current().nextInt(3) == 0) {
+            lastTaunt = now;
+            SimBoss.say(level.getServer(), "Bonzo", pick(PHASE_ONE_LINES));
+        }
+        return landed;
     }
 
     @Override
@@ -484,19 +691,21 @@ final class SimBonzo extends SimBoss.Fight {
             body = null;
         }
         discardUndead(level);
-        balloons.clear();
+        shots.clear();
+    }
+
+    private boolean secondLife() {
+        return phase == Phase.LIFE_TWO || phase == Phase.REVIVING || phase == Phase.DYING;
     }
 
     @Override
     Component barName() {
-        String life = phase == Phase.LIFE_TWO || phase == Phase.REVIVING ? " (2nd life)" : "";
-        return Component.literal("Bonzo" + life).withStyle(ChatFormatting.RED);
+        return Component.literal("Bonzo" + (secondLife() ? " (2nd life)" : "")).withStyle(ChatFormatting.RED);
     }
 
     @Override
     BossEvent.BossBarColor barColor() {
-        return phase == Phase.LIFE_TWO || phase == Phase.REVIVING
-                ? BossEvent.BossBarColor.PURPLE : BossEvent.BossBarColor.RED;
+        return secondLife() ? BossEvent.BossBarColor.PURPLE : BossEvent.BossBarColor.RED;
     }
 
     @Override

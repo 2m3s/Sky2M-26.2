@@ -7,6 +7,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.particles.DustParticleOptions;
+import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -39,29 +40,30 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Floor 5's boss, Livid, in her ring.
  *
- * <p>The fight as it goes on Hypixel, tuned for practice rather than copied number for number:
+ * <p>The fight as it goes on Hypixel (https://hypixelskyblock.minecraft.wiki/w/Livid):
  * <ul>
  * <li><b>The opening.</b> Her first line (Hypixel's exact words: Boss Phases, the Livid Invulnerability HUD and
  * Rag Axe all start on it), then 340 ticks in which nothing can hurt her - the same 340 the HUD counts down.</li>
- * <li><b>The split.</b> A few seconds before she can be hit, she becomes nine Livids, one of each colour
- * (Vendetta, Crossed, Arcade, Smile, Hockey, Doctor, Frog, Scream, Purple), and the wool block above the ring
- * and the stained glass round it, red until then, turn the REAL one's colour. In Master Mode everyone is blinded
- * for five seconds as she splits.</li>
- * <li><b>Only the real one takes damage.</b> Hitting a fake does nothing to her, and the fake you hit strikes
- * straight back (harder in Master Mode). Every Livid chases and swings at you.</li>
- * <li><b>Livid Dagger.</b> Every few seconds the real one marks the ground under a player with a ring of crits
- * and her knife lands there a moment later - step out of it. Faster in Master Mode.</li>
- * <li><b>Shadow shuffle.</b> Now and then all nine vanish in smoke and come back somewhere else in the ring, so
- * you have to find her again. More often in Master Mode.</li>
+ * <li><b>The split.</b> After 16 seconds she blinds everyone for a second and becomes nine Livids, one of each
+ * colour (Vendetta, Crossed, Arcade, Smile, Hockey, Doctor, Frog, Scream, Purple), and the wool block above the
+ * ring and the stained glass round it, red until then, turn the REAL one's colour. Same on F5 and M5.</li>
+ * <li><b>Every Livid is a fighter.</b> Each clone has the real one's health and its own attack on top of its
+ * swing: Vendetta teleports and throws a dagger, Crossed blinds its target, Hockey charges, Doctor throws a Splash
+ * Potion of Harming (true damage), Frog poisons, Smile throws a Splash Potion of Slowness, Scream lets out a ring
+ * of true damage that knocks everyone near it back, Purple leeches health, and Arcade moves erratically and shoots
+ * a bow. The real one, whichever colour she is, fights with her colour's attack too.</li>
+ * <li><b>Killing a clone gets you nothing.</b> It regenerates to full and heals the clones near it by 25% of their
+ * health; in Master Mode every clone death also makes all the Livids hit harder. Only the real one's death ends
+ * the fight.</li>
  * </ul>
  *
  * <h2>What the mod's Livid features read, reproduced</h2>
@@ -72,17 +74,16 @@ import java.util.concurrent.ThreadLocalRandom;
  * watches ({@code (6, 109, 43)} in the arena's own coordinates, red until the split); in the sim it sits at
  * {@link #woolCue()} instead, because the arena is pasted a thousand blocks away from Hypixel's coordinates.
  *
- * <p>Her death line is Hypixel's ("Impossible! How did you figure out which one I was?!", said by the real
- * Livid by name); the lines in between are the sim's own.
+ * <p>Her death line and the clones' "wrong one" lines are Hypixel's word for word; the two lines before the split
+ * are the sim's own placing (the second is one of Hypixel's, from the end of her fight).
  */
 public final class SimLivid extends SimBoss.Fight {
 
     /**
      * Livid's health and base damage, the real one's and every clone's alike: 7,000,000 and 9,360 on F5,
      * 600,000,000 and 216,000 on M5 (https://hypixelskyblock.minecraft.wiki/w/Livid, Variants table; the damage is
-     * the 2026 value after the cut from 10,400 / 240,000). Every Livid's swing deals it, before the player's
-     * Defense. The wiki gives no number for the dagger or for the sim's punishment for hitting a clone, so those
-     * deal it too (APPROXIMATE).
+     * the 2026 value after the cut from 10,400 / 240,000). A Livid's swing deals it, before the player's Defense.
+     * The wiki gives no numbers for the clones' own attacks, so those are shares of it (APPROXIMATE, see each).
      */
     private static double lividDamage() {
         return SimHealth.byMode(9_360, 216_000);
@@ -90,11 +91,16 @@ public final class SimLivid extends SimBoss.Fight {
 
     /** Hypixel's: 340 ticks from her first line until she can be damaged ({@code LividTimer}, Odin). */
     private static final int INVULNERABLE_TICKS = 340;
-    /** When she splits and the wool turns, a few seconds before she can be hit. */
-    private static final int SPLIT_TICK = 260;
-    private static final int BLIND_TICKS = 100;
-    private static final int DAGGER_TELEGRAPH = 18;
-    private static final double DAGGER_RADIUS = 1.8;
+    /** The wiki's "after 16s" she splits, the wool turns and everyone is blinded. */
+    private static final int SPLIT_TICK = 320;
+    /** The wiki's one second of blindness at the split, on every floor. */
+    private static final int BLIND_TICKS = 20;
+    /** The wiki's 25% of max health a clone's death gives the clones near it. */
+    private static final double CLONE_HEAL = 0.25;
+    /** How near "nearby" is for that heal (APPROXIMATE: the wiki gives no distance). */
+    private static final double HEAL_RADIUS = 10;
+    /** Master Mode's damage boost per clone death (APPROXIMATE: the wiki gives no amount). */
+    private static final double MASTER_DEATH_BUFF = 0.10;
     /** How far from the middle of the ring the Livids walk, in blocks: the raised inner floor. */
     private static final double ROAM_RADIUS = 17;
 
@@ -103,6 +109,14 @@ public final class SimLivid extends SimBoss.Fight {
     /** The box of ceiling glass round it that changes with the wool, in the arena's coordinates. */
     private static final int[] GLASS_MIN = {-6, 107, 30};
     private static final int[] GLASS_MAX = {16, 110, 54};
+
+    /** Hypixel's clone lines when the wrong Livid is killed (the wiki's Dialogue, Livid Enderman Clones). */
+    private static final String[] WRONG_ONE = {
+            "I am Livid, but I am not Livid.",
+            "I am but a shadow.",
+            "Keep looking!",
+            "Wrong one!",
+    };
 
     /** Where the sim's Livid wool is while a Livid fight is built, or null. Read by Livid Finder on the client. */
     private static volatile BlockPos woolCue;
@@ -139,26 +153,36 @@ public final class SimLivid extends SimBoss.Fight {
 
     private enum Phase { INTRO, FIGHT, DEAD }
 
+    /** What a thrown or shot thing does when it lands. */
+    private enum ShotKind { DAGGER, ARROW, HARMING, SLOWNESS }
+
     private Phase phase = Phase.INTRO;
     private final boolean master = SimState.floorLabel().toUpperCase(java.util.Locale.ROOT).startsWith("M");
-    private final SimBoss.Health health = new SimBoss.Health(lividHealth());
     private final Colour real = Colour.values()[ThreadLocalRandom.current().nextInt(Colour.values().length)];
     private final List<Livid> livids = new ArrayList<>();
     private final List<BlockPos> glass = new ArrayList<>();
-    private final List<Dagger> daggers = new ArrayList<>();
-    /** When each player last got hit back for hitting a fake, so a Hyperion through all nine is one punishment. */
-    private final Map<UUID, Integer> punished = new HashMap<>();
+    private final List<Shot> shots = new ArrayList<>();
     private int ticks;
-    private int nextDagger;
-    private int nextShuffle;
     private int spawnCounter;
+    /** Master Mode's damage multiplier, up with every clone death. */
+    private double damageBoost = 1.0;
 
-    /** One Livid: its NPC body and the name stand over it. */
+    /** One Livid: its NPC body, its own pool, the name stand over it and its attack's state. */
     private static final class Livid {
         final Colour colour;
         final LividBody body;
+        final SimBoss.Health health = new SimBoss.Health(lividHealth());
         ArmorStand stand;
         int swingCooldown;
+        int abilityCooldown;
+        /** Ticks into its attack's wind-up (Vendetta, Hockey, Scream), -1 when not in one. */
+        int windup = -1;
+        /** Hockey's charge: the direction it goes, the ticks left, and who it has already run through. */
+        Vec3 chargeDir;
+        int chargeTicks;
+        final Set<UUID> chargeHit = new HashSet<>();
+        /** Arcade's sideways drift, changed every so often. */
+        double drift;
         /** Where round its target it closes in to, so nine Livids do not stand inside each other. */
         final double approachAngle;
 
@@ -169,7 +193,8 @@ public final class SimLivid extends SimBoss.Fight {
         }
     }
 
-    private record Dagger(Vec3 at, int landsAt) {
+    /** A dagger, arrow or splash potion in the air from {@code from} to {@code to}; arcs if lobbed. */
+    private record Shot(ShotKind kind, Vec3 from, Vec3 to, int firedAt, int landsAt, boolean lobbed) {
     }
 
     SimLivid(SimBossArena arena) {
@@ -230,7 +255,7 @@ public final class SimLivid extends SimBoss.Fight {
             default -> {
             }
         }
-        tickDaggers(level);
+        tickShots(level);
         for (Livid l : livids) {
             moveStand(l);
         }
@@ -245,12 +270,15 @@ public final class SimLivid extends SimBoss.Fight {
             split(level);
         } else if (t >= INVULNERABLE_TICKS) {
             phase = Phase.FIGHT;
-            nextDagger = t + 60;
-            nextShuffle = t + shuffleInterval();
+            // Staggered, so nine attacks do not all open on the same tick.
+            ThreadLocalRandom rnd = ThreadLocalRandom.current();
+            for (Livid l : livids) {
+                l.abilityCooldown = 20 + rnd.nextInt(60);
+            }
         }
     }
 
-    /** Nine Livids where there was one, and the wool and glass turn the real one's colour. */
+    /** Nine Livids where there was one, the wool and glass turn the real one's colour, and everyone is blinded. */
     private void split(ServerLevel level) {
         // The cue first, so Livid Finder knows the colour the moment the bodies show up.
         BlockPos wool = arena.toWorld(WOOL);
@@ -270,11 +298,9 @@ public final class SimLivid extends SimBoss.Fight {
         }
         level.playSound(null, c.getX(), c.getY(), c.getZ(), SoundEvents.ILLUSIONER_MIRROR_MOVE, SoundSource.HOSTILE,
                 2f, 0.8f);
-        if (master) {
-            // Master Mode's blindness as she splits; Livid Finder's box shows through it.
-            for (ServerPlayer p : SimBoss.playersInRing(level)) {
-                p.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, BLIND_TICKS, 0, false, false));
-            }
+        // The wiki's one second of blindness, F5 and M5 alike; Livid Finder's box shows through it.
+        for (ServerPlayer p : SimBoss.playersInRing(level)) {
+            p.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, BLIND_TICKS, 0, false, false));
         }
     }
 
@@ -290,7 +316,7 @@ public final class SimLivid extends SimBoss.Fight {
         body.setItemSlot(EquipmentSlot.CHEST, dyed(Items.LEATHER_CHESTPLATE, rgb));
         body.setItemSlot(EquipmentSlot.LEGS, dyed(Items.LEATHER_LEGGINGS, rgb));
         body.setItemSlot(EquipmentSlot.FEET, dyed(Items.LEATHER_BOOTS, rgb));
-        body.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
+        body.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(heldItem(colour)));
         // A client only builds a player body for a uuid it has player info for, so the info goes first (unlisted:
         // ADD_PLAYER alone leaves it out of the tab list, as Hypixel's NPCs are).
         level.getServer().getPlayerList().broadcastAll(new ClientboundPlayerInfoUpdatePacket(
@@ -301,6 +327,15 @@ public final class SimLivid extends SimBoss.Fight {
         livids.add(l);
         level.sendParticles(ParticleTypes.LARGE_SMOKE, x, y + 1, z, 12, 0.3, 0.6, 0.3, 0.02);
         writeName(l);
+    }
+
+    /** What each Livid holds, so its attack reads at a glance. */
+    private static Item heldItem(Colour colour) {
+        return switch (colour) {
+            case ARCADE -> Items.BOW;
+            case DOCTOR, SMILE -> Items.SPLASH_POTION;
+            default -> Items.IRON_SWORD;
+        };
     }
 
     private static ItemStack dyed(Item item, int rgb) {
@@ -323,11 +358,8 @@ public final class SimLivid extends SimBoss.Fight {
         return tag;
     }
 
-    /**
-     * Hypixel's Livid stand, "§c﴾ §c§lLivid§r§r §a7M§c❤ §c﴿", in the Livid's own colour. Every stand shows the
-     * real one's health, so the tag alone does not give her away.
-     */
-    private void writeName(Livid l) {
+    /** Hypixel's Livid stand, "§c﴾ §c§lLivid§r§r §a7M§c❤ §c﴿", in the Livid's own colour, with its own health. */
+    private static void writeName(Livid l) {
         if (l.stand == null) {
             return;
         }
@@ -335,7 +367,7 @@ public final class SimLivid extends SimBoss.Fight {
         MutableComponent name = Component.literal("﴾ ").withStyle(c)
                 .append(Component.literal("Livid").withStyle(c, ChatFormatting.BOLD))
                 .append(Component.literal(" "))
-                .append(Component.literal(SimBoss.shortHealth(health.hp)).withStyle(ChatFormatting.GREEN))
+                .append(Component.literal(SimBoss.shortHealth(l.health.hp)).withStyle(ChatFormatting.GREEN))
                 .append(Component.literal("❤").withStyle(ChatFormatting.RED))
                 .append(Component.literal(" ﴿").withStyle(c));
         l.stand.setCustomName(name);
@@ -350,55 +382,86 @@ public final class SimLivid extends SimBoss.Fight {
     private void fight(ServerLevel level, int t) {
         List<ServerPlayer> targets = SimBoss.playersInRing(level);
         for (Livid l : livids) {
-            chase(level, l, targets);
-        }
-        if (t >= nextDagger) {
-            dagger(level, targets);
-            nextDagger = t + (master ? 90 : 140);
-        }
-        if (t >= nextShuffle) {
-            shuffle(level);
-            nextShuffle = t + shuffleInterval();
+            if (l.swingCooldown > 0) {
+                l.swingCooldown--;
+            }
+            if (l.abilityCooldown > 0) {
+                l.abilityCooldown--;
+            }
+            ServerPlayer target = nearest(targets, l.body.position());
+            if (target == null) {
+                continue;
+            }
+            boolean busy = ability(level, l, target, targets);
+            if (!busy) {
+                chase(level, l, target);
+            }
         }
         if (t % 10 == 0) {
             for (Livid l : livids) {
                 writeName(l);
             }
         }
-        if (health.hp <= 0) {
+        Livid her = realLivid();
+        if (her == null || her.health.hp <= 0) {
             die(level);
         }
     }
 
-    private int shuffleInterval() {
-        return master ? 240 : 400;
+    /** A Livid's hit after Master Mode's buffs. */
+    private double damage(double share) {
+        return lividDamage() * share * damageBoost;
     }
 
     /** Walks a Livid at its target and swings when close. Every Livid does this, the real one included. */
-    private void chase(ServerLevel level, Livid l, List<ServerPlayer> targets) {
+    private void chase(ServerLevel level, Livid l, ServerPlayer target) {
         LividBody b = l.body;
-        if (l.swingCooldown > 0) {
-            l.swingCooldown--;
+        double gx;
+        double gz;
+        double speed = master ? 0.26 : 0.2;
+        if (l.colour == Colour.ARCADE) {
+            // Arcade keeps its distance for the bow and darts about: a sideways drift that keeps changing.
+            if (ticks % 12 == 0) {
+                l.drift = (ThreadLocalRandom.current().nextDouble() - 0.5) * 2.4;
+            }
+            double ax = b.getX() - target.getX();
+            double az = b.getZ() - target.getZ();
+            double d = Math.max(0.01, Math.sqrt(ax * ax + az * az));
+            double keep = 7;
+            gx = target.getX() + ax / d * keep - az / d * l.drift * 4;
+            gz = target.getZ() + az / d * keep + ax / d * l.drift * 4;
+            speed *= 1.4;
+        } else {
+            gx = target.getX() + Math.cos(l.approachAngle) * 1.6;
+            gz = target.getZ() + Math.sin(l.approachAngle) * 1.6;
         }
-        ServerPlayer target = nearest(targets, b.position());
-        if (target == null) {
-            return;
+        step(level, l, gx, gz, speed, target.position());
+        if (l.swingCooldown == 0 && b.distanceToSqr(target) < 2.8 * 2.8) {
+            b.swing(InteractionHand.MAIN_HAND);
+            hurtPlayer(level, target, damage(1.0), false, target.getX() - b.getX(),
+                    target.getZ() - b.getZ(), 0.4, 0.25);
+            if (l.colour == Colour.FROG) {
+                // Frog's poison rides on its hit (APPROXIMATE: five seconds of Poison II).
+                target.addEffect(new MobEffectInstance(MobEffects.POISON, 100, 1));
+            }
+            l.swingCooldown = master ? 18 : 25;
         }
-        BlockPos c = arena.toWorld(arena.centre);
-        double gx = target.getX() + Math.cos(l.approachAngle) * 1.6;
-        double gz = target.getZ() + Math.sin(l.approachAngle) * 1.6;
+    }
+
+    /** Moves a Livid toward (gx, gz) at {@code speed}, kept on the ring's inner floor, facing {@code look}. */
+    private void step(ServerLevel level, Livid l, double gx, double gz, double speed, Vec3 look) {
+        LividBody b = l.body;
         double dx = gx - b.getX();
         double dz = gz - b.getZ();
         double len = Math.sqrt(dx * dx + dz * dz);
-        double speed = master ? 0.26 : 0.2;
         double x = b.getX();
         double z = b.getZ();
         if (len > 0.3) {
-            double step = Math.min(speed, len);
-            x += dx / len * step;
-            z += dz / len * step;
+            double s = Math.min(speed, len);
+            x += dx / len * s;
+            z += dz / len * s;
         }
-        // Kept on the raised inner floor of the ring.
+        BlockPos c = arena.toWorld(arena.centre);
         double ox = x - (c.getX() + 0.5);
         double oz = z - (c.getZ() + 0.5);
         double r = Math.sqrt(ox * ox + oz * oz);
@@ -406,82 +469,308 @@ public final class SimLivid extends SimBoss.Fight {
             x = c.getX() + 0.5 + ox / r * ROAM_RADIUS;
             z = c.getZ() + 0.5 + oz / r * ROAM_RADIUS;
         }
-        float yaw = (float) (Math.toDegrees(Math.atan2(target.getZ() - z, target.getX() - x)) - 90);
+        float yaw = (float) (Math.toDegrees(Math.atan2(look.z - z, look.x - x)) - 90);
         b.snapTo(x, ground(level, x, z), z, yaw, 0f);
         b.setYHeadRot(yaw);
         b.setYBodyRot(yaw);
-        if (l.swingCooldown == 0 && b.distanceToSqr(target) < 2.8 * 2.8) {
-            b.swing(InteractionHand.MAIN_HAND);
-            hurtPlayer(level, target, lividDamage(), target.getX() - b.getX(),
-                    target.getZ() - b.getZ(), 0.4, 0.25);
-            l.swingCooldown = master ? 18 : 25;
-        }
     }
 
-    /** The real Livid marks a spot under a player; her knife lands there a moment later. */
-    private void dagger(ServerLevel level, List<ServerPlayer> targets) {
-        if (targets.isEmpty()) {
-            return;
-        }
-        Livid her = realLivid();
-        ServerPlayer p = targets.get(ThreadLocalRandom.current().nextInt(targets.size()));
-        daggers.add(new Dagger(p.position(), ticks + DAGGER_TELEGRAPH));
-        if (her != null) {
-            her.body.swing(InteractionHand.MAIN_HAND);
-            level.playSound(null, her.body.getX(), her.body.getY(), her.body.getZ(), SoundEvents.TRIDENT_THROW,
-                    SoundSource.HOSTILE, 1f, 1.4f);
-        }
-    }
-
-    private void tickDaggers(ServerLevel level) {
-        if (daggers.isEmpty()) {
-            return;
-        }
-        DustParticleOptions mark = new DustParticleOptions(real.dye.getTextureDiffuseColor() & 0xFFFFFF, 1.1f);
-        List<Dagger> landed = new ArrayList<>();
-        for (Dagger d : daggers) {
-            if (ticks < d.landsAt()) {
-                if (ticks % 3 == 0) {
-                    for (int i = 0; i < 14; i++) {
-                        double a = Math.PI * 2 * i / 14;
-                        level.sendParticles(mark, d.at().x + Math.cos(a) * DAGGER_RADIUS, d.at().y + 0.1,
-                                d.at().z + Math.sin(a) * DAGGER_RADIUS, 1, 0, 0, 0, 0);
-                    }
+    /**
+     * The Livid's own attack, by colour. The cooldowns, ranges and shares of her base damage are the sim's
+     * (APPROXIMATE: the wiki names each attack but gives no numbers); Master Mode's come round a quarter sooner.
+     *
+     * @return true while the attack holds the Livid in place (a wind-up or a charge), so it does not walk
+     */
+    private boolean ability(ServerLevel level, Livid l, ServerPlayer target, List<ServerPlayer> targets) {
+        LividBody b = l.body;
+        double dist = Math.sqrt(b.distanceToSqr(target));
+        return switch (l.colour) {
+            case VENDETTA -> vendetta(level, l, target);
+            case CROSSED -> {
+                if (l.abilityCooldown == 0 && dist < 12) {
+                    // Crossed: Blindness on its target (APPROXIMATE: three seconds).
+                    target.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, 60, 0, false, true));
+                    level.sendParticles(ParticleTypes.SQUID_INK, target.getX(), target.getY() + 1.6, target.getZ(),
+                            12, 0.3, 0.3, 0.3, 0.02);
+                    level.playSound(null, target.getX(), target.getY(), target.getZ(), SoundEvents.WITCH_THROW,
+                            SoundSource.HOSTILE, 1f, 0.6f);
+                    b.swing(InteractionHand.MAIN_HAND);
+                    l.abilityCooldown = cooldown(160);
                 }
+                yield false;
+            }
+            case HOCKEY -> hockey(level, l, target, targets);
+            case DOCTOR -> {
+                if (l.abilityCooldown == 0 && dist < 14) {
+                    throwShot(level, l, ShotKind.HARMING, target.position(), true);
+                    l.abilityCooldown = cooldown(120);
+                }
+                yield false;
+            }
+            case FROG -> false;    // its poison is on its swing
+            case SMILE -> {
+                if (l.abilityCooldown == 0 && dist < 14) {
+                    throwShot(level, l, ShotKind.SLOWNESS, target.position(), true);
+                    l.abilityCooldown = cooldown(140);
+                }
+                yield false;
+            }
+            case SCREAM -> scream(level, l, dist, targets);
+            case PURPLE -> {
+                if (l.abilityCooldown == 0 && dist < 6) {
+                    leech(level, l, target);
+                    l.abilityCooldown = cooldown(20);
+                }
+                yield false;
+            }
+            case ARCADE -> {
+                if (l.abilityCooldown == 0 && dist < 24) {
+                    throwShot(level, l, ShotKind.ARROW, target.position().add(0, 1, 0), false);
+                    l.abilityCooldown = cooldown(40);
+                }
+                yield false;
+            }
+        };
+    }
+
+    private int cooldown(int ticks) {
+        return master ? ticks * 3 / 4 : ticks;
+    }
+
+    /** Vendetta: vanishes, comes back beside its target and throws its dagger a moment later. */
+    private boolean vendetta(ServerLevel level, Livid l, ServerPlayer target) {
+        LividBody b = l.body;
+        if (l.windup < 0) {
+            if (l.abilityCooldown > 0) {
+                return false;
+            }
+            level.sendParticles(ParticleTypes.PORTAL, b.getX(), b.getY() + 1, b.getZ(), 30, 0.3, 0.8, 0.3, 0.4);
+            double a = ThreadLocalRandom.current().nextDouble() * Math.PI * 2;
+            double x = target.getX() + Math.cos(a) * 4;
+            double z = target.getZ() + Math.sin(a) * 4;
+            step(level, l, x, z, 100, target.position());
+            level.sendParticles(ParticleTypes.PORTAL, b.getX(), b.getY() + 1, b.getZ(), 30, 0.3, 0.8, 0.3, 0.4);
+            level.playSound(null, b.getX(), b.getY(), b.getZ(), SoundEvents.ENDERMAN_TELEPORT, SoundSource.HOSTILE,
+                    1f, 1f);
+            l.windup = 0;
+        }
+        l.windup++;
+        if (l.windup < 8) {
+            step(level, l, b.getX(), b.getZ(), 0, target.position());
+            return true;
+        }
+        l.windup = -1;
+        throwShot(level, l, ShotKind.DAGGER, target.position().add(0, 1, 0), false);
+        l.abilityCooldown = cooldown(120);
+        return false;
+    }
+
+    /** Hockey: plants itself for three quarters of a second, then charges straight through. */
+    private boolean hockey(ServerLevel level, Livid l, ServerPlayer target, List<ServerPlayer> targets) {
+        LividBody b = l.body;
+        if (l.chargeTicks > 0) {
+            l.chargeTicks--;
+            Vec3 to = b.position().add(l.chargeDir.scale(0.9));
+            step(level, l, to.x, to.z, 0.9, to.add(l.chargeDir));
+            level.sendParticles(ParticleTypes.CLOUD, b.getX(), b.getY() + 0.2, b.getZ(), 2, 0.2, 0.05, 0.2, 0);
+            for (ServerPlayer p : targets) {
+                if (!l.chargeHit.contains(p.getUUID()) && p.distanceToSqr(b) < 1.8 * 1.8) {
+                    l.chargeHit.add(p.getUUID());
+                    // APPROXIMATE: one and a half of her base damage, and a hard shove.
+                    hurtPlayer(level, p, damage(1.5), false, l.chargeDir.x, l.chargeDir.z, 1.4, 0.5);
+                }
+            }
+            return true;
+        }
+        if (l.windup < 0) {
+            if (l.abilityCooldown > 0 || b.distanceToSqr(target) > 14 * 14) {
+                return false;
+            }
+            l.windup = 0;
+            level.playSound(null, b.getX(), b.getY(), b.getZ(), SoundEvents.RAVAGER_ROAR, SoundSource.HOSTILE,
+                    1f, 1.4f);
+        }
+        l.windup++;
+        if (l.windup < 15) {
+            step(level, l, b.getX(), b.getZ(), 0, target.position());
+            level.sendParticles(ParticleTypes.ANGRY_VILLAGER, b.getX(), b.getY() + 2.2, b.getZ(), 1, 0.2, 0.1, 0.2,
+                    0);
+            return true;
+        }
+        l.windup = -1;
+        Vec3 d = new Vec3(target.getX() - b.getX(), 0, target.getZ() - b.getZ());
+        l.chargeDir = d.lengthSqr() < 1e-4 ? new Vec3(1, 0, 0) : d.normalize();
+        l.chargeTicks = 14;
+        l.chargeHit.clear();
+        l.abilityCooldown = cooldown(140);
+        return true;
+    }
+
+    /** Scream: a ring that grows round it for a second, then true damage and a shove for everyone in it. */
+    private boolean scream(ServerLevel level, Livid l, double dist, List<ServerPlayer> targets) {
+        double radius = 6;
+        LividBody b = l.body;
+        if (l.windup < 0) {
+            if (l.abilityCooldown > 0 || dist > radius) {
+                return false;
+            }
+            l.windup = 0;
+            level.playSound(null, b.getX(), b.getY(), b.getZ(), SoundEvents.WARDEN_SONIC_CHARGE, SoundSource.HOSTILE,
+                    1f, 1.2f);
+        }
+        l.windup++;
+        int telegraph = 20;
+        if (l.windup < telegraph) {
+            if (l.windup % 2 == 0) {
+                DustParticleOptions blue = new DustParticleOptions(0x3355FF, 1.2f);
+                double r = radius * l.windup / telegraph;
+                for (int i = 0; i < 20; i++) {
+                    double a = Math.PI * 2 * i / 20;
+                    level.sendParticles(blue, b.getX() + Math.cos(a) * r, b.getY() + 0.2, b.getZ() + Math.sin(a) * r,
+                            1, 0, 0, 0, 0);
+                }
+            }
+            return true;
+        }
+        l.windup = -1;
+        l.abilityCooldown = cooldown(160);
+        level.sendParticles(ParticleTypes.SONIC_BOOM, b.getX(), b.getY() + 1, b.getZ(), 1, 0, 0, 0, 0);
+        level.playSound(null, b.getX(), b.getY(), b.getZ(), SoundEvents.WARDEN_SONIC_BOOM, SoundSource.HOSTILE,
+                1.5f, 1.3f);
+        for (ServerPlayer p : targets) {
+            double dx = p.getX() - b.getX();
+            double dz = p.getZ() - b.getZ();
+            if (dx * dx + dz * dz <= radius * radius && Math.abs(p.getY() - b.getY()) < 3) {
+                // APPROXIMATE: half her base damage, as true damage.
+                hurtPlayer(level, p, damage(0.5), true, dx, dz, 1.6, 0.6);
+            }
+        }
+        return false;
+    }
+
+    /** Purple: drains its target once a second and heals itself with it. */
+    private void leech(ServerLevel level, Livid l, ServerPlayer target) {
+        LividBody b = l.body;
+        // APPROXIMATE: a quarter of her base damage drained, 1% of a Livid's health back.
+        hurtPlayer(level, target, damage(0.25), false, 0, 0, 0, 0);
+        l.health.hp = Math.min(l.health.max, l.health.hp + l.health.max * 0.01);
+        DustParticleOptions purple = new DustParticleOptions(0x8B00FF, 1f);
+        line(level, purple, target.position().add(0, 1, 0), b.position().add(0, 1.2, 0));
+        level.sendParticles(ParticleTypes.HEART, b.getX(), b.getY() + 2.2, b.getZ(), 1, 0.2, 0.1, 0.2, 0);
+    }
+
+    private void throwShot(ServerLevel level, Livid l, ShotKind kind, Vec3 at, boolean lobbed) {
+        LividBody b = l.body;
+        Vec3 from = b.position().add(0, 1.5, 0);
+        double dist = from.distanceTo(at);
+        // Lobbed potions take a second; a dagger or arrow flies at about two blocks a tick.
+        int flight = lobbed ? 20 : Math.max(3, (int) Math.ceil(dist / 2));
+        shots.add(new Shot(kind, from, at, ticks, ticks + flight, lobbed));
+        b.swing(InteractionHand.MAIN_HAND);
+        switch (kind) {
+            case DAGGER -> level.playSound(null, b.getX(), b.getY(), b.getZ(), SoundEvents.TRIDENT_THROW,
+                    SoundSource.HOSTILE, 1f, 1.4f);
+            case ARROW -> level.playSound(null, b.getX(), b.getY(), b.getZ(), SoundEvents.ARROW_SHOOT,
+                    SoundSource.HOSTILE, 1f, 1f);
+            default -> level.playSound(null, b.getX(), b.getY(), b.getZ(), SoundEvents.SPLASH_POTION_THROW,
+                    SoundSource.HOSTILE, 1f, 1f);
+        }
+    }
+
+    private void tickShots(ServerLevel level) {
+        if (shots.isEmpty()) {
+            return;
+        }
+        List<Shot> landed = new ArrayList<>();
+        for (Shot s : shots) {
+            double f = (double) (ticks - s.firedAt()) / Math.max(1, s.landsAt() - s.firedAt());
+            Vec3 at = s.from().lerp(s.to(), Math.min(1, f));
+            if (s.lobbed()) {
+                at = at.add(0, Math.sin(Math.PI * Math.min(1, f)) * 4, 0);
+            }
+            level.sendParticles(trail(s.kind()), at.x, at.y, at.z, 2, 0.05, 0.05, 0.05, 0);
+            if (ticks < s.landsAt()) {
                 continue;
             }
-            landed.add(d);
-            level.sendParticles(ParticleTypes.CRIT, d.at().x, d.at().y + 0.3, d.at().z, 25, 0.6, 0.2, 0.6, 0.3);
-            level.playSound(null, d.at().x, d.at().y, d.at().z, SoundEvents.TRIDENT_HIT, SoundSource.HOSTILE, 1f,
-                    1.2f);
-            for (ServerPlayer p : SimBoss.playersInRing(level)) {
-                double dx = p.getX() - d.at().x;
-                double dz = p.getZ() - d.at().z;
-                if (dx * dx + dz * dz <= DAGGER_RADIUS * DAGGER_RADIUS && Math.abs(p.getY() - d.at().y) < 3) {
-                    hurtPlayer(level, p, lividDamage(), dx, dz, 0.3, 0.3);
-                }
-            }
+            landed.add(s);
+            land(level, s);
         }
-        daggers.removeAll(landed);
+        shots.removeAll(landed);
     }
 
-    /** All nine vanish in smoke and come back somewhere else in the ring. */
-    private void shuffle(ServerLevel level) {
-        BlockPos c = arena.toWorld(arena.centre);
-        ThreadLocalRandom rnd = ThreadLocalRandom.current();
-        for (Livid l : livids) {
-            LividBody b = l.body;
-            level.sendParticles(ParticleTypes.LARGE_SMOKE, b.getX(), b.getY() + 1, b.getZ(), 15, 0.3, 0.7, 0.3,
-                    0.02);
-            double a = rnd.nextDouble() * Math.PI * 2;
-            double d = 5 + rnd.nextDouble() * (ROAM_RADIUS - 6);
-            double x = c.getX() + 0.5 + Math.cos(a) * d;
-            double z = c.getZ() + 0.5 + Math.sin(a) * d;
-            b.snapTo(x, ground(level, x, z), z, b.getYRot(), 0f);
-            level.sendParticles(ParticleTypes.LARGE_SMOKE, x, b.getY() + 1, z, 15, 0.3, 0.7, 0.3, 0.02);
+    private static ParticleOptions trail(ShotKind kind) {
+        return switch (kind) {
+            case DAGGER -> ParticleTypes.ENCHANTED_HIT;
+            case ARROW -> ParticleTypes.CRIT;
+            case HARMING -> new DustParticleOptions(0xA9204A, 1.2f);
+            case SLOWNESS -> new DustParticleOptions(0x5A6C81, 1.2f);
+        };
+    }
+
+    private void land(ServerLevel level, Shot s) {
+        Vec3 at = s.to();
+        boolean splash = s.kind() == ShotKind.HARMING || s.kind() == ShotKind.SLOWNESS;
+        double radius = splash ? 2.5 : 1.3;
+        if (splash) {
+            level.sendParticles(trail(s.kind()), at.x, at.y + 0.3, at.z, 30, 1.2, 0.3, 1.2, 0);
+            level.sendParticles(ParticleTypes.SPLASH, at.x, at.y + 0.3, at.z, 20, 1, 0.2, 1, 0.1);
+            level.playSound(null, at.x, at.y, at.z, SoundEvents.SPLASH_POTION_BREAK, SoundSource.HOSTILE, 1f, 1f);
         }
-        level.playSound(null, c.getX(), c.getY(), c.getZ(), SoundEvents.ILLUSIONER_MIRROR_MOVE, SoundSource.HOSTILE,
-                2f, 1.2f);
+        for (ServerPlayer p : SimBoss.playersInRing(level)) {
+            Vec3 c = splash ? p.position() : p.position().add(0, 1, 0);
+            if (c.distanceToSqr(at) > radius * radius) {
+                continue;
+            }
+            switch (s.kind()) {
+                // APPROXIMATE: a dagger or arrow her base damage; the Harming potion half of it, as the true
+                // damage the wiki says it deals.
+                case DAGGER -> hurtPlayer(level, p, damage(1.0), false, p.getX() - s.from().x, p.getZ() - s.from().z,
+                        0.3, 0.2);
+                case ARROW -> hurtPlayer(level, p, damage(0.6), false, p.getX() - s.from().x, p.getZ() - s.from().z,
+                        0.3, 0.15);
+                case HARMING -> hurtPlayer(level, p, damage(0.5), true, 0, 0, 0, 0);
+                // APPROXIMATE: four seconds of Slowness II.
+                case SLOWNESS -> p.addEffect(new MobEffectInstance(MobEffects.SLOWNESS, 80, 1));
+            }
+        }
+    }
+
+    private static void line(ServerLevel level, ParticleOptions particle, Vec3 from, Vec3 to) {
+        Vec3 d = to.subtract(from);
+        int steps = (int) Math.max(3, d.length() * 2);
+        for (int i = 0; i <= steps; i++) {
+            Vec3 p = from.add(d.scale((double) i / steps));
+            level.sendParticles(particle, p.x, p.y, p.z, 1, 0, 0, 0, 0);
+        }
+    }
+
+    /**
+     * A clone at 0: it regenerates to full, the clones near it get a quarter of their health back, one of Hypixel's
+     * "wrong one" lines, and in Master Mode every Livid hits harder from now on.
+     */
+    private void cloneDied(ServerLevel level, Livid clone) {
+        LividBody b = clone.body;
+        clone.health.hp = clone.health.max;
+        level.sendParticles(ParticleTypes.LARGE_SMOKE, b.getX(), b.getY() + 1, b.getZ(), 20, 0.3, 0.7, 0.3, 0.02);
+        level.playSound(null, b.getX(), b.getY(), b.getZ(), SoundEvents.ENDERMAN_TELEPORT, SoundSource.HOSTILE, 1f,
+                0.7f);
+        for (Livid other : livids) {
+            if (other == clone || other.colour == real) {
+                continue;
+            }
+            if (other.body.distanceToSqr(b) <= HEAL_RADIUS * HEAL_RADIUS) {
+                other.health.hp = Math.min(other.health.max, other.health.hp + other.health.max * CLONE_HEAL);
+                level.sendParticles(ParticleTypes.HEART, other.body.getX(), other.body.getY() + 2.2,
+                        other.body.getZ(), 3, 0.3, 0.2, 0.3, 0);
+                writeName(other);
+            }
+        }
+        if (master) {
+            damageBoost += MASTER_DEATH_BUFF;
+        }
+        SimBoss.say(level.getServer(), clone.colour.speaker(),
+                WRONG_ONE[ThreadLocalRandom.current().nextInt(WRONG_ONE.length)]);
+        writeName(clone);
     }
 
     private void die(ServerLevel level) {
@@ -493,7 +782,7 @@ public final class SimLivid extends SimBoss.Fight {
                     0.5, 0.5, 0.5, 0);
         }
         removeLivids(level);
-        daggers.clear();
+        shots.clear();
         phase = Phase.DEAD;
     }
 
@@ -559,13 +848,16 @@ public final class SimLivid extends SimBoss.Fight {
         return best;
     }
 
-    /** Damage plus knockback: {@code damage} is Hypixel damage before Defense ({@link SimVitals#dealHypixel}). */
-    private static void hurtPlayer(ServerLevel level, ServerPlayer p, double damage, double dx, double dz,
-                                   double push, double lift) {
+    /**
+     * Damage plus knockback: {@code damage} is Hypixel damage before Defense, or past it when {@code trueDamage}
+     * ({@link SimVitals#dealHypixel}).
+     */
+    private static void hurtPlayer(ServerLevel level, ServerPlayer p, double damage, boolean trueDamage, double dx,
+                                   double dz, double push, double lift) {
         DamageSource src = level.damageSources().magic();
-        SimVitals.dealHypixel(level, p, src, damage, false);
+        SimVitals.dealHypixel(level, p, src, damage, trueDamage);
         double len = Math.sqrt(dx * dx + dz * dz);
-        if (len < 0.01) {
+        if (len < 0.01 || push <= 0) {
             return;
         }
         p.setDeltaMovement(dx / len * push, lift, dz / len * push);
@@ -583,37 +875,16 @@ public final class SimLivid extends SimBoss.Fight {
         if (l == null || phase != Phase.FIGHT) {
             return false;
         }
-        if (l.colour == real) {
-            boolean landed = health.hit(amount);
-            if (landed && ticks % 2 == 0) {
-                for (Livid other : livids) {
-                    writeName(other);
-                }
+        // Every Livid has its own pool; only the real one's running out ends the fight (checked in fight()).
+        boolean landed = l.health.hit(amount);
+        if (landed) {
+            if (l.colour != real && l.health.hp <= 0) {
+                cloneDied(level, l);
+            } else if (ticks % 2 == 0) {
+                writeName(l);
             }
-            return landed;
         }
-        punish(level, l);
-        return false;
-    }
-
-    /** Hitting a fake: it does nothing to Livid, and the fake strikes straight back. Once a second per player. */
-    private void punish(ServerLevel level, Livid fake) {
-        ServerPlayer p = nearest(SimBoss.playersInRing(level), fake.body.position());
-        if (p == null) {
-            return;
-        }
-        Integer last = punished.get(p.getUUID());
-        if (last != null && ticks - last < 20) {
-            return;
-        }
-        punished.put(p.getUUID(), ticks);
-        fake.body.swing(InteractionHand.MAIN_HAND);
-        level.sendParticles(ParticleTypes.ANGRY_VILLAGER, fake.body.getX(), fake.body.getY() + 2.2,
-                fake.body.getZ(), 3, 0.3, 0.2, 0.3, 0);
-        level.playSound(null, fake.body.getX(), fake.body.getY(), fake.body.getZ(), SoundEvents.SHIELD_BLOCK,
-                SoundSource.HOSTILE, 1f, 0.7f);
-        hurtPlayer(level, p, lividDamage(), p.getX() - fake.body.getX(), p.getZ() - fake.body.getZ(),
-                0.8, 0.35);
+        return landed;
     }
 
     @Override
@@ -624,7 +895,7 @@ public final class SimLivid extends SimBoss.Fight {
     @Override
     void discard(ServerLevel level) {
         removeLivids(level);
-        daggers.clear();
+        shots.clear();
         woolCue = null;
     }
 
@@ -638,9 +909,13 @@ public final class SimLivid extends SimBoss.Fight {
         return phase == Phase.INTRO ? BossEvent.BossBarColor.WHITE : BossEvent.BossBarColor.RED;
     }
 
+    /**
+     * The invulnerability count-up, then a full bar: Hypixel's boss bar does not show Livid's health, so it cannot
+     * be used to tell which one is real.
+     */
     @Override
     float barProgress() {
-        return phase == Phase.INTRO ? Math.min(1f, (float) ticks / INVULNERABLE_TICKS) : health.fraction();
+        return phase == Phase.INTRO ? Math.min(1f, (float) ticks / INVULNERABLE_TICKS) : 1f;
     }
 
     /**
