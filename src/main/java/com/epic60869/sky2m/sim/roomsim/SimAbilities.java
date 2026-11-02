@@ -151,6 +151,8 @@ public final class SimAbilities {
                 && (clicked instanceof net.minecraft.world.level.block.ButtonBlock
                 || clicked instanceof net.minecraft.world.level.block.LeverBlock
                 || clicked instanceof net.minecraft.world.level.block.ChestBlock
+                // A P3 terminal's command block: it opens the terminal whatever is held, as on Hypixel.
+                || SimTerms.BLOCKS.contains(hit.getBlockPos())
                 || com.epic60869.sky2m.sim.util.SimRaycast.isWitherEssence(level, hit.getBlockPos()));
     }
 

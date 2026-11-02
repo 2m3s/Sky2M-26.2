@@ -188,6 +188,10 @@ public final class SimItems {
                     if (com.epic60869.sky2m.sim.roomsim.puzzles.SimCreeperPuzzle.tryConnectAt(pos.immutable())) {
                         return net.minecraft.world.InteractionResult.FAIL;
                     }
+                    // P3: a left click on a terminal, a lever or a device button is a right click (SimTerms).
+                    if (SimTerms.leftClickBlock(player, level, pos.immutable(), direction)) {
+                        return net.minecraft.world.InteractionResult.FAIL;
+                    }
                     // Everything else: no client-side mining, and the START goes to the server.
                     //
                     // killer560 (2026-09-29): "Make sure I cannot break blocks with anything besides the
@@ -426,6 +430,11 @@ public final class SimItems {
         decorate(stack, tag, item.skyblockId);
         stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
         applySkyblockTooltip(stack, item.skyblockId);
+        // Handed out maxed (stars, Recombobulator, books, reforge, gems, enchantments), as a maxed player has it,
+        // rather than as a bare item that has to be built up by hand.
+        if (SimItemData.def(item.skyblockId) != null) {
+            stack = SimItemData.fullBuild(item.skyblockId).applyTo(stack);
+        }
         return stack;
     }
 

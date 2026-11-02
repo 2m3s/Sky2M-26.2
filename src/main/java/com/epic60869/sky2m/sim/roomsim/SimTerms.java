@@ -91,13 +91,19 @@ public final class SimTerms {
     static final class Terminal {
         final int section;
         final ArmorStand stand;
+        /** Its command block: a right click on it opens the terminal too, as on Hypixel. */
+        final BlockPos block;
         boolean done;
 
-        Terminal(int section, ArmorStand stand) {
+        Terminal(int section, ArmorStand stand, BlockPos block) {
             this.section = section;
             this.stand = stand;
+            this.block = block;
         }
     }
+
+    /** The terminals' command blocks, for the use callback (the client's too). */
+    static final Set<BlockPos> BLOCKS = ConcurrentHashMap.newKeySet();
 
     private static final class Lever {
         final int section;
@@ -161,8 +167,37 @@ public final class SimTerms {
             // Consumed on both sides: no armour-stand swap, no vanilla frame turn, no item use behind it.
             return InteractionResult.SUCCESS;
         });
-        AttackEntityCallback.EVENT.register((player, level, hand, entity, hit) ->
-                entity != null && ours(entity) ? InteractionResult.FAIL : InteractionResult.PASS);
+        // A LEFT click on a terminal opens it too, as on Hypixel: the client turns it into the right click above.
+        AttackEntityCallback.EVENT.register((player, level, hand, entity, hit) -> {
+            if (entity == null || !ours(entity)) {
+                return InteractionResult.PASS;
+            }
+            if (level.isClientSide() && STANDS.contains(entity.getUUID()) && SimState.isActive()) {
+                Minecraft mc = Minecraft.getInstance();
+                if (mc.gameMode != null && player == mc.player) {
+                    mc.gameMode.interact(mc.player, entity, new net.minecraft.world.phys.EntityHitResult(entity,
+                            entity.position()), InteractionHand.MAIN_HAND);
+                }
+            }
+            return InteractionResult.FAIL;
+        });
+        // A right click on a terminal's command block opens it, as on Hypixel (not only its stand). Consumed on both
+        // sides, so vanilla's command block screen never opens.
+        net.fabricmc.fabric.api.event.player.UseBlockCallback.EVENT.register((player, level, hand, hit) -> {
+            if (hit == null || !BLOCKS.contains(hit.getBlockPos())) {
+                return InteractionResult.PASS;
+            }
+            if (!level.isClientSide() && player instanceof ServerPlayer sp && hand == InteractionHand.MAIN_HAND
+                    && SimState.isActive() && !(sp.containerMenu instanceof SimTermMenu)) {
+                for (Terminal t : TERMINALS) {
+                    if (t.block.equals(hit.getBlockPos())) {
+                        openTerminal(sp, t);
+                        break;
+                    }
+                }
+            }
+            return InteractionResult.SUCCESS;
+        });
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, access) -> dispatcher.register(
                 ClientCommands.literal("simterms")
                         // Sim-only, like /boss, so the name is never claimed on Hypixel.
@@ -175,6 +210,30 @@ public final class SimTerms {
                             onServer(SimTerms::leave);
                             return 1;
                         }))));
+    }
+
+    /**
+     * A left click on a block while P3 runs: a terminal's command block, a lever or a device button works like a right
+     * click (Hypixel lets you hit levers and terminals). Client thread, from {@code SimItems}' left-click hook, which
+     * otherwise keeps every left click from mining. The right click it becomes is the server's to judge.
+     *
+     * @return whether the click was taken
+     */
+    static boolean leftClickBlock(net.minecraft.world.entity.player.Player player, net.minecraft.world.level.Level level,
+                                  BlockPos pos, Direction direction) {
+        if (stage == Stage.IDLE || !SimState.isActive()) {
+            return false;
+        }
+        BlockState state = level.getBlockState(pos);
+        boolean terminal = BLOCKS.contains(pos);
+        boolean lever = state.is(Blocks.LEVER) || state.getBlock() instanceof net.minecraft.world.level.block.ButtonBlock;
+        Minecraft mc = Minecraft.getInstance();
+        if (!terminal && !lever || mc.gameMode == null || player != mc.player) {
+            return false;
+        }
+        mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, new net.minecraft.world.phys.BlockHitResult(
+                Vec3.atCenterOf(pos), direction, pos, false));
+        return true;
     }
 
     private static boolean ours(Entity entity) {
@@ -224,6 +283,7 @@ public final class SimTerms {
     static void startInArena(ServerLevel level, Arena hooks, int[][] levers) {
         stopNow(level.getServer());
         arena = hooks;
+        rebuildWestStrip(level);
         spawnTerminals(level);
         LEVERS.clear();
         for (int[] l : levers) {
@@ -244,6 +304,25 @@ public final class SimTerms {
         java.util.Arrays.fill(splits, 0);
         stage = Stage.RUNNING;
         LOGGER.info("Sim P3 terminals started in the boss room");
+    }
+
+    /**
+     * Section 3's west side in the real boss room. The F7 world save stops at x 0 and the converter sealed that edge
+     * with a full-height stone wall, so Hypixel's x -3..-1 strip was missing: three of section 3's terminals (x -2)
+     * stood in the air outside the room and Arrow Align's frames (x -2) had no wall behind them, so the device could
+     * not be done. Rebuilt between section 3's two gates (z 52-126, so no way round a gate): the seal and the strip
+     * continue the room's next column in (x 1), and x -3 is the wall again. Server thread.
+     */
+    private static void rebuildWestStrip(ServerLevel level) {
+        for (int z = 52; z <= 126; z++) {
+            for (int y = SimTermBuild.FLOOR_Y - 1; y <= SimTermBuild.TOP_Y; y++) {
+                BlockState inner = level.getBlockState(new BlockPos(1, y, z));
+                for (int x = -2; x <= 0; x++) {
+                    level.setBlock(new BlockPos(x, y, z), inner, Block.UPDATE_CLIENTS);
+                }
+                level.setBlock(new BlockPos(-3, y, z), Blocks.STONE_BRICKS.defaultBlockState(), Block.UPDATE_CLIENTS);
+            }
+        }
     }
 
     /** Ends the boss room's terminals (the fight is over or left). No-op for the drill. Server thread. */
@@ -319,6 +398,7 @@ public final class SimTerms {
         TERMINALS.clear();
         LEVERS.clear();
         STANDS.clear();
+        BLOCKS.clear();
         SimDevices.ArrowAlign.FRAMES.clear();
         SimTermMenu.OPEN.clear();
         devices = List.of();
@@ -412,15 +492,23 @@ public final class SimTerms {
         sweep(level);
         TERMINALS.clear();
         STANDS.clear();
+        BLOCKS.clear();
         for (int s = 0; s < SimTermBuild.TERMINALS.length; s++) {
-            for (int[] t : SimTermBuild.TERMINALS[s]) {
+            for (int i = 0; i < SimTermBuild.TERMINALS[s].length; i++) {
+                int[] t = SimTermBuild.TERMINALS[s][i];
+                int[] b = SimTermBuild.TERMINAL_BLOCKS[s][i];
+                BlockPos block = new BlockPos(b[0], b[1], b[2]);
+                if (!level.getBlockState(block).is(Blocks.COMMAND_BLOCK)) {
+                    level.setBlock(block, SimTermBuild.terminalBlock(), Block.UPDATE_ALL);
+                }
                 ArmorStand stand = new ArmorStand(level, t[0] + 0.5, t[1], t[2] + 0.5);
                 stand.setNoGravity(true);
                 stand.setNoBasePlate(true);
                 stand.setInvulnerable(true);
                 stand.setCustomNameVisible(true);
                 stand.addTag(TAG);
-                Terminal terminal = new Terminal(s + 1, stand);
+                Terminal terminal = new Terminal(s + 1, stand, block);
+                BLOCKS.add(block);
                 name(terminal);
                 if (level.addFreshEntity(stand)) {
                     TERMINALS.add(terminal);

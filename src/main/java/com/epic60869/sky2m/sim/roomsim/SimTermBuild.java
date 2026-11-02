@@ -55,6 +55,24 @@ final class SimTermBuild {
     };
 
     /**
+     * Each terminal's command block (same order as {@link #TERMINALS}): on Hypixel the terminal is a command block
+     * with its "Inactive Terminal" stand beside it, and a right click on either opens it. Read from the F7 world
+     * save ({@code necron.json}, 14 command blocks one block from a stand); the save stops at x 0, so section 3's
+     * three west ones are put on the west wall (x -3) the way section 1's are on the east wall (x 111).
+     */
+    static final int[][][] TERMINAL_BLOCKS = {
+        {{111, 113, 73}, {111, 119, 79}, {89, 112, 92}, {89, 122, 101}},
+        {{68, 109, 121}, {59, 120, 122}, {47, 109, 121}, {39, 108, 143}, {40, 124, 122}},
+        {{-3, 109, 112}, {-3, 119, 93}, {19, 123, 93}, {-3, 109, 77}},
+        {{41, 109, 29}, {44, 121, 29}, {67, 109, 29}, {72, 115, 48}},
+    };
+
+    /** A terminal's command block, as Hypixel's (facing down). */
+    static BlockState terminalBlock() {
+        return Blocks.COMMAND_BLOCK.defaultBlockState().setValue(BlockStateProperties.FACING, Direction.DOWN);
+    }
+
+    /**
      * Two levers per section, {x, y, z, facing}. Hypixel's levers sit up on the structure; these are on the outer
      * wall at waist height, an approximation (nothing in the mod reads where a lever is).
      */
