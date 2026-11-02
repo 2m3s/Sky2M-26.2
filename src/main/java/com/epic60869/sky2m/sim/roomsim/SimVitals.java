@@ -236,7 +236,7 @@ public final class SimVitals {
     }
 
     /**
-     * Mob damage onto the pool. Only mob and magic hits: a player hitting himself (an own explosion), /kill and
+     * Mob damage onto the pool. Only mob and magic hits: /kill and
      * the void are left to vanilla, and fall, fire and drowning are refused by {@link SimSurvival} already.
      */
     private static boolean onPlayerDamage(LivingEntity entity, DamageSource source, float amount) {
@@ -250,6 +250,12 @@ public final class SimVitals {
             return false;
         }
         Entity attacker = source.getEntity();
+        if (attacker instanceof Player) {
+            // No friendly fire, as on Hypixel: a teammate's swing, arrow or explosion went to vanilla damage, killing
+            // him ("killed by Player") and wearing his armour down until the pieces broke. His own explosions
+            // (Superboom, Explosive Shot) do not hurt him either.
+            return false;
+        }
         boolean fromMob = attacker instanceof LivingEntity && !(attacker instanceof Player);
         boolean magic = attacker == null && (source.is(DamageTypes.MAGIC) || source.is(DamageTypes.INDIRECT_MAGIC));
         if (!fromMob && !magic && Double.isNaN(pendingHit)) {
