@@ -89,6 +89,53 @@ public final class SimSurvival {
         sp.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
     }
 
+    /** When each player last bounced off lava, in server ticks, so one dip is one bounce. */
+    private static final java.util.Map<java.util.UUID, Integer> LAST_BOUNCE = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * SkyBlock's lava bounce: touching lava in a dungeon throws you up out of it instead of burning you, and higher when
+     * you look up (the "super bounce" players use to climb). APPROXIMATE strengths: about 5 blocks, about 14 looking
+     * straight up. Server thread.
+     */
+    private static void lavaBounce(ServerPlayer sp) {
+        if (!sp.isInLava() || sp.isSpectator() || sp.getAbilities().flying) {
+            return;
+        }
+        int now = sp.level().getServer().getTickCount();
+        Integer last = LAST_BOUNCE.get(sp.getUUID());
+        if (last != null && now - last < 8) {
+            return;
+        }
+        LAST_BOUNCE.put(sp.getUUID(), now);
+        // -90 is straight up: from level to straight up the bounce grows from 1.0 to 1.9 blocks a tick.
+        double up = Math.max(0, -sp.getXRot()) / 90.0;
+        net.minecraft.world.phys.Vec3 v = sp.getDeltaMovement();
+        sp.setDeltaMovement(v.x, 1.0 + 0.9 * up, v.z);
+        sp.hurtMarked = true;
+        sp.fallDistance = 0;
+    }
+
+    private static final net.minecraft.world.entity.EquipmentSlot[] ARMOUR_SLOTS = {
+            net.minecraft.world.entity.EquipmentSlot.HEAD, net.minecraft.world.entity.EquipmentSlot.CHEST,
+            net.minecraft.world.entity.EquipmentSlot.LEGS, net.minecraft.world.entity.EquipmentSlot.FEET};
+
+    /**
+     * Worn armour never wears out in the sim: Hypixel gear has no durability, but the vanilla pieces under it do, and
+     * a big hit that got through to vanilla damage (an explosion, the killing blow) broke the helmet, chestplate and
+     * boots on death. Made unbreakable the first time it is worn, and repaired if it was already damaged. Server
+     * thread.
+     */
+    private static void keepArmour(ServerPlayer sp) {
+        for (net.minecraft.world.entity.EquipmentSlot slot : ARMOUR_SLOTS) {
+            net.minecraft.world.item.ItemStack worn = sp.getItemBySlot(slot);
+            if (worn.isEmpty() || !worn.isDamageableItem()) {
+                continue;
+            }
+            worn.set(net.minecraft.core.component.DataComponents.UNBREAKABLE, net.minecraft.util.Unit.INSTANCE);
+            worn.setDamageValue(0);
+        }
+    }
+
     public static void register() {
         // No fall damage. Checked per damage rather than by resetting fallDistance every tick: resetting it
         // silently changes what the game thinks happened, while refusing the damage leaves everything else -
@@ -122,6 +169,8 @@ public final class SimSurvival {
                     sp.getFoodData().eat(20, 1.0f);
                 }
                 keepInBounds(sp);
+                keepArmour(sp);
+                lavaBounce(sp);
             }
         });
 
@@ -232,6 +281,7 @@ public final class SimSurvival {
     public static void reset() {
         flying = false;
         GUEST_FLYERS.clear();
+        LAST_BOUNCE.clear();
         homePoint = null;
         LAST_SAFE.clear();
     }
