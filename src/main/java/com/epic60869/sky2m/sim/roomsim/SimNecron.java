@@ -155,8 +155,6 @@ final class SimNecron extends SimBoss.Fight {
 
     /** The Energy Laser: the beacon in the middle of Maxor's room. */
     private static final Vec3 LASER = new Vec3(73.5, 221, 73.5);
-    /** How close (horizontally) Maxor has to be to the laser to be caught by it. APPROXIMATE. */
-    private static final double LASER_REACH = 8;
     /** The two crystal pads (the pressure plates on the pillars): a placed crystal stands at y 224, as F7 Extras expects. */
     private static final int[][] PADS = {{52, 224, 41}, {94, 224, 41}};
     /**
@@ -890,12 +888,7 @@ final class SimNecron extends SimBoss.Fight {
         crystalsAt = now + CRYSTAL_RESPAWN_TICKS;
         level.playSound(null, LASER.x, LASER.y, LASER.z, SoundEvents.GUARDIAN_ATTACK, SoundSource.HOSTILE, 3f, 0.6f);
         beam(level, ParticleTypes.END_ROD, new Vec3(LASER.x, LASER.y + 1, LASER.z), new Vec3(LASER.x, LASER.y + 24, LASER.z), 0.3);
-        double dx = body.getX() - LASER.x;
-        double dz = body.getZ() - LASER.z;
-        if (dx * dx + dz * dz > LASER_REACH * LASER_REACH) {
-            SimBoss.say(server, "Maxor", "HAH! MISSED ME!");
-            return;
-        }
+        // The laser always reaches him: Hypixel has no "missed" laser (and no such Maxor line).
         stuns++;
         // Hypixel's two stun lines: F7 Extras' crystal respawn timer and "Maxor Stunned!" start on them.
         SimBoss.say(server, "Maxor", stuns == 1 ? "THAT BEAM! IT HURTS! IT HURTS!!" : "YOU TRICKED ME!");
