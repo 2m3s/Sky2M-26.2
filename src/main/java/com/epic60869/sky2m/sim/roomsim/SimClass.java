@@ -50,7 +50,7 @@ public final class SimClass {
 
     /**
      * The beam's VANILLA damage, for anything without a health pool (a puzzle blaze). A pooled sim mob takes the
-     * Mage beam's Hypixel damage from the stats profile instead ({@link SimDamage#mageBeamBase}).
+     * Mage beam's Hypixel damage from the stats profile instead ({@link SimDamage#mageBeam}).
      */
     private static final float BEAM_DAMAGE = 10_000f;
 
@@ -233,8 +233,13 @@ public final class SimClass {
         AABB search = new AABB(eye, stop).inflate(BEAM_RADIUS);
         Entity nearest = null;
         double nearestDist = Double.MAX_VALUE;
-        for (Entity e : client.level.getEntities(player, search,
-                e -> e instanceof LivingEntity && e.isAlive() && e != player)) {
+        // Mobs only. An armour stand - a mob's name tag just above its head, and every floating damage number
+        // (SimDamage.DamageTag) beside a mob that was just hit - is a marker with no hitbox to vanilla, but
+        // inflating its empty box gave it one here, so the beam stopped on the stand and the server hit a stand
+        // that cannot be hurt. Reported as "you have to be in melee range for it to do damage": a follow-up shot
+        // at range met the last shot's floating number first, while in reach the vanilla swing, which skips
+        // markers, did the damage. Teammates are not targets either.
+        for (Entity e : client.level.getEntities(player, search, SimClass::beamTarget)) {
             AABB box = e.getBoundingBox().inflate(BEAM_RADIUS * 0.5);
             var hit = box.clip(eye, stop);
             if (hit.isEmpty()) {
@@ -267,6 +272,17 @@ public final class SimClass {
             com.epic60869.sky2m.sim.roomsim.puzzles.SimCreeperPuzzle.shotAlong(client, eye, look, BEAM_RANGE);
             return;
         }
+        if (client.hitResult instanceof net.minecraft.world.phys.EntityHitResult swing
+                && swing.getEntity() == nearest) {
+            // In melee reach of the mob under the crosshair this same click was ALSO a vanilla swing at it, so the
+            // mob took two hits per click - a full melee hit and the beam. Mage Staff makes "all your melee weapon
+            // attacks" ranged, so the beam is the attack: the click is drained before vanilla reads it (this runs
+            // at the start of the tick, ahead of the key handling), and the arm still swings.
+            while (client.options.keyAttack.consumeClick()) {
+                // drained
+            }
+            player.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+        }
         java.util.UUID id = nearest.getUUID();
         if (SimParty.sendAction("beam", id.toString())) {
             // A party guest: the host's server lands the hit, from his own stats (beamOnServer).
@@ -296,11 +312,20 @@ public final class SimClass {
         });
     }
 
+    /** What the beam can stop on: a living mob, never an armour stand (name tags, damage numbers) or a player. */
+    private static boolean beamTarget(Entity e) {
+        return e instanceof LivingEntity && e.isAlive()
+                && !(e instanceof net.minecraft.world.entity.decoration.ArmorStand)
+                && !(e instanceof net.minecraft.world.entity.player.Player);
+    }
+
+    /**
+     * The hit itself: Hypixel's Mage Staff, a melee hit with the held weapon times 30% + 0.09% per Intelligence,
+     * crit and all ({@link SimDamage#mageBeam}). It used to be rolled as a magic ability, which left out
+     * Strength and the crit entirely.
+     */
     private static void beamHit(net.minecraft.server.level.ServerPlayer sp, ServerLevel level, LivingEntity living) {
-        SimStats.Effective e = SimStats.effective(sp,
-                com.epic60869.sky2m.sim.util.SimItemIds.skyblockId(sp.getMainHandItem()), SimState.floorLabel());
-        SimDamage.ability(sp, null, SimDamage.mageBeamBase(e), SimDamage.MAGE_BEAM_SCALING,
-                () -> living.hurtServer(level, level.damageSources().playerAttack(sp), BEAM_DAMAGE));
+        SimDamage.mageBeam(() -> living.hurtServer(level, level.damageSources().playerAttack(sp), BEAM_DAMAGE));
     }
 
     /**
@@ -312,8 +337,7 @@ public final class SimClass {
                 || !(sp.level() instanceof ServerLevel level)) {
             return;
         }
-        if (level.getEntity(target) instanceof LivingEntity living && living.isAlive()
-                && !(living instanceof net.minecraft.server.level.ServerPlayer)
+        if (level.getEntity(target) instanceof LivingEntity living && beamTarget(living)
                 && living.distanceToSqr(sp.getEyePosition()) <= (BEAM_RANGE + 4) * (BEAM_RANGE + 4)) {
             beamHit(sp, level, living);
         }

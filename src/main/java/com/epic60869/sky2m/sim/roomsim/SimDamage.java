@@ -29,8 +29,9 @@ import java.util.concurrent.ThreadLocalRandom;
  * <li><b>Melee and arrows:</b> {@code (5 + weapon Damage) x (1 + Strength/100)}, times the additive multipliers
  * {@code (1 + bonus%/100)} (the profile's Damage Bonus plus the Archer's arrow bonus or the Berserker's melee
  * bonus), then a crit roll against Crit Chance multiplies by {@code (1 + Crit Damage/100)}. Ferocity adds extra
- * strikes of the same hit: one per full 100, and the remainder as a chance of one more.</li>
- * <li><b>Magic</b> (Wither Impact's Implosion, the Spirit Sceptre's Guided Bat, the Mage beam):
+ * strikes of the same hit: one per full 100, and the remainder as a chance of one more. The Mage beam is one of
+ * these melee hits, times {@link #mageBeamShare}.</li>
+ * <li><b>Magic</b> (Wither Impact's Implosion, the Spirit Sceptre's Guided Bat):
  * {@code ability base x (1 + Intelligence/100 x scaling) x (1 + Ability Damage/100)}. Magic never crits.</li>
  * </ul>
  * Every stat in those is the IN-DUNGEON value from {@link SimStats#effective}, the held weapon's stats included.
@@ -144,16 +145,23 @@ public final class SimDamage {
     public static final double GUIDED_BAT_SCALING = 0.2;
 
     /**
-     * The Mage beam ("Mage Staff"): a share of the held weapon's {@code 5 + Damage}, scaled by Intelligence at
-     * 1.0. APPROXIMATE - Hypixel's exact Mage Staff numbers vary with the class level; this is 30% plus 0.6% per
-     * Mage level (60% at 50) for a selected Mage, 30% for anyone else.
+     * The Mage beam's share of a melee hit. Mage Staff (hypixel-skyblock.fandom.com, Mage): "All your melee weapon
+     * attacks become ranged. Those attacks deal 30% +5 of their melee Damage (increased by 0.09% * your
+     * Intelligence)". So the beam is a MELEE hit with the held weapon - Strength, the enchants, the crit roll and
+     * Crit Damage all count, which is why the wiki's Left-Click Mage builds Strength and Crit Damage - times
+     * {@code 30% + 0.09% x Intelligence}. The Mage level reaches it through the class's Intelligence
+     * ({@link SimStats#effective}); there is no separate per-level share.
+     *
+     * <p>It used to be a MAGIC hit on {@code (5 + Damage) x (30% + 0.6% per Mage level)} scaled by the full
+     * {@code 1 + Intelligence/100} and Ability Damage: no Strength, no crit, no enchants, and Intelligence
+     * multiplying the whole hit instead of adding 0.09% per point to the share.
+     *
+     * <p>APPROXIMATE: the wiki's "+5" is read as the melee formula's own {@code 5 + Damage}; its damage drop past 10
+     * blocks has no number on the wiki and is not applied.
      */
-    public static double mageBeamBase(SimStats.Effective e) {
-        double share = 0.30 + (e.selected() == SimStats.DungeonClass.MAGE ? 0.006 * e.classLevel() : 0);
-        return (5 + e.weaponDamage()) * share;
+    public static double mageBeamShare(double intelligence) {
+        return 0.30 + 0.0009 * Math.max(0, intelligence);
     }
-
-    public static final double MAGE_BEAM_SCALING = 1.0;
 
     // ------------------------------------------------------------------ hit context
 
@@ -168,6 +176,8 @@ public final class SimDamage {
         final double multiplier;
         /** A hit of exactly this much (Venomous, Fire Aspect, Flame ticks): no formula, no crit. 0 otherwise. */
         double fixed;
+        /** The Mage beam: a melee swing in every way (it procs like one), times {@link #mageBeamShare}. */
+        boolean beam;
         int count;
         double total;
 
@@ -225,6 +235,17 @@ public final class SimDamage {
         run(ctx, hits);
         report(caster, name, ctx);
         return ctx.total;
+    }
+
+    /**
+     * Deals the Mage beam's hit ({@code hits} runs the {@code hurtServer} call): a melee swing with the held weapon,
+     * rolled and procced like one, times {@link #mageBeamShare}. No chat line - Hypixel prints none for a beam.
+     * Server thread.
+     */
+    public static void mageBeam(Runnable hits) {
+        Context ctx = new Context(Type.MELEE, null, false, 0, 0);
+        ctx.beam = true;
+        run(ctx, hits);
     }
 
     private static void report(ServerPlayer caster, String name, Context ctx) {
@@ -318,8 +339,9 @@ public final class SimDamage {
         SimStats.Effective e = sp != null
                 ? SimStats.effective(sp, weaponId, SimState.floorLabel())
                 : SimStats.effective(SimStats.profile(), weaponId, SimState.floorLabel());
-        // A plain swing or arrow - not an ability's hit, which is its own number and procs nothing per hit.
-        boolean plain = ctx == null;
+        // A plain swing or arrow - not an ability's hit, which is its own number and procs nothing per hit. The
+        // Mage beam IS the swing ("all your melee weapon attacks become ranged"), so it procs like one.
+        boolean plain = ctx == null || ctx.beam;
         SimItemBuild build = SimEnchants.buildFor(sp, weaponId);
         // Chimera: the pet's stats again, as the sword's own.
         double strength = e.strength() + SimEnchants.chimeraStat(sp, build, SimStats.Stat.STRENGTH);
@@ -352,7 +374,10 @@ public final class SimDamage {
                 dmg *= 1 + SimGear.cloakMeleeBonus(sp, true);
             }
             double critChance = weapon(weaponId).critQuarter() ? critChanceStat / 4.0 : critChanceStat;
-            crit = (ctx != null && ctx.alwaysCrit) || rng.nextDouble() * 100 < critChance;
+            // The Terminator always crits in the sim (its Crit Chance would be quartered on Hypixel): a practice
+            // shot that crits sometimes makes every damage number a coin flip.
+            crit = (ctx != null && ctx.alwaysCrit) || SimTerminator.ITEM_ID.equals(weaponId)
+                    || rng.nextDouble() * 100 < critChance;
             if (crit) {
                 // Overload's mega crit reads the Crit Chance past 100 (SimStats' uncapped total).
                 double rawCrit = e.critChanceRaw() + SimEnchants.chimeraStat(sp, build, SimStats.Stat.CRIT_CHANCE);
@@ -375,6 +400,10 @@ public final class SimDamage {
         }
         if (ctx != null && ctx.multiplier != 1.0) {
             hit = new Hit(hit.perStrike() * ctx.multiplier, hit.crit(), hit.strikes());
+        }
+        if (ctx != null && ctx.beam) {
+            // The beam's share of the melee hit just rolled, crit included (Mage Staff).
+            hit = new Hit(hit.perStrike() * mageBeamShare(intelligence), hit.crit(), hit.strikes());
         }
         // The class passives that act on a single hit (Lust for Blood, Doubleshot, Bouncy Arrows). Plain hits
         // only: an ability's hits are already its own number, and a bounce must not bounce again.
