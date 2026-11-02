@@ -111,9 +111,24 @@ public final class SimBlessings {
         roll(server, finder, at, chestChance() / 2, false);
     }
 
-    /** A puzzle reward chest: always a blessing, level V. Any thread. */
+    /**
+     * A puzzle reward chest: always a blessing, level V. The Quiz's on Floor IV and up (Normal and Master Mode) is the
+     * Blessing of Time, which nothing else gives (hypixelskyblock.minecraft.wiki, Blessing). Any thread.
+     */
     static void puzzleChest(MinecraftServer server, String finder, BlockPos at) {
+        if (at != null && "Quiz".equalsIgnoreCase(SimState.roomNameAt(at.getX(), at.getZ())) && floorNumber() >= 4
+                && level(Blessing.TIME) == 0) {
+            if (SimState.isActive() && ROLLED.add(at.immutable())) {
+                grant(server, finder, Blessing.TIME, 5);
+            }
+            return;
+        }
         roll(server, finder, at, 1.0, true);
+    }
+
+    /** A room's last starred mob died at {@code at}: maybe a blessing, at a chest's odds, level V. Any thread. */
+    static void lastStarredMob(MinecraftServer server, String finder, BlockPos at) {
+        roll(server, finder, at, chestChance(), true);
     }
 
     /** 12% plus 1% per floor number. APPROXIMATE, see the class doc. */
@@ -129,16 +144,17 @@ public final class SimBlessings {
         if (r.nextDouble() >= chance) {
             return;
         }
+        // Never Time: only the Quiz gives it (puzzleChest).
         int total = 0;
         for (Blessing b : Blessing.values()) {
-            if (b != Blessing.TIME || level(Blessing.TIME) == 0) {
+            if (b != Blessing.TIME) {
                 total += b.weight;
             }
         }
         int pick = r.nextInt(total);
         Blessing chosen = Blessing.POWER;
         for (Blessing b : Blessing.values()) {
-            if (b == Blessing.TIME && level(Blessing.TIME) > 0) {
+            if (b == Blessing.TIME) {
                 continue;
             }
             pick -= b.weight;
@@ -147,7 +163,8 @@ public final class SimBlessings {
                 break;
             }
         }
-        int lvl = chosen == Blessing.TIME || puzzle ? 5 : 1 + r.nextInt(2);
+        // Secrets give level I or II; puzzles and mobs level V.
+        int lvl = puzzle ? 5 : 1 + r.nextInt(2);
         grant(server, finder, chosen, lvl);
     }
 
