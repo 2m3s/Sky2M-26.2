@@ -6,6 +6,7 @@ All notable changes to Sky2M are listed here, newest first.
 
 ### Added
 - Join Sim Party button on the title screen: paste a friend's party code (or LAN address) to join their Dungeon Sim party without opening a world first.
+- Join Sim Party button on the title screen: paste a friend's party code (or LAN address) to join their Dungeon Sim party without opening a world first.
 - Terminal Waypoints (Dungeons > F7 > Extras, on by default): a beacon beam and an "Inactive Terminal" label on each inactive terminal of your P3 section, through walls. Works on Hypixel and in the Dungeon Sim.
 - Dungeon Sim class presets from Mort's menu: pick Archer, Berserk, Healer, Mage or Tank in Mort's menu (Hypixel's class icons) before the run starts and that class's preset loads - its weapons and tools on the hotbar, its armour and equipment builds in wardrobe slots (Mage's LCM and RCM sets, Tank's boss and terminals sets), its pets and Pet Rules. /simpreset <class> does the same (party leader only).
 - Dungeon Sim items from the class setups (/simitem): Last Breath, Death Bow, Halberd of the Shredded, Dark Claymore, Soul Whip, Flaming Flay, Ragnarock, Sword of Bad Health, Rogue Sword, Wither Cloak Sword, Soul Esoward, Gloomlock Grimoire, Bonzo's Staff, Jerry-chine Gun, Ice Spray Wand, Gyrokinetic Wand and Weirder Tuba with Hypixel's abilities, mana costs and cooldowns; Spring Boots, the Empowered Mender Crown, the Blazetekk Ham Radio (channels, with the Bluertooth Ring bonus), Alert and SOS Flares and the Jalapeno Book; Flint, Bouncy, Armorshred and Nansorb Arrows, Twilight and Toxic Arrow Poison (not while wearing a Skeleton Master Chestplate, as on Hypixel) and an infinite Twilight Arrow Poison.
@@ -161,6 +162,7 @@ All notable changes to Sky2M are listed here, newest first.
 - Remove the Big Drop Animation (the rainbow item name for drops worth over 5M) and its "is worth X coins!" chat line.
 
 ### Fixed
+- Fix being kicked from a Dungeon Sim party with "Failed to decode packet ... hypixel:party_info" when joining straight from Hypixel.
 - Fix /s2 sim getting stuck on the loading screen with "The process cannot access the file because another process has locked a portion of the file" when you were already in the sim world (opened from the Singleplayer list) or in another singleplayer world. The sim world opened from the list now works as the sim, a floor is built into it in place, another world is closed first, and if the save really is in use the loading screen closes and says so.
 - Fix Dungeon Sim blood mobs falling out of Blood into the void when you entered it in mid-air.
 - Fix Mort not appearing at the start of a Dungeon Sim run: he was placed before you arrived, at a spot worked out from an entrance gate height that was off by the whole floor's shift, so no floor was ever found. He now appears beside the entrance gate on every floor (F1-F7, M1-M7) once you're there.
