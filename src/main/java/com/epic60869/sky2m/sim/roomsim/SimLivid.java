@@ -117,6 +117,24 @@ public final class SimLivid extends SimBoss.Fight {
             "Keep looking!",
             "Wrong one!",
     };
+    /** The real Livid's own lines when the wrong one is killed (the wiki's Dialogue, Livid). */
+    private static final String[] FOOLED = {
+            "You look like a real fool right now.",
+            "So foolish!",
+            "Yikes! Imagine getting that wrong.",
+            "They couldn't even find the real Livid, psht!",
+    };
+    /**
+     * Hypixel's opening after the first line, word for word (the wiki's Welcome Speech; the last is the line Livid
+     * mods time their ults on). The spacing before the split is APPROXIMATE.
+     */
+    private static final String[] INTRO_LINES = {
+            "This Orb you see, is Thorn, or what is left of him.",
+            "In a way, I have to thank you for getting rid of him.",
+            "I can now turn those Spirits into shadows of myself, identical to their creator.",
+            "I respect you for making it to here, but I'll be your undoing.",
+    };
+    private static final int[] INTRO_AT = {60, 120, 190, 260};
 
     /** Where the sim's Livid wool is while a Livid fight is built, or null. Read by Livid Finder on the client. */
     private static volatile BlockPos woolCue;
@@ -151,7 +169,7 @@ public final class SimLivid extends SimBoss.Fight {
         }
     }
 
-    private enum Phase { INTRO, FIGHT, DEAD }
+    private enum Phase { INTRO, FIGHT, DYING, DEAD }
 
     /** What a thrown or shot thing does when it lands. */
     private enum ShotKind { DAGGER, ARROW, HARMING, SLOWNESS }
@@ -163,6 +181,8 @@ public final class SimLivid extends SimBoss.Fight {
     private final List<BlockPos> glass = new ArrayList<>();
     private final List<Shot> shots = new ArrayList<>();
     private int ticks;
+    /** The tick the real Livid died on, for her last lines. */
+    private int diedAt;
     private int spawnCounter;
     /** Master Mode's damage multiplier, up with every clone death. */
     private double damageBoost = 1.0;
@@ -252,6 +272,15 @@ public final class SimLivid extends SimBoss.Fight {
         switch (phase) {
             case INTRO -> intro(level, t);
             case FIGHT -> fight(level, t);
+            case DYING -> {
+                // Hypixel's last lines, from the real Livid by name, then the fight is over.
+                if (t - diedAt == 30) {
+                    SimBoss.say(level.getServer(), real.speaker(), "If you think this is the end, you are so wrong!");
+                } else if (t - diedAt >= 60) {
+                    SimBoss.say(level.getServer(), real.speaker(), "My shadows are everywhere, THEY WILL FIND YOU!!");
+                    phase = Phase.DEAD;
+                }
+            }
             default -> {
             }
         }
@@ -262,11 +291,12 @@ public final class SimLivid extends SimBoss.Fight {
     }
 
     private void intro(ServerLevel level, int t) {
-        if (t == 80) {
-            SimBoss.say(level.getServer(), "Livid", "I respect you for making it this far, but I'll be your undoing.");
-        } else if (t == 180) {
-            SimBoss.say(level.getServer(), "Livid", "My shadows are everywhere, THEY WILL FIND YOU!!");
-        } else if (t == SPLIT_TICK) {
+        for (int i = 0; i < INTRO_AT.length; i++) {
+            if (t == INTRO_AT[i]) {
+                SimBoss.say(level.getServer(), "Livid", INTRO_LINES[i]);
+            }
+        }
+        if (t == SPLIT_TICK) {
             split(level);
         } else if (t >= INVULNERABLE_TICKS) {
             phase = Phase.FIGHT;
@@ -768,8 +798,13 @@ public final class SimLivid extends SimBoss.Fight {
         if (master) {
             damageBoost += MASTER_DEATH_BUFF;
         }
-        SimBoss.say(level.getServer(), clone.colour.speaker(),
-                WRONG_ONE[ThreadLocalRandom.current().nextInt(WRONG_ONE.length)]);
+        // Either the dead clone or the real Livid has a word about it (the wiki lists lines for both).
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+        if (rnd.nextBoolean()) {
+            SimBoss.say(level.getServer(), clone.colour.speaker(), WRONG_ONE[rnd.nextInt(WRONG_ONE.length)]);
+        } else {
+            SimBoss.say(level.getServer(), real.speaker(), FOOLED[rnd.nextInt(FOOLED.length)]);
+        }
         writeName(clone);
     }
 
@@ -783,7 +818,8 @@ public final class SimLivid extends SimBoss.Fight {
         }
         removeLivids(level);
         shots.clear();
-        phase = Phase.DEAD;
+        diedAt = ticks;
+        phase = Phase.DYING;
     }
 
     private Livid realLivid() {

@@ -68,7 +68,10 @@ public final class SimWatcher {
 
     private static final Logger LOGGER = ModLog.get("sky2m-simboss");
 
-    /** Hypixel's openers, the same list {@code BloodCamp} matches; one is picked per floor. */
+    /**
+     * Hypixel's openers, the same list {@code BloodCamp} matches, in floor order: Entrance, then floors 1 to 7 (the
+     * wiki's Welcome Speech for each floor).
+     */
     private static final String[] OPENERS = {
             "Congratulations, you made it through the Entrance.",
             "Ah, you've finally arrived.",
@@ -216,6 +219,18 @@ public final class SimWatcher {
         server.execute(() -> open(server, at, "E".equalsIgnoreCase(floor), mobCount(floor)));
     }
 
+    /** The floor's own opener ("E", "F3", "M5"...); a label it cannot read gets one at random. */
+    private static String opener(String floor) {
+        char last = floor == null || floor.isEmpty() ? '?' : floor.charAt(floor.length() - 1);
+        if (last == 'E' || last == 'e') {
+            return OPENERS[0];
+        }
+        if (last >= '1' && last <= '7') {
+            return OPENERS[last - '0'];
+        }
+        return OPENERS[ThreadLocalRandom.current().nextInt(OPENERS.length)];
+    }
+
     /** The middle of the Blood room, from the map's own layout. Client thread. */
     private static BlockPos bloodCentre() {
         DungeonLayout layout = DungeonLayout.current();
@@ -280,7 +295,7 @@ public final class SimWatcher {
             bar.addPlayer(p);
         }
         stage = Stage.SPAWNING;
-        SimBoss.say(server, "The Watcher", OPENERS[ThreadLocalRandom.current().nextInt(OPENERS.length)]);
+        SimBoss.say(server, "The Watcher", opener(SimState.floorLabel()));
         LOGGER.info("Sim Watcher woke at {}: {} blood mob(s) on {}", centre, total, SimState.floorLabel());
     }
 

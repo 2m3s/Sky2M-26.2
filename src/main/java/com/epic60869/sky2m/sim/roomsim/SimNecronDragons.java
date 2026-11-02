@@ -96,6 +96,36 @@ final class SimNecronDragons {
             new Def("Purple", "PURPLE_KING_RELIC", ChatFormatting.DARK_PURPLE, 0xAA00AA, new Vec3(56, 14, 125),
                     new AABB(45.5, 6, 113.5, 68.5, 23, 136.5), new int[]{54, 7, 41}, Ability.SOUL));
 
+    /** The Wither King's lines, word for word (the wiki's Dialogue; his "Random" ones come every so often). */
+    private static final String[] KING_RANDOM = {
+            "Does that mean Necron is no more? I have been a mediocre master.",
+            "Storm was my favorite sparring partner, you must have enjoyed fighting him!",
+            "Mortals fighting against supreme beings, what a moving spectacle.",
+            "I enjoy your passion, if the circumstances had been different, we could have been friends.",
+            "I have worked on this spell for centuries.",
+            "Some of you do have some talent, I can feel it, the other ones not so much."};
+    private static final String[] KING_IMMUNE = {
+            "You are wasting your time.",
+            "Did you forget? I am invincible!",
+            "You don't have your sword this time!"};
+    private static final String[] KING_RESPAWN = {
+            "Futile.",
+            "You just made a terrible mistake!",
+            "I am not impressed.",
+            "Your skills have faded, humans."};
+    private static final String[] KING_STATUE = {
+            "Oh, this one hurts!",
+            "My soul is disposable.",
+            "I have more of those."};
+    /** His victory lines after "Incredible...", a couple of seconds apart (the spacing is APPROXIMATE). */
+    private static final String[] KING_VICTORY = {
+            "In a way I should thank you, I lost all hopes centuries ago that it would ever end.",
+            "I hope you'll become the Heroes I could never be.",
+            "So long champions of this mad world!",
+            "My strengths are depleting, this… this is it…"};
+    private static final int VICTORY_LINE_EVERY = 40;
+    private static final int KING_RANDOM_EVERY = 600;
+
     private final SimNecron fight;
     private final double maxHealth;
     private final int start;
@@ -103,9 +133,15 @@ final class SimNecronDragons {
     private final List<Relic> relics = new ArrayList<>();
     private final boolean[] relicPlaced = new boolean[DEFS.size()];
     private final boolean[] statueDown = new boolean[DEFS.size()];
+    /** Dragons killed away from their statue, whose next spawn is a respawn (for his respawn line). */
+    private final boolean[] diedAway = new boolean[DEFS.size()];
+    private boolean firstSpawn = true;
+    private int lastImmuneLine = -1000;
     private int slain;
     private int nextSpawnAt;
     private int endAt = -1;
+    /** When he said "Incredible...", for the victory lines after it. */
+    private int victoryAt = -1;
     private boolean finished;
 
     /** The Wither King on his throne, once the relics are in; null before. */
@@ -197,6 +233,11 @@ final class SimNecronDragons {
     }
 
     boolean hit(LivingEntity e, float amount) {
+        if (king != null && e == king && e.level() instanceof ServerLevel sl && fight.now() - lastImmuneLine > 100) {
+            // Hypixel's lines when he is hit directly (he cannot be hurt).
+            lastImmuneLine = fight.now();
+            SimBoss.say(sl.getServer(), "Wither King", KING_IMMUNE[ThreadLocalRandom.current().nextInt(KING_IMMUNE.length)]);
+        }
         for (Dragon d : dragons) {
             if (d.body == e && d.hp > 0) {
                 d.hp = Math.max(0, d.hp - amount);
@@ -213,12 +254,21 @@ final class SimNecronDragons {
         if (now - start == 60) {
             // Hypixel's line, word for word: Rag Axe's dragon prompt.
             SimBoss.say(server, "Wither King", "I no longer wish to fight, but I know that will not stop you.");
+        } else if (now - start == 90) {
+            SimBoss.say(server, "Wither King", "We will decide it all, here, now.");
         }
         if (endAt >= 0) {
+            int line = (now - victoryAt) / VICTORY_LINE_EVERY - 1;
+            if ((now - victoryAt) % VICTORY_LINE_EVERY == 0 && line >= 0 && line < KING_VICTORY.length) {
+                SimBoss.say(server, "Wither King", KING_VICTORY[line]);
+            }
             if (now >= endAt) {
                 finished = true;
             }
             return;
+        }
+        if (now - start > 200 && (now - start) % KING_RANDOM_EVERY == 0 && !fight.failed()) {
+            SimBoss.say(server, "Wither King", KING_RANDOM[ThreadLocalRandom.current().nextInt(KING_RANDOM.length)]);
         }
         tickRelics(level);
         if (fight.failed()) {
@@ -230,6 +280,14 @@ final class SimNecronDragons {
             Def next = pickNext();
             if (next != null) {
                 dragons.add(new Dragon(next, now));
+                int i = DEFS.indexOf(next);
+                if (firstSpawn) {
+                    firstSpawn = false;
+                    SimBoss.say(server, "Wither King", "My enemies are now my strongest allies!");
+                } else if (diedAway[i]) {
+                    diedAway[i] = false;
+                    SimBoss.say(server, "Wither King", KING_RESPAWN[ThreadLocalRandom.current().nextInt(KING_RESPAWN.length)]);
+                }
             }
         }
         for (Dragon d : new ArrayList<>(dragons)) {
@@ -248,7 +306,8 @@ final class SimNecronDragons {
         }
         if (slain >= DEFS.size()) {
             SimBoss.say(server, "Wither King", "Incredible. You did what I couldn't do myself.");
-            endAt = now + 60;
+            victoryAt = now;
+            endAt = now + VICTORY_LINE_EVERY * (KING_VICTORY.length + 1);
         }
     }
 
@@ -481,7 +540,11 @@ final class SimNecronDragons {
             statueDown[DEFS.indexOf(d.def)] = true;
             SimNecron.broadcast(server, name.copy().append(Component.literal(" was slain at its statue! (" + slain + "/"
                     + DEFS.size() + ")").withStyle(ChatFormatting.GREEN)));
+            if (slain < DEFS.size()) {
+                SimBoss.say(server, "Wither King", KING_STATUE[ThreadLocalRandom.current().nextInt(KING_STATUE.length)]);
+            }
         } else {
+            diedAway[DEFS.indexOf(d.def)] = true;
             // Killed away from its statue: the statue stands, so it can come back (Hypixel: "indefinitely").
             SimNecron.broadcast(server, name.copy().append(Component.literal(" died away from its statue and will be back!")
                     .withStyle(ChatFormatting.RED)));

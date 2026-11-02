@@ -356,6 +356,9 @@ final class SimProfessor extends SimBoss.Fight {
     private double orbit;
     /** The most Guardians down at once so far, so each count's line is said once. */
     private int mostDown;
+    /** The second line of a Guardian-count pair and the clock it is due on, or null. */
+    private String followUp;
+    private int followUpAt;
     // Giga Heal (the Healthy Guardian's, then the Guardian form's)
     private int nextGiga = -1;
     private int gigaAt = -1;
@@ -424,6 +427,10 @@ final class SimProfessor extends SimBoss.Fight {
                 }
             }
             case GUARDIANS -> {
+                if (followUp != null && clock >= followUpAt) {
+                    SimBoss.say(level.getServer(), "The Professor", followUp);
+                    followUp = null;
+                }
                 tickGuardians(level, master);
                 tickHealthyGiga(level, master);
                 tickReinforced(level, master);
@@ -936,6 +943,13 @@ final class SimProfessor extends SimBoss.Fight {
                 default -> "What?! Nobody has managed to take three of my Guardians down before!";
             };
             SimBoss.say(level.getServer(), "The Professor", line);
+            // Each count's second line (the wiki), a moment later (APPROXIMATE).
+            followUp = switch (down) {
+                case 1 -> "I'm afraid I can quickly revive any one of my Guardians!";
+                case 2 -> "Two Guardians, impressive...";
+                default -> "My Guardians!";
+            };
+            followUpAt = clock + 30;
         }
     }
 

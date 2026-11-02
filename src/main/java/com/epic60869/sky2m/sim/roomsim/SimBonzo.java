@@ -88,9 +88,11 @@ final class SimBonzo extends SimBoss.Fight {
             "Cheater!", "Hacker!", "Not fair!", "OUCH!"};
     private static final String[] BARRAGE_LINES = {"All I have are positive thoughts.", "Do you want a balloon?",
             "Run, run, run, RUN!", "Weeeeeeeee"};
-    private static final String[] PHASE_TWO_LINES = {"Hoho, looks like you killed me!", "You fools!",
-            "You fell victim to one of the classic blunders!", "Check mate.",
-            "I can revive myself and become much stronger!"};
+    /** The wiki's three options on entering phase 2: the first is said as its three lines together. */
+    private static final String[][] PHASE_TWO_LINES = {
+            {"Hoho, looks like you killed me!", "You fools!", "You fell victim to one of the classic blunders!"},
+            {"Check mate."},
+            {"I can revive myself and become much stronger!"}};
 
     /** Fixed when the fight is made: the floor does not change mid-fight. */
     private final boolean master = SimState.floorLabel().toUpperCase(java.util.Locale.ROOT).startsWith("M");
@@ -246,7 +248,9 @@ final class SimBonzo extends SimBoss.Fight {
     /** "Sike!": back to full health, and phase 2 begins. */
     private void sike(ServerLevel level) {
         SimBoss.say(level.getServer(), "Bonzo", "Sike!");
-        SimBoss.say(level.getServer(), "Bonzo", pick(PHASE_TWO_LINES));
+        for (String line : PHASE_TWO_LINES[ThreadLocalRandom.current().nextInt(PHASE_TWO_LINES.length)]) {
+            SimBoss.say(level.getServer(), "Bonzo", line);
+        }
         health.max = lifeHealth();
         health.hp = health.max;
         health.invulnerable = false;
