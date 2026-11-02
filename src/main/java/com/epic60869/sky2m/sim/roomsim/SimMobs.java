@@ -158,6 +158,7 @@ public final class SimMobs {
             ServerLevel level = server.overworld();
             wakeFels(level);
             spawnPendingRoomMobs(level);
+            keepInRooms(level);
             refreshStarred(level);
             countDeadBats(level);
             SimMimic.tickServer(level);
@@ -171,6 +172,66 @@ public final class SimMobs {
     }
 
     private static int roomClearTicks = 0;
+
+    /**
+     * The room each sim mob belongs to (its index in the map's name table), from where it was placed. Server thread.
+     *
+     * <p>{@link #HOME_RADIUS} is a circle round the spawn, and a room is 31 blocks across: a mob placed near a
+     * doorway chased a player up to 13 blocks into the next room, so a key carrier could end up (and drop its key)
+     * in a different room from the one it belongs to. {@link #keepInRooms} holds every mob to its own room.
+     */
+    private static final java.util.Map<UUID, Integer> HOME_ROOM = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Each pinned mob's last position inside its room, to put it back to. Server thread. */
+    private static final java.util.Map<UUID, net.minecraft.world.phys.Vec3> LAST_IN_ROOM =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Pins a just-placed mob to the room it stands in. Nothing off the map (boss arenas). Server thread. */
+    private static void pinToRoom(Mob mob) {
+        int room = SimState.roomIdAt(mob.getBlockX(), mob.getBlockZ());
+        if (room >= 0) {
+            HOME_ROOM.put(mob.getUUID(), room);
+            LAST_IN_ROOM.put(mob.getUUID(), mob.position());
+        }
+    }
+
+    /**
+     * Keeps every pinned mob in its own room, as Hypixel's are: it drops a player who is not in its room, and one
+     * that has stepped into another room stops and goes back to where it last stood in its own. Server thread.
+     */
+    private static void keepInRooms(ServerLevel level) {
+        if (HOME_ROOM.isEmpty()) {
+            return;
+        }
+        for (var it = HOME_ROOM.entrySet().iterator(); it.hasNext(); ) {
+            var entry = it.next();
+            Entity entity = level.getEntity(entry.getKey());
+            if (entity == null) {
+                continue;   // its section is not ticking: it is not moving either
+            }
+            if (!entity.isAlive() || !(entity instanceof Mob mob)) {
+                it.remove();
+                LAST_IN_ROOM.remove(entry.getKey());
+                continue;
+            }
+            int home = entry.getValue();
+            if (mob.getTarget() instanceof net.minecraft.world.entity.player.Player target
+                    && SimState.roomIdAt(target.getBlockX(), target.getBlockZ()) != home) {
+                mob.setTarget(null);
+                mob.getNavigation().stop();
+            }
+            if (SimState.roomIdAt(mob.getBlockX(), mob.getBlockZ()) == home) {
+                LAST_IN_ROOM.put(entry.getKey(), mob.position());
+                continue;
+            }
+            mob.getNavigation().stop();
+            mob.setTarget(null);
+            net.minecraft.world.phys.Vec3 back = LAST_IN_ROOM.get(entry.getKey());
+            if (back != null) {
+                mob.teleportTo(back.x, back.y, back.z);
+            }
+        }
+    }
 
     /** Rooms holding at least one starred mob (alive, dead or still queued), refreshed with the room clears. */
     private static volatile java.util.Set<String> ROOMS_WITH_STARRED = java.util.Set.of();
@@ -360,6 +421,7 @@ public final class SimMobs {
             return null;
         }
         SPAWNED.add(mob.getUUID());
+        pinToRoom(mob);
         ArmorStand tag = attachTag(level, mob);
         SimHealth.Pool pool = SimHealth.register(mob, SimHealth.maxHealth(floor, role), name, starred, tag);
         if (starred) {
@@ -572,7 +634,7 @@ public final class SimMobs {
         bat.setPos(pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5);
         level.addFreshEntity(bat);
         SPAWNED.add(bat.getUUID());
-        BATS.add(bat.getUUID());
+        BATS.put(bat.getUUID(), pos.above().immutable());
     }
 
     /** Crypt undead alive in the world, id to whether it is the prince that scores. */
@@ -666,19 +728,53 @@ public final class SimMobs {
         if (BATS.isEmpty()) {
             return;
         }
-        java.util.Iterator<UUID> it = BATS.iterator();
-        while (it.hasNext()) {
-            UUID id = it.next();
-            Entity e = level.getEntity(id);
+        for (var it = BATS.entrySet().iterator(); it.hasNext(); ) {
+            var entry = it.next();
+            Entity e = level.getEntity(entry.getKey());
+            // Missing is only dead where entities tick: a bat whose chunk unloaded behind him used to count as a
+            // found secret (the same rule as the starred mobs, refreshStarred).
+            if (e == null && !level.isPositionEntityTicking(entry.getValue())) {
+                continue;
+            }
             if (e == null || !e.isAlive()) {
                 it.remove();
                 com.epic60869.sky2m.sim.roomsim.SimScore.batKilled();
+                // Bats are secrets, and a secret can hold a blessing (level I or II), as on Hypixel.
+                ServerPlayer finder = nearestPlayer(level, entry.getValue());
+                if (finder != null) {
+                    SimBlessings.itemSecret(level.getServer(), finder.getGameProfile().name(), entry.getValue());
+                }
             }
         }
     }
 
-    /** Bats spawned by the sim, so their death can be counted as a secret rather than as a kill. */
-    private static final java.util.Set<UUID> BATS = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    /** Whether no starred mob of the room that spawned at {@code at} is left (alive, queued or a dormant Fel). */
+    private static boolean lastStarredOfRoom(double[] at) {
+        int room = SimState.roomIdAt((int) Math.floor(at[0]), (int) Math.floor(at[2]));
+        if (room < 0) {
+            return false;
+        }
+        for (double[] other : starredPositions().values()) {
+            if (SimState.roomIdAt((int) Math.floor(other[0]), (int) Math.floor(other[2])) == room) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** The player nearest a spot, or null with nobody in the world. */
+    private static ServerPlayer nearestPlayer(ServerLevel level, BlockPos at) {
+        ServerPlayer best = null;
+        for (ServerPlayer p : level.players()) {
+            if (best == null || p.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(at)) < best.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(at))) {
+                best = p;
+            }
+        }
+        return best;
+    }
+
+    /** Bats spawned by the sim and where, so their death can be counted as a secret rather than as a kill. */
+    private static final java.util.Map<UUID, BlockPos> BATS = new java.util.concurrent.ConcurrentHashMap<>();
 
     /**
      * Places a dormant Fel: an invisible, no-base-plate armour stand wearing a skull, so only the skull shows -
@@ -756,6 +852,7 @@ public final class SimMobs {
             return;
         }
         SPAWNED.add(enderman.getUUID());
+        pinToRoom(enderman);
         ArmorStand tag = attachTag(level, enderman);
         SimHealth.register(enderman, SimHealth.maxHealth(floor, role), "Fel", fel.starred, tag);
         // Woken because a player came close: it goes straight for the nearest one.
@@ -801,7 +898,15 @@ public final class SimMobs {
                     STARRED_DEAD.add(id);
                     // A key holder drops its key where it fell (SimKeys).
                     SimKeys.holderDied(level, id, entity != null ? entity.position()
-                            : at != null ? new net.minecraft.world.phys.Vec3(at[0], at[1], at[2]) : null);
+                            : at != null ? new net.minecraft.world.phys.Vec3(at[0], at[1], at[2]) : null, at);
+                    if (at != null && lastStarredOfRoom(at)) {
+                        // Hypixel's final starred mob of a room can hold a blessing (level V).
+                        ServerPlayer finder = nearestPlayer(level, BlockPos.containing(at[0], at[1], at[2]));
+                        if (finder != null) {
+                            SimBlessings.lastStarredMob(level.getServer(), finder.getGameProfile().name(),
+                                    BlockPos.containing(at[0], at[1], at[2]));
+                        }
+                    }
                     // Hypixel's "star ... heart" name goes with its mob; the sim's stand used to stay up forever,
                     // a starred name with nothing under it.
                     UUID tag = STAR_TAGS.remove(id);
@@ -942,6 +1047,9 @@ public final class SimMobs {
 
     private static void forgetAll() {
         SPAWNED.clear();
+        HOME_ROOM.clear();
+        LAST_IN_ROOM.clear();
+        BATS.clear();
         STARRED_AT.clear();
         STARRED_DEAD.clear();
         CRYPT_MOBS.clear();

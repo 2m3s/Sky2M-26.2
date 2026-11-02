@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * The sim's dungeon keys, shaped like Hypixel's (hypixelskyblock.minecraft.wiki, Wither Key / Blood Key, 2026-10-06): a
@@ -46,11 +47,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p><b>Who carries them.</b> The sim used to drop no keys at all: on 2026-10-04 killer560 had the last-starred-death
  * Wither Key drop removed ("we have nothing that should be dropping it right now"), and the blood door was made to
  * open on a plain click. Now a generated floor builds Hypixel's wither doors on the Entrance-to-Blood path
- * ({@link SimWitherDoors#path}) and {@link #assignForFloor} hangs each door's key on a starred mob: one Wither Key per
- * wither door and the Blood Key for the blood door, each on a starred mob in a room on the path BEFORE that door
- * (the nearest such room first), picked deterministically from the map code. Killing the holder drops its key where it
- * died ({@link #holderDied}). A door whose rooms have no starred mob at all gets its key lying on the floor of the
- * room in front of it instead, as Hypixel's floors sometimes have.
+ * ({@link SimWitherDoors#path}) and {@link #assignForFloor} gives each door's key to a room: one Wither Key per wither
+ * door and the Blood Key for the blood door, each to the room on the path right BEFORE that door (or, when that room
+ * has no starred mobs, the nearest one back towards the Entrance that does). The key drops where the room's LAST
+ * starred mob dies ({@link #holderDied}) - the user's rule (2026-11-02): "if the next room is a wither door, in the
+ * previous room once all star mobs are dead the key drops". A door whose rooms have no starred mob at all gets its
+ * key lying on the floor of the room in front of it instead, as Hypixel's floors sometimes have.
  *
  * <p><b>Practice override</b>: {@code /simkeys free} lets every wither and blood door open without a key;
  * {@code /simkeys give wither|blood} hands the team a key. A floor with no key planned (a single room, a map with no
@@ -73,6 +75,10 @@ public final class SimKeys {
     private static final Map<UUID, Boolean> DROPPED = new ConcurrentHashMap<>();
     /** Key holders: a starred mob's UUID (or its pending stand-in's) -> carries the Blood Key? */
     private static final Map<UUID, Boolean> HOLDERS = new ConcurrentHashMap<>();
+    /** Keys waiting on a room: room (name-table index) -> its keys (blood key?), dropped when it has no starred mob left. */
+    private static final Map<Integer, List<Boolean>> ROOM_KEYS = new ConcurrentHashMap<>();
+    /** The cells' rooms of the floor the keys were planned for. */
+    private static volatile int[] keyRoomCells = new int[0];
     /** Stand-in id -> the mob that replaced it (a placed room mob, a woken Fel), so a late assignment still lands. */
     private static final Map<UUID, UUID> HANDED = new ConcurrentHashMap<>();
     private static volatile int witherKeys;
@@ -112,7 +118,8 @@ public final class SimKeys {
                         .executes(ctx -> {
                             ModChat.send("Sim", ModChat.text("Keys: "), ModChat.value(witherKeys + " wither"),
                                     ModChat.text(", blood "), ModChat.value(bloodKey ? "yes" : "no"),
-                                    ModChat.text(" | carried by mobs: "), ModChat.value(String.valueOf(HOLDERS.size())),
+                                    ModChat.text(" | waiting on a room's starred mobs: "),
+                                    ModChat.value(String.valueOf(holderCount())),
                                     ModChat.text(", on the ground: "), ModChat.value(String.valueOf(DROPPED.size())),
                                     ModChat.text(" | doors without keys: "), ModChat.value(free ? "on" : "off"));
                             ModChat.send("Sim", ModChat.dim("/simkeys free | give wither | give blood"));
@@ -139,6 +146,8 @@ public final class SimKeys {
      */
     static void assignForFloor(ServerLevel level, int[] roomCells, int[] doorCells, String[] names, String mapCode) {
         HOLDERS.clear();
+        ROOM_KEYS.clear();
+        keyRoomCells = roomCells == null ? new int[0] : roomCells.clone();
         witherKeysPlanned = 0;
         bloodKeyPlanned = false;
         List<int[]> path = SimWitherDoors.path(roomCells, doorCells, names);
@@ -161,8 +170,6 @@ public final class SimKeys {
         for (List<Map.Entry<UUID, double[]>> list : byRoom.values()) {
             list.sort(order);
         }
-        int seed = mapCode == null ? 0 : mapCode.hashCode();
-        java.util.Set<UUID> taken = new java.util.HashSet<>();
         int assigned = 0;
         int onFloor = 0;
         for (int i = 0; i < path.size(); i++) {
@@ -177,26 +184,18 @@ public final class SimKeys {
             } else {
                 witherKeysPlanned++;
             }
-            UUID holder = null;
-            // The room right in front of the door first, then back towards the Entrance.
-            for (int back = i; back >= 0 && holder == null; back--) {
+            // The room right in front of the door first, then back towards the Entrance: the first one with starred
+            // mobs. Its key drops when the last of them dies (holderDied), not off one chosen mob - killing every
+            // starred mob in the room before a wither door is what gets you through it.
+            int keyRoom = -1;
+            for (int back = i; back >= 0 && keyRoom < 0; back--) {
                 List<Map.Entry<UUID, double[]>> list = byRoom.get(path.get(back)[0]);
-                if (list == null) {
-                    continue;
-                }
-                List<Map.Entry<UUID, double[]>> untaken = new ArrayList<>();
-                for (Map.Entry<UUID, double[]> e : list) {
-                    if (!taken.contains(e.getKey())) {
-                        untaken.add(e);
-                    }
-                }
-                if (!untaken.isEmpty()) {
-                    holder = untaken.get(Math.floorMod(seed * 31 + i, untaken.size())).getKey();
+                if (list != null && !list.isEmpty()) {
+                    keyRoom = path.get(back)[0];
                 }
             }
-            if (holder != null) {
-                taken.add(holder);
-                HOLDERS.put(HANDED.getOrDefault(holder, holder), blood);
+            if (keyRoom >= 0) {
+                ROOM_KEYS.computeIfAbsent(keyRoom, k -> new CopyOnWriteArrayList<>()).add(blood);
                 assigned++;
             } else {
                 // No starred mob on the way: the key lies in the room in front of the door.
@@ -226,12 +225,40 @@ public final class SimKeys {
         }
     }
 
-    /** A starred mob died at {@code pos}: if it carried a key, the key drops there. Server thread. */
-    static void holderDied(ServerLevel level, UUID id, Vec3 pos) {
+    /**
+     * A starred mob died at {@code pos}, having spawned at {@code spawnAt}: when it was the last starred mob of a room
+     * that holds a key (alive, still queued or a dormant Fel all count as not dead, {@link SimMobs#starredPositions}),
+     * the room's keys drop where it fell. Server thread.
+     */
+    static void holderDied(ServerLevel level, UUID id, Vec3 pos, double[] spawnAt) {
         Boolean blood = id == null ? null : HOLDERS.remove(id);
         if (blood != null && pos != null) {
             dropOn(level, pos, blood);
         }
+        if (ROOM_KEYS.isEmpty() || spawnAt == null || pos == null) {
+            return;
+        }
+        int room = roomOf(spawnAt[0], spawnAt[2]);
+        List<Boolean> keys = room < 0 ? null : ROOM_KEYS.get(room);
+        if (keys == null) {
+            return;
+        }
+        for (double[] at : SimMobs.starredPositions().values()) {
+            if (roomOf(at[0], at[2]) == room) {
+                return;   // a starred mob of the room is still alive
+            }
+        }
+        ROOM_KEYS.remove(room);
+        for (Boolean b : keys) {
+            dropOn(level, pos, b);
+        }
+    }
+
+    /** The room (name-table index) at a position on the floor the keys were planned for, or -1. */
+    private static int roomOf(double x, double z) {
+        int[] cells = keyRoomCells;
+        int cell = cellOf(x, z);
+        return cell >= 0 && cell < cells.length ? cells[cell] : -1;
     }
 
     /** Whether this mob carries a key - for tests. */
@@ -239,9 +266,18 @@ public final class SimKeys {
         return id != null && HOLDERS.containsKey(id);
     }
 
-    /** Key holders still alive, for tests and {@code /simkeys}. */
+    /** Keys still waiting on a room's starred mobs (or held by a mob), for tests and {@code /simkeys}. */
     public static int holderCount() {
-        return HOLDERS.size();
+        int n = HOLDERS.size();
+        for (List<Boolean> keys : ROOM_KEYS.values()) {
+            n += keys.size();
+        }
+        return n;
+    }
+
+    /** The rooms (name-table index) whose starred mobs drop a key, mapped to their keys (blood key?) - for tests. */
+    public static Map<Integer, List<Boolean>> roomKeys() {
+        return Map.copyOf(ROOM_KEYS);
     }
 
     /** The mob ids carrying a key, mapped to "carries the Blood Key" - for tests. */
@@ -387,6 +423,7 @@ public final class SimKeys {
         DROPPED.clear();
         WAITING.clear();
         HOLDERS.clear();
+        ROOM_KEYS.clear();
         HANDED.clear();
         witherKeys = 0;
         bloodKey = false;

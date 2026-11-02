@@ -343,7 +343,11 @@ public final class SimBuilder {
                 if (decoded.cellDoor()[cell] == DungeonLayout.DOOR_ENTRANCE) {
                     // Shifted with the floor, or the lookup in SimDoors' block index misses: the gate's
                     // blocks were registered at the y the carve found, which moves with the map.
-                    entranceDoorPos = DungeonLayout.cellCenter(cell).above(SimAltitude.offset());
+                    // Once: cellCenter already adds the shift while the sim is on, and adding it again put the
+                    // gate 2 x offset off (y -156 on a floor at -40), which is why Mort found no floor by it.
+                    var centre = DungeonLayout.cellCenter(cell);
+                    entranceDoorPos = new net.minecraft.core.BlockPos(centre.getX(), SimAltitude.toWorld(70),
+                            centre.getZ());
                     break;
                 }
             }
@@ -1552,6 +1556,12 @@ public final class SimBuilder {
                 starred = plainSeen++ % 3 != 2;
             }
             int[] local = RoomPlacer.rotateLocal(x, z, room.sizeX, room.sizeZ, rotation);
+            // A capture is the room's whole box: an L-shaped room's empty quarter is another room's tile on the
+            // floor, and a mob recorded there (the next room's, seen through the capture) belongs to that room.
+            String at = SimState.roomNameAt(x0 + local[0], z0 + local[1]);
+            if (at != null && !at.equalsIgnoreCase(room.name)) {
+                continue;
+            }
             SimMobs.queueRoomMob(new net.minecraft.core.BlockPos(x0 + local[0], SimAltitude.toWorld(y),
                     z0 + local[1]), kind, starred);
         }

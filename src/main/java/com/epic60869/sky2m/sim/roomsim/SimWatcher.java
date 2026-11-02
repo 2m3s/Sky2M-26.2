@@ -96,6 +96,9 @@ public final class SimWatcher {
     private static final int REST_TICKS = 6;
     /** The Watcher's height over the floor before and after he moves. */
     private static final int START_HEIGHT = 10;
+
+    /** How far down the room's floor is looked for, below where he walked in or where a skull was aimed. */
+    private static final int FLOOR_SEARCH = 32;
     private static final int MOVED_HEIGHT = 5;
     /** Skulls per wave, and the gap between waves. */
     private static final int WAVE_SIZE = 4;
@@ -281,9 +284,13 @@ public final class SimWatcher {
         LOGGER.info("Sim Watcher woke at {}: {} blood mob(s) on {}", centre, total, SimState.floorLabel());
     }
 
-    /** The floor under the room's middle: the first standable spot at or below where he walked in. */
+    /**
+     * The floor under the room's middle: the first standable spot at or below where he walked in. Searched well
+     * down, not 8 blocks: walking in mid-air (falling, a teleport) used to leave the floor at his own height, every
+     * throw then found no floor and every blood mob fell into the void.
+     */
     private static int floorAt(ServerLevel level, BlockPos at) {
-        for (int dy = 2; dy >= -8; dy--) {
+        for (int dy = 2; dy >= -FLOOR_SEARCH; dy--) {
             BlockPos p = at.above(dy);
             if (standable(level, p)) {
                 return p.getY();
@@ -433,8 +440,14 @@ public final class SimWatcher {
             }
         }
         if (to == null) {
-            // Nowhere on the floor at that distance: straight down in front of him, so the wave still completes.
-            to = new Vec3(from.x + 2, floorY, from.z);
+            // Nowhere on the floor at that distance: straight down in front of him, so the wave still completes -
+            // onto the floor below that spot, not in the air above the void.
+            BlockPos below = BlockPos.containing(from.x + 2, floorY, from.z);
+            for (int dy = 0; dy <= FLOOR_SEARCH && !standable(level, below); dy++) {
+                below = below.below();
+            }
+            to = standable(level, below) ? new Vec3(from.x + 2, below.getY(), from.z)
+                    : new Vec3(from.x + 2, floorY, from.z);
         }
         int index = rnd.nextInt(MOB_NAMES.length);
         List<String> textures = BloodCampSkulls.mobTextures();
