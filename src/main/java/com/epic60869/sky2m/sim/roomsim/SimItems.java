@@ -435,7 +435,16 @@ public final class SimItems {
         if (SimItemData.def(item.skyblockId) != null) {
             stack = SimItemData.fullBuild(item.skyblockId).applyTo(stack);
         }
+        // A skull item wears Hypixel's own head texture, not a Steve or wither skeleton skull.
+        if (isSkull(stack)) {
+            stack = SimHeads.apply(stack, item.skyblockId);
+        }
         return stack;
+    }
+
+    /** Whether a stack is one of the vanilla skulls the sim stands in for Hypixel's textured heads with. */
+    static boolean isSkull(ItemStack stack) {
+        return stack.is(Items.PLAYER_HEAD) || stack.is(Items.WITHER_SKELETON_SKULL) || stack.is(Items.SKELETON_SKULL);
     }
 
     /**
@@ -988,8 +997,8 @@ public final class SimItems {
         // The rest of the wiki's rules: not on doors (the wither and blood doors' blocks), not on crypt blocks (a
         // smooth stone slab crypt lid), and not in a boss room - except the Wither Lords' (F7/M7).
         BlockState aimedAt = level.getBlockState(target);
-        if (aimedAt.is(net.minecraft.world.level.block.Blocks.COAL_BLOCK)
-                || aimedAt.is(com.epic60869.sky2m.sim.compat.McBlocks.RED_TERRACOTTA)) {
+        // The floor's own door blocks, not every coal block: the Storm room is full of coal.
+        if (SimDoors.isDoorBlock(target)) {
             failOnServer(sp, "the Dungeonbreaker does not work on doors");
             return false;
         }
