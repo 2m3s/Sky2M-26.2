@@ -143,6 +143,7 @@ All notable changes to Sky2M are listed here, newest first.
 - Remove the Big Drop Animation (the rainbow item name for drops worth over 5M) and its "is worth X coins!" chat line.
 
 ### Fixed
+- Fix /s2 sim getting stuck on the loading screen with "The process cannot access the file because another process has locked a portion of the file" when you were already in the sim world (opened from the Singleplayer list) or in another singleplayer world. The sim world opened from the list now works as the sim, a floor is built into it in place, another world is closed first, and if the save really is in use the loading screen closes and says so.
 - Fix the Dungeon Sim's Bonzo's Mask and Spirit Mask giving extra saves while on cooldown.
 - Fix Soulweaver Gloves and Flaming Flay getting no stats from Hypixel's item data in the Dungeon Sim.
 - Fix every room feature (waypoints, routes, puzzle solvers, map labels) staying off on the next Dungeon Sim floor after a boss, until you rejoined the world.
