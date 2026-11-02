@@ -279,14 +279,23 @@ public final class SimWeapons {
 
     /**
      * Ragnarock: a 3 s channel; if no damage interrupts it you gain 1.5x this weapon's Strength for 10 s. 500 mana, 20 s
-     * cooldown. APPROXIMATE: "this weapon's Strength" is read as its base Strength stat (the Crimson Isle stars are the
-     * item build's, not added here).
+     * cooldown. "This weapon's Strength" is the axe's whole Strength line - base, reforge, potato books, The Art of
+     * War, gems (the wiki recommends Withered, Fuming books and a Jasper for this reason) - read from its build, plus
+     * the pet's Strength that Chimera adds to it.
      */
     private static boolean ragnarock(ServerPlayer sp, String id) {
         if (!SimVitals.cast(sp, "Ragnarock", 500, 20 * 20)) {
             return false;
         }
-        double weaponStrength = SimDamage.weapon(id).strength();
+        SimItemBuild build = SimEnchants.buildFor(sp, id);
+        double weaponStrength = build == SimItemBuild.EMPTY ? 0 : build.stats(new SimItemBuild.Context(
+                SimState.floorLabel(), 0, SimParty.dungeonClass(sp))).stats()
+                .getOrDefault(SimStats.Stat.STRENGTH, 0.0);
+        if (weaponStrength <= 0) {
+            weaponStrength = SimDamage.weapon(id).strength();
+        }
+        // Chimera: the pet's Strength counts as the axe's own, so Ragnarock multiplies it too.
+        weaponStrength += SimEnchants.chimeraStat(sp, build, SimStats.Stat.STRENGTH);
         if (weaponStrength <= 0) {
             weaponStrength = STATS.get("RAGNAROCK_AXE").strength();
         }
@@ -570,12 +579,29 @@ public final class SimWeapons {
         ServerLevel level = (ServerLevel) sp.level();
         Vec3 from = sp.getEyePosition();
         Vec3 centre = wallStop(level, sp, from, from.add(sp.getLookAngle().scale(24)));
+        // Held with their feet on the floor under the rift, never below it: aimed at the ground, the centre is the
+        // floor's own surface, and holding them half a body below it buried them in the floor.
+        double floor = floorUnder(level, centre);
         for (LivingEntity e : within(level, sp, centre, 10)) {
-            SimItemEffects.holdAt(e, centre.subtract(0, e.getBbHeight() / 2, 0), 80);
+            double feet = Math.max(floor, centre.y - e.getBbHeight() / 2);
+            SimItemEffects.holdAt(e, new Vec3(centre.x, feet, centre.z), 80);
         }
         level.sendParticles(ParticleTypes.REVERSE_PORTAL, centre.x, centre.y, centre.z, 120, 4, 2, 4, 0.1);
         level.playSound(null, centre.x, centre.y, centre.z, SoundEvents.WITHER_SHOOT, SoundSource.PLAYERS, 1f, 0.5f);
         SimItemEffects.slowMana(sp, 60);
+    }
+
+    /** The top of the first solid block at or below {@code at} (up to 8 down), or {@code at.y} when there is none. */
+    private static double floorUnder(ServerLevel level, Vec3 at) {
+        net.minecraft.core.BlockPos.MutableBlockPos m = new net.minecraft.core.BlockPos.MutableBlockPos();
+        int x = net.minecraft.util.Mth.floor(at.x), z = net.minecraft.util.Mth.floor(at.z);
+        for (int y = net.minecraft.util.Mth.floor(at.y); y >= net.minecraft.util.Mth.floor(at.y) - 8; y--) {
+            var shape = level.getBlockState(m.set(x, y, z)).getCollisionShape(level, m);
+            if (!shape.isEmpty()) {
+                return y + shape.max(net.minecraft.core.Direction.Axis.Y);
+            }
+        }
+        return at.y;
     }
 
     /**

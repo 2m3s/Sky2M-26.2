@@ -324,6 +324,32 @@ public final class SimPresets {
             }
             inv.setItem(i, stack);
         }
+        giveArrows(sp);
+    }
+
+    /**
+     * A stack of arrows with every class, as a quiver would hold on Hypixel: the class bows (and a Mage's or Tank's
+     * spare bow) fire nothing without them. Only when he carries no arrows already, so loading twice does not stack up.
+     */
+    private static void giveArrows(ServerPlayer sp) {
+        var inv = sp.getInventory();
+        for (int i = 0; i < inv.getContainerSize(); i++) {
+            if (inv.getItem(i).is(net.minecraft.world.item.Items.ARROW)) {
+                return;
+            }
+        }
+        ItemStack arrows = SimItems.build(SimArrows.FLINT_ARROW_ID);
+        if (arrows.isEmpty()) {
+            arrows = new ItemStack(net.minecraft.world.item.Items.ARROW);
+        }
+        arrows.setCount(64);
+        for (int i = 9; i < 36; i++) {
+            if (inv.getItem(i).isEmpty()) {
+                inv.setItem(i, arrows);
+                return;
+            }
+        }
+        inv.add(arrows);
     }
 
     /** The sim's item for a build, with the build on it; empty (logged once) when the sim has no such item. */
