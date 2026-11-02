@@ -5,6 +5,7 @@ All notable changes to Sky2M are listed here, newest first.
 ## 1.0.4
 
 ### Added
+- Join Sim Party button on the title screen: paste a friend's party code (or LAN address) to join their Dungeon Sim party without opening a world first.
 - Terminal Waypoints (Dungeons > F7 > Extras, on by default): a beacon beam and an "Inactive Terminal" label on each inactive terminal of your P3 section, through walls. Works on Hypixel and in the Dungeon Sim.
 - Dungeon Sim class presets from Mort's menu: pick Archer, Berserk, Healer, Mage or Tank in Mort's menu (Hypixel's class icons) before the run starts and that class's preset loads - its weapons and tools on the hotbar, its armour and equipment builds in wardrobe slots (Mage's LCM and RCM sets, Tank's boss and terminals sets), its pets and Pet Rules. /simpreset <class> does the same (party leader only).
 - Dungeon Sim items from the class setups (/simitem): Last Breath, Death Bow, Halberd of the Shredded, Dark Claymore, Soul Whip, Flaming Flay, Ragnarock, Sword of Bad Health, Rogue Sword, Wither Cloak Sword, Soul Esoward, Gloomlock Grimoire, Bonzo's Staff, Jerry-chine Gun, Ice Spray Wand, Gyrokinetic Wand and Weirder Tuba with Hypixel's abilities, mana costs and cooldowns; Spring Boots, the Empowered Mender Crown, the Blazetekk Ham Radio (channels, with the Bluertooth Ring bonus), Alert and SOS Flares and the Jalapeno Book; Flint, Bouncy, Armorshred and Nansorb Arrows, Twilight and Toxic Arrow Poison (not while wearing a Skeleton Master Chestplate, as on Hypixel) and an infinite Twilight Arrow Poison.
