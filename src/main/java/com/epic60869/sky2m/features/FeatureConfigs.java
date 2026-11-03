@@ -716,6 +716,11 @@ public final class FeatureConfigs {
 
         @Expose
         @Accordion
+        @ConfigOption(name = "Team Secrets", desc = "How many secrets each teammate found in the run, in chat when it ends.")
+        public TeamSecrets teamSecrets = new TeamSecrets();
+
+        @Expose
+        @Accordion
         @ConfigOption(name = "Party Finder Stats", desc = "Stats of players who join your dungeon group, with a kick button and optional auto kick.")
         public PartyFinderStats partyFinderStats = new PartyFinderStats();
 
@@ -4349,6 +4354,14 @@ public final class FeatureConfigs {
         @ConfigOption(name = "Announce", desc = "Say in chat (only you see it) that it's going to requeue.")
         @ConfigEditorBoolean
         public boolean announce = true;
+    }
+
+    /** Odin's and NoammAddons' secrets per teammate at the end of a run. */
+    public static final class TeamSecrets {
+        @Expose
+        @ConfigOption(name = "Enabled", desc = "When a dungeon run ends, say in chat (only you see it) how many secrets each teammate found, with their class in its colour. From their total secrets at the start and end of the run (live, the same source as Odin's Secrets Counter); anyone still on 0 is checked again 30 seconds later.")
+        @ConfigEditorBoolean
+        public boolean enabled = true;
     }
 
     /** SkyHanni's Item Pickup Log. */
