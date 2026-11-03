@@ -5,6 +5,7 @@ All notable changes to Sky2M are listed here, newest first.
 ## 1.0.4
 
 ### Added
+- Auto Requeue Leave Title (Dungeons > Auto Requeue, on by default): when a party member leaves, is kicked or disconnects, a title shows their name and dungeon class in the class colour, like "Name Tank" in green.
 - Start any F7/M7 phase in the Dungeon Sim: /boss maxor, /boss storm, /boss goldor, /boss necron and (Master Mode) /boss witherking. /boss necron now starts at Necron; /boss alone still runs the whole fight from Maxor.
 - Dungeon Sim lava bounce, like SkyBlock: touching lava throws you up, higher the more you look up.
 - Dungeon Sim party guests who are staff (/s2 stafflogin) can use /fly, /summon, /simrevive and /simstats: they act on the guest alone (their own flight, a mob at their feet, their own revive and stats).

@@ -4341,6 +4341,11 @@ public final class FeatureConfigs {
         public boolean cancelOnLeave = false;
 
         @Expose
+        @ConfigOption(name = "Leave Title", desc = "When a party member leaves, is kicked or disconnects, show their name and dungeon class (in the class colour) as a title, like \"Name Tank\".")
+        @ConfigEditorBoolean
+        public boolean leaveTitle = true;
+
+        @Expose
         @ConfigOption(name = "Announce", desc = "Say in chat (only you see it) that it's going to requeue.")
         @ConfigEditorBoolean
         public boolean announce = true;
