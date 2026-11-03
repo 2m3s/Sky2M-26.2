@@ -5,6 +5,7 @@ All notable changes to Sky2M are listed here, newest first.
 ## 1.0.4
 
 ### Added
+- Dungeon Profit per Hour (/s2 hour, Misc > Profit Trackers, on by default): your profit per hour on a floor at your run speed, from Chest History and Run History, with and without the RNG meter, and how many runs and how long a boss collection target takes. /s2 hour 1:20 m1 says it in chat.
 - Team Secrets (Dungeons > Team Secrets, on by default), like Odin's Secrets Counter and NoammAddons': when a run ends, chat shows how many secrets each teammate found, with their class in its colour. Uses live secret counts, so it's right straight after the run; anyone still on 0 is checked again 30 seconds later.
 - Auto Requeue Leave Title (Dungeons > Auto Requeue, on by default): when a party member leaves, is kicked or disconnects, a title shows their name and dungeon class in the class colour, like "Name Tank" in green.
 - Start any F7/M7 phase in the Dungeon Sim: /boss maxor, /boss storm, /boss goldor, /boss necron and (Master Mode) /boss witherking. /boss necron now starts at Necron; /boss alone still runs the whole fight from Maxor.
