@@ -1267,6 +1267,11 @@ final class SimNecron extends SimBoss.Fight {
         level.playSound(null, body.getX(), body.getY(), body.getZ(), SoundEvents.ANVIL_LAND, SoundSource.HOSTILE, 2f, 0.6f);
         // Open for 10 seconds; he cannot die before his second crush.
         floorHp = crushes >= crushesNeeded() ? 0 : 1;
+        if (floorHp == 0 && health.hp <= 1) {
+            // Already beaten down to the 1 HP the first crush held him at: this crush finishes him (tickStorm's death
+            // check), instead of leaving him at 1 HP looking dead until someone lands one more hit in the window.
+            health.hp = 0;
+        }
         health.invulnerable = false;
         stunEnd = now + STORM_VULNERABLE;
     }
