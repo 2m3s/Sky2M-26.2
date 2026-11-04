@@ -444,11 +444,17 @@ public final class RngDropList {
             "Last Stand II",
             "Infinite Quiver VII",
             "Precursor Gear")),
+        // Kuudra's paid chest rare drops, from the wiki's item pages (read 2026-11-04). The Enrager was taken out of the
+        // loot on Jun 10, 2025 (the Tormentor replaced it); the Tormentor, Hellstorm Wand and Ananke Feather drop from
+        // the Infernal paid chest since then, and the Kuudra Mandible from Burning and up.
         new Category("Other", "Kuudra", List.of(
-            "Wheel of Fate",
-            "Burning Kuudra Core",
-            "Enrager",
             "Tentacle Dye",
+            "Tormentor",
+            "Hellstorm Wand",
+            "Burning Kuudra Core",
+            "Wheel of Fate",
+            "Ananke Feather",
+            "Kuudra Mandible",
             "Hollow Wand",
             "Fatal Tempo I",
             "Inferno I")),

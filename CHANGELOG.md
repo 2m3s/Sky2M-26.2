@@ -109,6 +109,7 @@ All notable changes to Sky2M are listed here, newest first.
 - "Sky Mall & Lottery: Everywhere" (Chat > Spam Filters): hide or move the Sky Mall and Lottery buff messages on the mining and foraging islands too.
 
 ### Changed
+- RNG Drop List: Kuudra's list is up to date. The Enrager is gone (Hypixel took it out of Kuudra's loot in June 2025), and the Tormentor, Hellstorm Wand, Ananke Feather (Infernal) and Kuudra Mandible (Burning and up) are added.
 - Item List: clicking an item shows where to get it above its recipes: the Catacombs and Master Mode floors, slayer bosses, Kuudra, Diana and fishing it's an RNG drop from, who sells it, who drops it, and the collection or slayer level crafting it needs. An item with no recipe but a known source (like Necron's Handle) opens too.
 - Sky2M's screens have new dark buttons instead of the light grey ones: a box a shade above the panel that brightens with a purple border when hovered, light labels that keep their colours (Smart Disconnect's red Disconnect), purple for a chosen option and grey when disabled. Covers the Dungeon Sim, Smart Disconnect, /s2 hour, the leaderboard and the other Sky2M screens.
 - Item Protect's chat lines ("★ Protected ... from dropping.", "Removed drop protection from ...") show the item's name in its rarity colour, stars included, instead of white.
