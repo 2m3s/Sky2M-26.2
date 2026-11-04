@@ -16,7 +16,9 @@ import java.util.Random;
  * <p>The library holds a few dozen recorded mob positions, nearly all of them in one room (Archway), so most rooms of
  * a generated floor used to be empty. This fills them the way a Hypixel room is filled: a handful of mobs in a 1x1,
  * more in the bigger shapes, Master Mode a little denser, most of them starred with a few skeletons and the odd Fel
- * among them; and the rooms the room database marks as miniboss rooms ({@code CHAMPION}) get their miniboss.
+ * among them (Fels from Floor V, as on Hypixel); the rooms the room database marks as miniboss rooms
+ * ({@code CHAMPION}, the map's yellow rooms) get their miniboss alone, and the Redstone Warrior room its two
+ * Redstone Warriors on top of its mobs - see {@link #miniboss} and {@link #REDSTONE_WARRIOR_ROOM}.
  *
  * <p><b>Where.</b> Spots are read from the room's own CAPTURE (rotation 0, capture coordinates), not from the world:
  * the build has long moved on from the room by the time its mobs are queued, and the capture is what was pasted. A
@@ -47,6 +49,17 @@ public final class SimRoomMobs {
     private static final int MIN_SPACING = 3;
     private static final int MAX_MOBS = 22;
 
+    /**
+     * The room whose two Redstone Warriors are minibosses, from Floor II (the wiki's Dungeon Mobs and
+     * https://hypixelskyblock.minecraft.wiki/w/Redstone_Warrior). On Hypixel they come out when the room's lever is
+     * pressed; the sim has no tie to that lever yet, so they stand in the room from the start.
+     */
+    static final String REDSTONE_WARRIOR_ROOM = "Redstone Warrior";
+    /** How many Redstone Warriors its room holds. */
+    static final int REDSTONE_WARRIORS = 2;
+    /** Hypixel's first floor with Fels: "Floor V to Floor VII" (the wiki's Dungeon Mobs). */
+    static final int FEL_FLOOR = 5;
+
     private SimRoomMobs() {
     }
 
@@ -70,10 +83,11 @@ public final class SimRoomMobs {
             }
         }
         boolean champion = "CHAMPION".equals(type);
-        if (!fill && !champion) {
+        String floor = SimState.floorLabel() == null ? "F7" : SimState.floorLabel().toUpperCase(Locale.ROOT);
+        int warriors = redstoneWarriors(room.name, floor);
+        if (!fill && !champion && warriors == 0) {
             return;
         }
-        String floor = SimState.floorLabel() == null ? "F7" : SimState.floorLabel().toUpperCase(Locale.ROOT);
         long seed = (SimState.mapCode() == null ? 0L : SimState.mapCode().hashCode()) * 31L
                 + room.name.hashCode() * 17L + gridX * 131L + gridZ * 7919L + floor.hashCode();
         Random rnd = new Random(seed);
@@ -105,12 +119,30 @@ public final class SimRoomMobs {
             queue(room, x0, z0, rotation, centre, SimMobs.Kind.MINIBOSS, true, miniboss(room.name, floor, rnd));
             queued++;
         }
+        // The Redstone Warriors stand apart from the room's other mobs, near its middle.
+        for (int i = 0; i < warriors; i++) {
+            int[] spot = null;
+            for (int[] s : spots) {
+                if (!tooClose(chosen, s) && (spot == null || Math.abs(s[0] - room.sizeX / 2)
+                        + Math.abs(s[2] - room.sizeZ / 2) < Math.abs(spot[0] - room.sizeX / 2)
+                        + Math.abs(spot[2] - room.sizeZ / 2))) {
+                    spot = s;
+                }
+            }
+            if (spot == null) {
+                break;
+            }
+            chosen.add(spot);
+            queue(room, x0, z0, rotation, spot, SimMobs.Kind.MINIBOSS, true, SimMiniboss.Name.REDSTONE_WARRIOR);
+            queued++;
+        }
         if (fill && !champion) {
             int want = count(tiles, floor, rnd);
+            int filled = 0;
             boolean master = floor.startsWith("M");
             int floorNumber = floorNumber(floor);
             for (int[] spot : spots) {
-                if (queued >= want) {
+                if (filled >= want) {
                     break;
                 }
                 if (tooClose(chosen, spot)) {
@@ -121,7 +153,7 @@ public final class SimRoomMobs {
                 boolean starred = rnd.nextDouble() < (master ? 0.85 : 0.78);
                 SimMobs.Kind kind;
                 double r = rnd.nextDouble();
-                if (starred && floorNumber >= 3 && r < 0.08) {
+                if (starred && floorNumber >= FEL_FLOOR && r < 0.08) {
                     kind = SimMobs.Kind.FEL;
                 } else if (r < (starred ? 0.33 : 0.38)) {
                     kind = SimMobs.Kind.SKELETON;
@@ -130,6 +162,7 @@ public final class SimRoomMobs {
                 }
                 queue(room, x0, z0, rotation, spot, kind, starred, null);
                 queued++;
+                filled++;
             }
         }
         if (queued > 0) {
@@ -158,30 +191,66 @@ public final class SimRoomMobs {
     }
 
     /**
-     * Which miniboss a miniboss room holds, by Hypixel's floors (the wiki's Dungeon Mobs): King Midas only in his own
-     * room and only from floor 3, the Shadow Assassin from floor 3 (his named room holds him there), the Frozen
-     * Adventurer from floor 4, the Lost Adventurer on every floor. The Angry Archaeologist's floors are not listed;
-     * the sim keeps him from floor 3. Below those floors the named rooms hold a Lost Adventurer instead.
+     * Which miniboss a yellow room ({@code CHAMPION}: Default, Dragon, King Midas and Shadow Assassin in the room
+     * database) holds, by Hypixel's floors:
+     * <ul>
+     * <li>King Midas only in his own room ("King Midas"), Floor III to VII (/w/King_Midas, Dungeon Mobs). Below
+     * Floor III his room holds a Lost Adventurer (APPROXIMATE: the wiki does not say what it holds there).</li>
+     * <li>The Shadow Assassin's room holds him from Floor III (/w/Shadow_Assassin: "Floor III and above"); below it,
+     * a Floor I-II miniboss.</li>
+     * <li>Any other yellow room a random one of the floor's: the Lost Adventurer and the Angry Archaeologist on every
+     * floor (/w/Lost_Adventurer, /w/Angry_Archaeologist: "any floor"), the Shadow Assassin from Floor III and the
+     * Frozen Adventurer from Floor IV (/w/Frozen_Adventurer: "Floors IV through VII"). The Lost Adventurer is
+     * "rarer on floors 3 and above", so there it is drawn half as often as each of the others (APPROXIMATE weight).
+     * </li>
+     * </ul>
+     * Master Mode follows its floor number the same way. The Redstone Warrior is never a yellow room's: it belongs to
+     * its own room ({@link #redstoneWarriors}).
      */
     public static SimMiniboss.Name miniboss(String roomName, String floor, Random rnd) {
-        String lower = roomName.toLowerCase(Locale.ROOT);
+        String lower = roomName == null ? "" : roomName.toLowerCase(Locale.ROOT);
         int n = floorNumber(floor);
-        if (n >= 3 && lower.contains("king midas")) {
-            return SimMiniboss.Name.KING_MIDAS;
+        if (lower.equals("king midas")) {
+            return n >= 3 ? SimMiniboss.Name.KING_MIDAS : SimMiniboss.Name.LOST_ADVENTURER;
         }
-        if (n >= 3 && lower.contains("shadow assassin")) {
+        if (n >= 3 && lower.equals("shadow assassin")) {
             return SimMiniboss.Name.SHADOW_ASSASSIN;
         }
+        // Weights in halves: the Lost Adventurer 2 below Floor III, 1 from it; every other one 2.
         List<SimMiniboss.Name> pool = new ArrayList<>();
-        pool.add(SimMiniboss.Name.LOST_ADVENTURER);
+        int lostWeight = n >= 3 ? 1 : 2;
+        for (int i = 0; i < lostWeight; i++) {
+            pool.add(SimMiniboss.Name.LOST_ADVENTURER);
+        }
+        pool.add(SimMiniboss.Name.ANGRY_ARCHAEOLOGIST);
+        pool.add(SimMiniboss.Name.ANGRY_ARCHAEOLOGIST);
         if (n >= 3) {
-            pool.add(SimMiniboss.Name.ANGRY_ARCHAEOLOGIST);
+            pool.add(SimMiniboss.Name.SHADOW_ASSASSIN);
             pool.add(SimMiniboss.Name.SHADOW_ASSASSIN);
         }
         if (n >= 4) {
             pool.add(SimMiniboss.Name.FROZEN);
+            pool.add(SimMiniboss.Name.FROZEN);
         }
         return pool.get(rnd.nextInt(pool.size()));
+    }
+
+    /**
+     * How many Redstone Warriors a room holds on this floor: {@link #REDSTONE_WARRIORS} in the Redstone Warrior room
+     * from Floor II ("Floor II to Floor VII", the wiki's Dungeon Mobs; Master Mode from M1, which its page lists),
+     * none anywhere else.
+     */
+    public static int redstoneWarriors(String roomName, String floor) {
+        if (roomName == null || !roomName.equalsIgnoreCase(REDSTONE_WARRIOR_ROOM)) {
+            return 0;
+        }
+        boolean master = floor != null && floor.toUpperCase(Locale.ROOT).startsWith("M");
+        return floorNumber(floor) >= (master ? 1 : 2) ? REDSTONE_WARRIORS : 0;
+    }
+
+    /** Whether a generated room mob of this floor can be a Fel (Floor V and up, Normal or Master Mode). */
+    public static boolean felsOn(String floor) {
+        return floorNumber(floor) >= FEL_FLOOR;
     }
 
     private static int floorNumber(String floor) {

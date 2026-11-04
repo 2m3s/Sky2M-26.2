@@ -20,12 +20,8 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.zombie.Zombie;
-import net.minecraft.world.entity.projectile.Projectile;
-import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownSplashPotion;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.alchemy.PotionContents;
-import net.minecraft.world.item.alchemy.Potions;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -44,15 +40,21 @@ import java.util.concurrent.ThreadLocalRandom;
  * <ul>
  * <li><b>Lost Adventurer</b> - 100 Defense (takes half of every hit) and, the first time it drops below 30%,
  * patches itself back up to 60%.</li>
- * <li><b>Frozen</b> (Hypixel's Frozen Adventurer; the user's name for it in the sim) - every hit slows you, and
- * every few seconds it winds up and sprays ice in a cone in front of it: damage and a heavy slow for anyone in
- * it. Step out of the cone during the wind-up.</li>
- * <li><b>Shadow Assassin</b> - vanishes (no body, no name tag), then reappears right behind you and strikes.</li>
- * <li><b>Angry Archaeologist</b> - fast, throws splash potions of harming at you, and splashes healing on itself
- * when it is hurt.</li>
+ * <li><b>Frozen Adventurer</b> - every hit slows you, and every few seconds it winds up and sprays ice in a cone
+ * in front of it: damage and a heavy slow for anyone in it. Step out of the cone during the wind-up.</li>
+ * <li><b>Shadow Assassin</b> - waits invisible until you come near, then appears at you; after that it vanishes
+ * (no body, no name tag) every few seconds and reappears right behind you to strike.</li>
+ * <li><b>Angry Archaeologist</b> - fast, fights with a diamond sword, and when low throws three splash potions of
+ * healing on itself in quick succession (https://hypixelskyblock.minecraft.wiki/w/Angry_Archaeologist: it "uses 3
+ * Splash Healing Potions quickly"; the wiki lists no harming potions).</li>
  * <li><b>King Midas</b> - gold armour, slow, hits very hard and slams the ground when you stand next to him;
  * dies in a burst of gold.</li>
+ * <li><b>Redstone Warrior</b> - a Lost Adventurer with a stone sword and a redstone head: 100 Defense, bursts of
+ * Dragon Rage flame that throw you back when you crowd it, and golden apples when it is low, each healing less
+ * than the last (https://hypixelskyblock.minecraft.wiki/w/Redstone_Warrior). Its bow is left out.</li>
  * </ul>
+ *
+ * <p>Which miniboss a room holds, on which floor, is {@link SimRoomMobs#miniboss}.
  *
  * <p>All the fight logic runs in the entity's own server AI step, so a miniboss needs no tick of its own and goes
  * away cleanly with its entity. Nothing here is reachable without passing {@link SimState#canAct}: the only
@@ -63,19 +65,33 @@ public final class SimMiniboss {
     /** The minibosses the sim can place. */
     public enum Name {
         LOST_ADVENTURER("Lost Adventurer"),
-        FROZEN("Frozen"),
+        FROZEN("Frozen Adventurer"),
         SHADOW_ASSASSIN("Shadow Assassin"),
         ANGRY_ARCHAEOLOGIST("Angry Archaeologist"),
-        KING_MIDAS("King Midas");
+        KING_MIDAS("King Midas"),
+        /** Same health and damage as the Lost Adventurer on every floor (both wiki tables match row for row). */
+        REDSTONE_WARRIOR("Redstone Warrior", "Lost Adventurer");
 
         private final String text;
+        private final String statsName;
 
         Name(String text) {
-            this.text = text;
+            this(text, text);
         }
 
+        Name(String text, String statsName) {
+            this.text = text;
+            this.statsName = statsName;
+        }
+
+        /** Its Hypixel name, as its name stand shows it. */
         public String text() {
             return text;
+        }
+
+        /** The name its health and damage are looked up under ({@link SimHealth#statsFor}). */
+        String statsName() {
+            return statsName;
         }
     }
 
@@ -91,11 +107,31 @@ public final class SimMiniboss {
 
     /** Called by {@link SimMobs} once the miniboss's pool exists, to set the parts of its fight that live there. */
     static void tunePool(Entity boss, SimHealth.Pool pool) {
-        if (boss instanceof Miniboss m && (m.name == Name.LOST_ADVENTURER || m.name == Name.FROZEN)) {
-            // Both have 100 Defense on Hypixel (https://hypixelskyblock.minecraft.wiki/w/Lost_Adventurer,
-            // https://hypixelskyblock.minecraft.wiki/w/Frozen_Adventurer): 1 - 100 / (100 + 100) of a hit lands.
+        if (!(boss instanceof Miniboss m)) {
+            return;
+        }
+        if (!m.name.statsName().equals(m.name.text())) {
+            // Registered under its own name, which has no table of its own: its numbers come from the twin's.
+            String floor = SimState.floorLabel();
+            double health = SimHealth.healthOf(m.name.statsName(), floor);
+            double hit = SimHealth.damageOf(m.name.statsName(), floor);
+            if (!Double.isNaN(health)) {
+                pool.max = health;
+                pool.hp = health;
+            }
+            if (!Double.isNaN(hit)) {
+                pool.hit = hit;
+            }
+            pool.dirty = true;
+        }
+        if (m.name == Name.LOST_ADVENTURER || m.name == Name.FROZEN || m.name == Name.REDSTONE_WARRIOR) {
+            // All three have 100 Defense on Hypixel (https://hypixelskyblock.minecraft.wiki/w/Lost_Adventurer,
+            // /w/Frozen_Adventurer, /w/Redstone_Warrior): 1 - 100 / (100 + 100) of a hit lands.
             pool.taken = 0.5;
             pool.surviveOnce = m.name == Name.LOST_ADVENTURER;
+        }
+        if (m.name == Name.SHADOW_ASSASSIN) {
+            m.lurk(pool);
         }
     }
 
@@ -106,7 +142,7 @@ public final class SimMiniboss {
         /**
          * A special attack's Hypixel damage before Defense: the miniboss's own base damage for the floor
          * ({@link SimHealth#damageOf}). APPROXIMATE as a per-attack number - the wiki gives the base damage but no
-         * separate number for the ice spray, the backstab or Midas's gold.
+         * separate number for the ice spray, Midas's slam or the Redstone Warrior's Dragon Rage.
          */
         private final double ability;
         private int cooldown;
@@ -114,12 +150,16 @@ public final class SimMiniboss {
         private int windUp;
         private boolean healed;
         private int healCooldown;
+        /** The Shadow Assassin before anyone has come near: invisible, waiting. */
+        private boolean lurking;
+        /** Golden apples the Redstone Warrior has eaten; each heals less than the last. */
+        private int apples;
         private Map<EquipmentSlot, ItemStack> stashed;
 
         Miniboss(Level level, Name name, String floor) {
             super(level);
             this.name = name;
-            double base = SimHealth.damageOf(name.text(), floor);
+            double base = SimHealth.damageOf(name.statsName(), floor);
             this.ability = Double.isNaN(base) ? 0 : base;
             float melee = SimHealth.meleeDamage(floor, SimHealth.Role.MINIBOSS);
             double speed = 0.25;
@@ -153,9 +193,12 @@ public final class SimMiniboss {
                 case SHADOW_ASSASSIN -> wear(Items.NETHERITE_HELMET, Items.NETHERITE_CHESTPLATE,
                         Items.NETHERITE_LEGGINGS, Items.NETHERITE_BOOTS, Items.NETHERITE_SWORD);
                 case ANGRY_ARCHAEOLOGIST -> wear(Items.DIAMOND_HELMET, Items.DIAMOND_CHESTPLATE,
-                        Items.DIAMOND_LEGGINGS, Items.DIAMOND_BOOTS, Items.DIAMOND_PICKAXE);
+                        Items.DIAMOND_LEGGINGS, Items.DIAMOND_BOOTS, Items.DIAMOND_SWORD);
                 case KING_MIDAS -> wear(Items.GOLDEN_HELMET, Items.GOLDEN_CHESTPLATE, Items.GOLDEN_LEGGINGS,
                         Items.GOLDEN_BOOTS, Items.GOLDEN_SWORD);
+                // Hypixel's is a Young Lost Adventurer with the Redstone Key's head and a stone sword.
+                case REDSTONE_WARRIOR -> wear(Items.REDSTONE_BLOCK, Items.IRON_CHESTPLATE, Items.IRON_LEGGINGS,
+                        Items.IRON_BOOTS, Items.STONE_SWORD);
             }
         }
 
@@ -187,6 +230,7 @@ public final class SimMiniboss {
                 case SHADOW_ASSASSIN -> shadowAssassin(level, pool, player);
                 case ANGRY_ARCHAEOLOGIST -> archaeologist(level, pool, player);
                 case KING_MIDAS -> midas(level, player);
+                case REDSTONE_WARRIOR -> redstoneWarrior(level, pool, player);
             }
         }
 
@@ -205,7 +249,7 @@ public final class SimMiniboss {
             level.playSound(null, getX(), getY(), getZ(), SoundEvents.TOTEM_USE, SoundSource.HOSTILE, 0.7f, 1.2f);
         }
 
-        // ---------------------------------------------------------------------------------------------- Frozen
+        // ----------------------------------------------------------------------------------- Frozen Adventurer
 
         private static final int SPRAY_WINDUP = 20;
         private static final double SPRAY_RANGE = 7.0;
@@ -266,7 +310,7 @@ public final class SimMiniboss {
             }
         }
 
-        /** Frozen's hits slow; everything else hits as a plain mob does. */
+        /** The Frozen Adventurer's hits slow; everything else hits as a plain mob does. */
         @Override
         public boolean doHurtTarget(ServerLevel level, Entity target) {
             boolean hit = super.doHurtTarget(level, target);
@@ -281,9 +325,38 @@ public final class SimMiniboss {
         // ------------------------------------------------------------------------------------- Shadow Assassin
 
         private static final int VANISH_TICKS = 30;
+        /** How close a player comes before a lurking Shadow Assassin shows itself. APPROXIMATE. */
+        private static final double LURK_RANGE = 10.0;
+
+        /** Starts the Shadow Assassin hidden, waiting for someone to come near ({@link #shadowAssassin}). */
+        void lurk(SimHealth.Pool pool) {
+            lurking = true;
+            setInvisible(true);
+            pool.hideLabel = true;
+            pool.dirty = true;
+            stashGear();
+        }
 
         /** Vanish, then reappear behind the player and strike. */
         private void shadowAssassin(ServerLevel level, SimHealth.Pool pool, ServerPlayer player) {
+            if (lurking) {
+                // "Invisible until a player is nearby, then teleports to the player" (the wiki's Shadow Assassin).
+                getNavigation().stop();
+                ServerPlayer near = null;
+                for (ServerPlayer p : level.players()) {
+                    if (!p.isSpectator() && !p.isCreative() && p.isAlive()
+                            && p.distanceToSqr(this) < LURK_RANGE * LURK_RANGE) {
+                        near = p;
+                        break;
+                    }
+                }
+                if (near != null) {
+                    lurking = false;
+                    setTarget(near);
+                    reappear(level, pool, near);
+                }
+                return;
+            }
             if (windUp > 0) {
                 if (--windUp == 0) {
                     reappear(level, pool, player);
@@ -302,7 +375,14 @@ public final class SimMiniboss {
                     1f, 1f);
             setInvisible(true);
             pool.hideLabel = true;
-            // An invisible mob still draws what it wears and holds, so the gear comes off while it is gone.
+            stashGear();
+        }
+
+        /** An invisible mob still draws what it wears and holds, so the gear comes off while it is gone. */
+        private void stashGear() {
+            if (stashed != null) {
+                return;
+            }
             stashed = new EnumMap<>(EquipmentSlot.class);
             for (EquipmentSlot slot : new EquipmentSlot[]{EquipmentSlot.HEAD, EquipmentSlot.CHEST,
                     EquipmentSlot.LEGS, EquipmentSlot.FEET, EquipmentSlot.MAINHAND}) {
@@ -336,9 +416,10 @@ public final class SimMiniboss {
                     1f, 0.7f);
             if (player != null && distanceToSqr(player) < 3.5 * 3.5) {
                 swing(net.minecraft.world.InteractionHand.MAIN_HAND);
-                // The backstab: his normal swing plus the strike on top.
+                // The backstab is ONE hit: his own swing, which carries his pool's Hypixel hit. The wiki says only
+                // that he "does additional damage when attacking from behind", with no number, so no extra strike
+                // is added on top (it used to land a second full hit in the same tick).
                 doHurtTarget(level, player);
-                SimVitals.dealHypixel(level, player, level.damageSources().indirectMagic(this, this), ability, false);
                 level.sendParticles(ParticleTypes.CRIT, player.getX(), player.getY() + 1, player.getZ(), 15,
                         0.3, 0.5, 0.3, 0.2);
             }
@@ -347,38 +428,38 @@ public final class SimMiniboss {
 
         // --------------------------------------------------------------------------------- Angry Archaeologist
 
+        /** Splashes left in a heal burst, and ticks between them. */
+        private int splashesLeft;
+        private static final int SPLASH_GAP = 8;
+
+        /**
+         * Melee only (the vanilla goal does the swing); when low, three quick splashes of healing on himself. The
+         * threshold (below 40%), each splash's size (5% of his health) and the 15 s between bursts are APPROXIMATE:
+         * the wiki gives "3 Splash Healing Potions quickly" and no numbers.
+         */
         private void archaeologist(ServerLevel level, SimHealth.Pool pool, ServerPlayer player) {
-            if (healCooldown > 0) {
-                healCooldown--;
-            } else if (pool.fraction() < 0.6) {
-                // Splashes healing on himself. Applied to the pool, not as a real potion: he is undead, so a
-                // vanilla Healing potion would hurt him.
-                healCooldown = 200;
-                pool.heal(pool.max * 0.12);
+            if (splashesLeft > 0) {
+                if (--windUp > 0) {
+                    return;
+                }
+                splashesLeft--;
+                windUp = SPLASH_GAP;
+                // Applied to the pool, not as a real potion: he is undead, so a vanilla Healing potion would hurt him.
+                pool.heal(pool.max * 0.05);
+                swing(net.minecraft.world.InteractionHand.MAIN_HAND);
                 level.levelEvent(2007, blockPosition(), 0xF82423);   // the instant-effect splash, healing red
                 level.sendParticles(ParticleTypes.HEART, getX(), getY() + 2, getZ(), 5, 0.4, 0.3, 0.4, 0.1);
                 level.playSound(null, getX(), getY(), getZ(), SoundEvents.SPLASH_POTION_BREAK, SoundSource.HOSTILE,
                         1f, 1f);
+                return;
             }
-            if (cooldown == 0 && player != null && distanceToSqr(player) < 12 * 12 && hasLineOfSight(player)) {
-                throwHarming(level, player);
-                cooldown = 70 + ThreadLocalRandom.current().nextInt(30);
+            if (healCooldown > 0) {
+                healCooldown--;
+            } else if (pool.fraction() < 0.4) {
+                healCooldown = 300;
+                splashesLeft = 3;
+                windUp = 1;
             }
-        }
-
-        /** A splash potion of Harming, aimed the way a witch leads her target. */
-        private void throwHarming(ServerLevel level, ServerPlayer target) {
-            Vec3 move = target.getDeltaMovement();
-            double dx = target.getX() + move.x - getX();
-            double dy = target.getEyeY() - 1.1 - getY();
-            double dz = target.getZ() + move.z - getZ();
-            double dist = Math.sqrt(dx * dx + dz * dz);
-            ItemStack stack = PotionContents.createItemStack(Items.SPLASH_POTION, Potions.HARMING);
-            Projectile.spawnProjectileUsingShoot(new ThrownSplashPotion(level, this, stack), level, stack, dx,
-                    dy + dist * 0.2, dz, 0.75f, 8f);
-            swing(net.minecraft.world.InteractionHand.MAIN_HAND);
-            level.playSound(null, getX(), getY(), getZ(), SoundEvents.WITCH_THROW, SoundSource.HOSTILE, 1f,
-                    0.8f + getRandom().nextFloat() * 0.4f);
         }
 
         // ------------------------------------------------------------------------------------------ King Midas
@@ -426,6 +507,46 @@ public final class SimMiniboss {
             }
         }
 
+        // ------------------------------------------------------------------------------------ Redstone Warrior
+
+        private static final double RAGE_RANGE = 4.5;
+
+        /**
+         * Dragon Rage (the Aspect of the Dragons' ability) when you crowd it, and a golden apple when it is low.
+         * APPROXIMATE timings and heal sizes: the wiki says only "occasionally" and "each one heals less".
+         */
+        private void redstoneWarrior(ServerLevel level, SimHealth.Pool pool, ServerPlayer player) {
+            if (healCooldown > 0) {
+                healCooldown--;
+            } else if (pool.fraction() < 0.5 && apples < 4) {
+                healCooldown = 160;
+                pool.heal(pool.max * (0.25 - 0.05 * apples));
+                apples++;
+                level.playSound(null, getX(), getY(), getZ(), SoundEvents.PLAYER_BURP, SoundSource.HOSTILE, 1f, 1f);
+                level.sendParticles(new ItemParticleOption(ParticleTypes.ITEM, Items.GOLDEN_APPLE), getX(),
+                        getEyeY(), getZ(), 12, 0.2, 0.2, 0.2, 0.05);
+            }
+            if (cooldown > 0 || player == null || distanceToSqr(player) > RAGE_RANGE * RAGE_RANGE) {
+                return;
+            }
+            cooldown = 120 + ThreadLocalRandom.current().nextInt(40);
+            swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+            level.sendParticles(ParticleTypes.FLAME, getX(), getY() + 1, getZ(), 60, 1.5, 0.6, 1.5, 0.08);
+            level.playSound(null, getX(), getY(), getZ(), SoundEvents.ENDER_DRAGON_GROWL, SoundSource.HOSTILE, 0.6f,
+                    1.4f);
+            for (ServerPlayer p : level.getServer().getPlayerList().getPlayers()) {
+                if (p.distanceToSqr(this) > RAGE_RANGE * RAGE_RANGE) {
+                    continue;
+                }
+                SimVitals.dealHypixel(level, p, level.damageSources().indirectMagic(this, this), ability, false);
+                double dx = p.getX() - getX();
+                double dz = p.getZ() - getZ();
+                double len = Math.max(0.01, Math.sqrt(dx * dx + dz * dz));
+                p.setDeltaMovement(dx / len * 1.5, 0.4, dz / len * 1.5);
+                p.hurtMarked = true;
+            }
+        }
+
         // ------------------------------------------------------------------------------- plain-mob behaviour
 
         @Override
@@ -451,7 +572,7 @@ public final class SimMiniboss {
             return true;
         }
 
-        /** Hypixel's minibosses are player NPCs: no zombie groans. */
+        /** Hypixel's minibosses are player-shaped: no zombie groans. */
         @Override
         protected SoundEvent getAmbientSound() {
             return null;
