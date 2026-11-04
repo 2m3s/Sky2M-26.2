@@ -6548,6 +6548,11 @@ public final class FeatureConfigs {
         @ConfigEditorBoolean
         public boolean election = false;
 
+        @Expose
+        @ConfigOption(name = "Minister In Calendar", desc = "In Hypixel's Calendar menu, show the minister next to the mayor. Hover it for their perk.")
+        @ConfigEditorBoolean
+        public boolean calendarMinister = true;
+
         @ConfigOption(name = "Show In Chat", desc = "Everything (mayor, minister, perks, the election and the candidates' perks) in chat. Also /s2 mayor.")
         @ConfigEditorButton(buttonText = "Show")
         public Runnable show = com.epic60869.sky2m.features.misc.visual.MayorDisplay::printToChat;
