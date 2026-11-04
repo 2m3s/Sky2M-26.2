@@ -1046,6 +1046,12 @@ public final class Sky2MConfig extends Config {
         public boolean recipeHudHideCompleted = false;
 
         @Expose
+        @ConfigOption(name = "Recipe HUD Click To Get From Sacks", desc = "With a menu open, click a missing ingredient in the Recipe HUD to take what you still need from your sacks (Hypixel's /gfs).")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 2304)
+        public boolean recipeHudGfs = true;
+
+        @Expose
         @Accordion
         @ConfigOption(name = "GIF Player", desc = "GIFs from a folder playing on loop as HUDs.")
         @ConfigAccordionId(id = 2303)
