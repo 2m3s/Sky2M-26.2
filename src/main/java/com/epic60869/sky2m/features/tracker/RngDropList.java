@@ -470,17 +470,39 @@ public final class RngDropList {
             "Shimmering Wool",
             "Manti-core",
             "Fateful Stinger",
-            "Brain Food")),
+            "Brain Food",
+            // Added 2026-11-04 (a player's list, names checked against the NEU repo).
+            "Mythological Dye",
+            "Braided Griffin Feather",
+            "Hilt of Revelations")),
+        // Littlefoot Fluff is the drop; the Pocket-sized Igloo is crafted from it, so it isn't listed.
         new Category("Other", "Fishing", List.of(
             "Prince's Crown Jewel",
-            "Pocket-sized Igloo",
+            "Littlefoot Fluff",
             "Radioactive Vial",
             "Tiki Mask",
             "Titanoboa Shed",
             "Lucky Clover Core",
             "Deep Sea Orb",
-            "Magma Lord Fragment")),
-        new Category("Other", "Garden Pests", List.of(
+            "Magma Lord Fragment",
+            "Flash I",
+            "Aquamarine Dye",
+            "Iceberg Dye",
+            "Carmine Dye",
+            "Treasure Dye",
+            "Midnight Dye",
+            "Burnt Texts",
+            "Chain of the End Times",
+            "Brimstone Handle",
+            "Scuttler Shell",
+            "Snake Eyes",
+            "Troubled Bubble",
+            "Calcified Heart",
+            "Helixis",
+            "Octopus Tendril",
+            "Severed Pincer")),
+        // Pests, rare crop drops and the rare visitor rewards (Copper Dye, Dedication IV).
+        new Category("Other", "Garden", List.of(
             "Pesterminator I",
             "Atmospheric Filter",
             "Burrowing Spores",
@@ -493,5 +515,10 @@ public final class RngDropList {
             "Mantid Claw",
             "Wriggling Larva",
             "Overclocker 3000",
-            "Fire in a Bottle")));
+            "Fire in a Bottle",
+            "Wild Strawberry Dye",
+            "Ray of Helios",
+            "Dung Dye",
+            "Copper Dye",
+            "Dedication IV")));
 }
