@@ -7,11 +7,30 @@ import java.util.List;
  * NEU repo's rngscore.json, which follows the wiki), highest meter score first; "Other" is the big rare drops that have
  * no meter. Generated from that data: regenerate rather than hand-editing.
  */
-final class RngDropList {
+public final class RngDropList {
     /** {@code group} is the heading the category is listed under ("Slayer", "Catacombs", "Master Mode", "Other"). */
-    record Category(String group, String name, List<String> items) {}
+    public record Category(String group, String name, List<String> items) {}
 
     private RngDropList() {}
+
+    /**
+     * The categories that list an item, matched by its name without colours or case ("Necron's Handle" is in Floor 7
+     * and Master Mode Floor 7). For the item list's "Where to get it".
+     */
+    public static List<Category> containing(String itemName) {
+        if (itemName == null || itemName.isBlank()) return List.of();
+        String want = itemName.trim();
+        java.util.List<Category> out = new java.util.ArrayList<>();
+        for (Category c : ALL) {
+            for (String item : c.items()) {
+                if (item.equalsIgnoreCase(want)) {
+                    out.add(c);
+                    break;
+                }
+            }
+        }
+        return out;
+    }
 
     static final List<Category> ALL = List.of(
         new Category("Slayer", "Revenant Horror", List.of(
