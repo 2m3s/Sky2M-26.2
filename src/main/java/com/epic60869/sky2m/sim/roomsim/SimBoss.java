@@ -246,6 +246,10 @@ public final class SimBoss {
         BlockPos home = stage != Stage.IDLE ? homeBefore : null;
         stopNow(server);
         sendHome(server, home);
+        // The floor follows the boss, keeping the mode: /boss storm on an F1 map is F7 (M7 on M1). The sidebar,
+        // the boss's numbers and the party guests (SimParty's hello) all read it from here.
+        boolean master = floor != null && floor.toUpperCase(Locale.ROOT).startsWith("M");
+        SimState.setFloorLabel((master ? "M" : "F") + (kind.ordinal() + 1));
         arena = a;
         fight = kind.factory.apply(a);
         startPhase = phase;

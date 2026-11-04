@@ -105,6 +105,7 @@ All notable changes to Sky2M are listed here, newest first.
 ### Changed
 - /s2 catacalc opens a Catacombs Calculator screen (also Dungeons > Catacombs Calculator > Open): pick a floor, and your target level, XP per run (from your last run of it) and run time (from Run History) fill in for you to change. It shows your level, the XP and runs to the target and how long they take, and the runs to each level on the way. /s2 catacalc 50 m7 still answers in chat.
 - Chroma enchants now flow as one smooth, softer rainbow across the whole tooltip instead of a full rainbow squeezed into each enchant name.
+- /boss in the Dungeon Sim switches the floor to the boss's (keeping Master Mode), so /boss storm on an F1 map shows F7 on the scoreboard.
 - The Dungeon Sim's F7/M7 boss room is now Stradivarius Violin's M7 Practice Map (MIT License): it has the real west side of P3 section 3 (its terminals and the Arrow Align wall) instead of a rebuilt approximation.
 - Water and lava no longer flow in the Dungeon Sim, so breaking a block beside them does not pour them into the room.
 - Dungeon Sim class presets come with a stack of arrows.
