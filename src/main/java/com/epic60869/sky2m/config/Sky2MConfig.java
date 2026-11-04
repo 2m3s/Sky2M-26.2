@@ -815,6 +815,12 @@ public final class Sky2MConfig extends Config {
         @ConfigAccordionId(id = 502)
         public PbLeaderboardHud pbLeaderboardHud = new PbLeaderboardHud();
 
+        @Expose
+        @ConfigOption(name = "Slayer XP HUD", desc = "A HUD with this session's bosses per hour and Slayer XP per hour (breaks don't count), the XP to your next slayer level from Hypixel's own line, and about how many bosses and how long that is. Move it in /s2 gui.")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 502)
+        public boolean xpHud = true;
+
         @ConfigOption(name = "Loot & Profit", desc = "Boss profit, RNG meter value and kills since your last rare drop.")
         @ConfigEditorAccordion(id = 503)
         public boolean lootProfitGroup = false;
