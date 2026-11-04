@@ -18,7 +18,7 @@ import java.util.Locale;
 
 /**
  * /s2 hour: {@link DungeonProfitHour} on one screen, drawn like the /s2 settings ({@link Sky2MGuiStyle}). Pick a floor,
- * and the run time, time between runs and collection target fill in from your Run History and tab list (type over
+ * and the run time and collection target fill in from your Run History and tab list (type over
  * them to try other numbers); the profit per hour with and without the RNG meter and the time to the boss collection
  * target update as you type. The floor and the boxes are kept when the screen closes, also across restarts.
  */
@@ -29,9 +29,9 @@ public class DungeonProfitScreen extends Screen {
     private final Screen parent;
     private String floor;
     /** The boxes' text, kept while widgets are rebuilt and saved on close. */
-    private String runText = "", betweenText = "", targetText = "";
+    private String runText = "", targetText = "";
     private boolean fillDefaults;
-    private EditBox runBox, betweenBox, targetBox;
+    private EditBox runBox, targetBox;
     /** What the result boxes show, worked out when the floor or a box changes (it reads the history files). */
     private final List<String[]> profit = new ArrayList<>(), collection = new ArrayList<>();
     private String meterText = "";
@@ -47,7 +47,6 @@ public class DungeonProfitScreen extends Screen {
         if (saved != null && saved.hourFloor >= 0 && saved.hourFloor < FLOORS.length) {
             floor = FLOORS[(int) saved.hourFloor];
             runText = savedTime(saved.hourRun);
-            betweenText = savedTime(saved.hourBetween);
             targetText = saved.hourTarget < 0 ? "" : DungeonProfitHour.whole(saved.hourTarget);
         } else {
             floor = lastFloor();
@@ -100,7 +99,7 @@ public class DungeonProfitScreen extends Screen {
     }
 
     private int fieldW() {
-        return (panelW() - 16 - 2 * 10) / 3;
+        return (panelW() - 16 - 10) / 2;
     }
 
     private int fieldX(int i) {
@@ -114,19 +113,15 @@ public class DungeonProfitScreen extends Screen {
     @Override
     protected void init() {
         runBox = box(runText, 0);
-        betweenBox = box(betweenText, 1);
-        targetBox = box(targetText, 2);
+        targetBox = box(targetText, 1);
         if (fillDefaults) {
             fillDefaults = false;
             double avg = DungeonProfitHour.averageRunSeconds(floor, runs());
             runBox.setValue(avg > 0 ? DungeonProfitHour.time(avg) : "");
-            double gap = DungeonProfitHour.history(floor).gapSeconds();
-            betweenBox.setValue(gap >= 0 ? DungeonProfitHour.time(gap) : "0:00");
             double next = DungeonProfitHour.nextTierFromTab(TrackLines.tabLines(), boss());
             targetBox.setValue(next > 0 ? DungeonProfitHour.whole(next) : "");
         }
         runBox.setResponder(s -> refresh());
-        betweenBox.setResponder(s -> refresh());
         targetBox.setResponder(s -> refresh());
         refresh();
     }
@@ -148,7 +143,7 @@ public class DungeonProfitScreen extends Screen {
         if (f.equals(floor)) return;
         floor = f;
         fillDefaults = true;
-        runText = betweenText = targetText = "";
+        runText = targetText = "";
         rebuildWidgets();
     }
 
@@ -168,12 +163,10 @@ public class DungeonProfitScreen extends Screen {
 
     private void refresh() {
         runText = runBox.getValue();
-        betweenText = betweenBox.getValue();
         targetText = targetBox.getValue();
         profit.clear();
         collection.clear();
         double run = DungeonProfitHour.seconds(runText);
-        double between = betweenText.isBlank() ? 0 : DungeonProfitHour.seconds(betweenText);
         DungeonProfitHour.History history = DungeonProfitHour.history(floor);
 
         DungeonProfitHour.FloorMeter meter = DungeonProfitHour.meterFor(floor);
@@ -183,10 +176,10 @@ public class DungeonProfitScreen extends Screen {
         if (meter == null || meter.items.isEmpty()) meterText = "RNG Meter: none known yet (open the floor's RNG Meter menu)";
         else meterText = "RNG Meter: " + (item == null ? "none - click to pick" : item.name + " - click to change");
 
-        if (run <= 0 || between < 0) {
+        if (run <= 0) {
             profit.add(new String[]{"§cType a run time, like 1:20", ""});
         } else {
-            var e = DungeonProfitHour.estimate(run, between, history.chestPerRun(), price, item == null ? 0 : item.required, meter == null ? 0 : meter.progress, score);
+            var e = DungeonProfitHour.estimate(run, 0, history.chestPerRun(), price, item == null ? 0 : item.required, meter == null ? 0 : meter.progress, score);
             profit.add(new String[]{"Runs per hour", String.format(Locale.US, "§f%.1f", e.runsPerHour())});
             profit.add(new String[]{"Chest profit / run", history.runs() == 0 ? "§cno chests saved" : "§6" + DungeonProfitHour.coins(e.chestPerRun())});
             if (history.runs() > 0) profit.add(new String[]{"§8  from " + history.runs() + " runs", "§8" + DungeonProfitHour.coins(history.chestTotal())});
@@ -216,7 +209,7 @@ public class DungeonProfitScreen extends Screen {
                 collection.add(new String[]{"Target", "§f" + DungeonProfitHour.whole(target)});
                 collection.add(new String[]{"Runs needed", "§f" + DungeonProfitHour.whole(runsNeeded)});
                 collection.add(new String[]{"§8  " + perRun + " a run", ""});
-                if (run > 0 && between >= 0) collection.add(new String[]{"Time", "§a" + DungeonProfitHour.hours(runsNeeded * (run + between))});
+                if (run > 0) collection.add(new String[]{"Time", "§a" + DungeonProfitHour.hours(runsNeeded * run)});
             }
         }
     }
@@ -258,9 +251,9 @@ public class DungeonProfitScreen extends Screen {
         g.fill(x + 8, tabsY + 32, x + w - 8, tabsY + 33, Sky2MGuiStyle.LINE);
 
         // The boxes.
-        String[] labels = {"Run time", "Between runs", boss() + " target"};
-        EditBox[] boxes = {runBox, betweenBox, targetBox};
-        for (int i = 0; i < 3; i++) {
+        String[] labels = {"Run time", boss() + " target"};
+        EditBox[] boxes = {runBox, targetBox};
+        for (int i = 0; i < boxes.length; i++) {
             g.text(font, labels[i], fieldX(i), fieldY() - 11, Sky2MGuiStyle.TEXT, false);
             Sky2MGuiStyle.field(g, boxes[i]);
         }
@@ -309,7 +302,7 @@ public class DungeonProfitScreen extends Screen {
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (event.button() == InputConstants.MOUSE_BUTTON_LEFT) {
-            for (EditBox box : new EditBox[]{runBox, betweenBox, targetBox}) {
+            for (EditBox box : new EditBox[]{runBox, targetBox}) {
                 if (Sky2MGuiStyle.inField(box, event.x(), event.y())) {
                     setFocused(box);
                     return super.mouseClicked(event, doubleClick) || true;
@@ -337,9 +330,8 @@ public class DungeonProfitScreen extends Screen {
         var saved = TrackLines.config();
         if (saved == null) return;
         for (int i = 0; i < FLOORS.length; i++) if (FLOORS[i].equals(floor)) saved.hourFloor = i;
-        double run = DungeonProfitHour.seconds(runText), between = DungeonProfitHour.seconds(betweenText), target = number(targetText);
+        double run = DungeonProfitHour.seconds(runText), target = number(targetText);
         saved.hourRun = runText.isBlank() || run < 0 ? -1 : run;
-        saved.hourBetween = betweenText.isBlank() || between < 0 ? -1 : between;
         saved.hourTarget = targetText.isBlank() || target < 0 ? -1 : target;
         com.epic60869.sky2m.config.Sky2MConfig.saveCurrent(com.epic60869.sky2m.config.Sky2MConfig.current());
     }
@@ -357,9 +349,8 @@ public class DungeonProfitScreen extends Screen {
         return sb.toString();
     }
 
-    public void type(String run, String between, String target) {
+    public void type(String run, String target) {
         runBox.setValue(run);
-        betweenBox.setValue(between);
         targetBox.setValue(target);
         refresh();
     }

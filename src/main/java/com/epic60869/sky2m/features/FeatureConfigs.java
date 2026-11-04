@@ -4380,7 +4380,7 @@ public final class FeatureConfigs {
 
         /** /s2 hour's screen: the floor (index) and boxes when it closed, -1 = empty. Not shown in the settings. */
         @Expose
-        public double hourFloor = -1, hourRun = -1, hourBetween = -1, hourTarget = -1;
+        public double hourFloor = -1, hourRun = -1, hourTarget = -1;
     }
 
     /** Odin's and NoammAddons' secrets per teammate at the end of a run. */

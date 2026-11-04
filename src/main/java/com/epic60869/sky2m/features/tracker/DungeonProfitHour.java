@@ -40,11 +40,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * /s2 hour &lt;run time&gt; &lt;floor&gt; [time between runs]: dungeon profit per hour at that speed, with and without the RNG meter.
+ * /s2 hour &lt;run time&gt; &lt;floor&gt;: dungeon profit per hour at that speed, with and without the RNG meter. Only the run time
+ * counts: the time between runs (chests, requeue, loading) is left out.
  * <ul>
  * <li>Chest profit per run is your own: Sky2M's Chest History profit on that floor divided by your completed runs there
  *     (Run History), so it already includes the rare drops you got and what the chests cost.</li>
- * <li>The time between runs (chests, requeue, loading) is your typical gap between runs from Run History, unless given.</li>
  * <li>The RNG meter fills by your run score: its item is worth price x score / required score per run. Your average
  *     score on the floor comes from Run History (300 when there's none). Meter items and their required score are read
  *     from the dungeon RNG Meter menu whenever it's open, or set with /s2 hour meter &lt;floor&gt; set &lt;score&gt; &lt;item&gt;.</li>
@@ -148,9 +148,7 @@ public final class DungeonProfitHour {
                                     .executes(ctx -> collection(ctx, StringArgumentType.getString(ctx, "runtime"), StringArgumentType.getString(ctx, "current"))))))))
                 .then(ClientCommands.argument("time", StringArgumentType.word())
                     .then(ClientCommands.argument("floor", StringArgumentType.word())
-                        .executes(ctx -> estimate(ctx, null))
-                        .then(ClientCommands.argument("between", StringArgumentType.word())
-                            .executes(ctx -> estimate(ctx, StringArgumentType.getString(ctx, "between"))))));
+                        .executes(ctx -> estimate(ctx))));
     }
 
     /** The tab list's lines in Hypixel's order (its 80 slots), without colour codes. */
@@ -212,7 +210,7 @@ public final class DungeonProfitHour {
         return new Estimate(runsPerHour, chestPerRun, meterPerRun, scorePerRun, runsToFill);
     }
 
-    private static int estimate(CommandContext<FabricClientCommandSource> ctx, @Nullable String betweenText) {
+    private static int estimate(CommandContext<FabricClientCommandSource> ctx) {
         FabricClientCommandSource source = ctx.getSource();
         if (!on()) {
             source.sendFeedback(Component.literal("§cTurn on Dungeon Profit per Hour" + TURN_ON));
@@ -222,29 +220,16 @@ public final class DungeonProfitHour {
         String floor = floor(StringArgumentType.getString(ctx, "floor"));
         if (run <= 0 || floor == null) return help(source);
         History history = history(floor);
-        double between;
-        String betweenNote;
-        if (betweenText != null) {
-            between = seconds(betweenText);
-            if (between < 0) return help(source);
-            betweenNote = "you gave";
-        } else if (history.gapSeconds >= 0) {
-            between = history.gapSeconds;
-            betweenNote = "your usual gap between runs";
-        } else {
-            between = 0;
-            betweenNote = "no Run History, add it after the floor: /s2 hour 1:20 m1 0:30";
-        }
 
         FloorMeter meter = meterFor(floor);
         MeterItem item = meter == null || meter.selected == null ? null : meter.items.get(meter.selected);
         double price = item == null || item.id == null ? 0 : Sky2MPriceTooltip.unitPrice(item.id);
         double score = history.score > 0 ? history.score : 300;
-        Estimate e = estimate(run, between, history.chestPerRun, price, item == null ? 0 : item.required, meter == null ? 0 : meter.progress, score);
+        Estimate e = estimate(run, 0, history.chestPerRun, price, item == null ? 0 : item.required, meter == null ? 0 : meter.progress, score);
 
         source.sendFeedback(Component.literal("§6§lDungeon Profit §7- §e" + floor + " §7at §f" + time(run)));
         source.sendFeedback(line("Runs per hour: ", String.format(Locale.US, "%.1f", e.runsPerHour()),
-            time(run) + " a run + " + time(between) + " between runs (" + betweenNote + ")"));
+            time(run) + " a run"));
         if (history.runs == 0) {
             source.sendFeedback(Component.literal("§7Chests: §cno chests saved for " + floor + " yet. §7Open some with Sky2M's Chest History on."));
         } else {
@@ -370,10 +355,6 @@ public final class DungeonProfitHour {
                 + floor.toLowerCase(Locale.ROOT) + " " + whole(target) + " 1:20"));
             return 0;
         }
-        List<JsonObject> all = new ArrayList<>();
-        for (JsonElement e : runs) all.add(e.getAsJsonObject());
-        double between = gapSeconds(all, floor);
-        if (between < 0) between = 0;
 
         source.sendFeedback(Component.literal("§6§l" + boss + " Collection §7- §e" + floor));
         if (current >= target) {
@@ -382,11 +363,11 @@ public final class DungeonProfitHour {
         }
         int perRun = collectionPerRun(floor);
         int runsNeeded = (int) Math.ceil((target - current) / perRun);
-        double cycle = run + between;
+        double cycle = run;
         source.sendFeedback(line("Now: ", whole(current) + " §7/ §6" + whole(target), "From the " + from + ". " + whole(target - current) + " to go."));
         source.sendFeedback(line("Runs needed: ", whole(runsNeeded), floor + " gives " + perRun + " collection a run"
             + (perRun == 2 ? " (Master Mode counts double)." : ".")));
-        source.sendFeedback(line("Per run: ", time(cycle), time(run) + " a run (" + runNote + ") + " + time(between) + " between runs (your usual gap)"));
+        source.sendFeedback(line("Run time: ", time(cycle), "From " + runNote + "."));
         source.sendFeedback(line("Time to reach it: ", hours(runsNeeded * cycle), String.format(Locale.US, "%.1f runs an hour", 3600 / cycle)));
         return 1;
     }
@@ -410,7 +391,7 @@ public final class DungeonProfitHour {
 
     private static int help(FabricClientCommandSource source) {
         source.sendFeedback(Component.literal("§6/s2 hour §7- the Dungeon Profit screen"));
-        source.sendFeedback(Component.literal("§6/s2 hour <run time> <floor> [time between runs] §7- e.g. §f/s2 hour 1:20 m1"));
+        source.sendFeedback(Component.literal("§6/s2 hour <run time> <floor> §7- e.g. §f/s2 hour 1:20 m1"));
         source.sendFeedback(Component.literal("§6/s2 hour collec <floor> <target> [run time] [current] §7- how long to reach a boss collection, e.g. §f/s2 hour collec m1 1k"));
         source.sendFeedback(Component.literal("§6/s2 hour meter <floor> §7- pick the RNG meter item; open the floor's RNG Meter menu once so it's listed"));
         source.sendFeedback(Component.literal("§6/s2 hour meter <floor> set <score> <item> §7- set a meter item and its required score yourself"));
