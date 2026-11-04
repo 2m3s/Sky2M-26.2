@@ -177,6 +177,7 @@ All notable changes to Sky2M are listed here, newest first.
 - Remove the Big Drop Animation (the rainbow item name for drops worth over 5M) and its "is worth X coins!" chat line.
 
 ### Fixed
+- Fix Profile Icons In Chat never showing: an ironman (♲), Bingo or Stranded player's icon from the tab list wasn't added to their chat messages, because SkyBlock's tab rows were read by their placeholder names instead of the player's. Chat lines with emblems and extra tags before the name ("[318] ✭ [✌] [MVP++] Name") now get the icon too.
 - Fix /boss softlocking on Floors 1-5 in the Dungeon Sim: you started behind the closed boss door; you now start just past it.
 - Fix Dungeon Sim ghosts damaging bosses and mobs with arrows and abilities.
 - Fix /boss into another boss room leaving you in ghost blocks or the old room's walls: the current boss room is left first, and the new one is cleared and resent.
