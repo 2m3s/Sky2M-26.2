@@ -5,6 +5,7 @@ All notable changes to Sky2M are listed here, newest first.
 ## 1.0.4
 
 ### Added
+- Bonzo Tick Timer (Dungeons > Floors 1-6, renamed from Floors 4-6; F1/M1, on by default): a HUD, like the Livid one, with the server ticks until Bonzo can be damaged, from his opening line to his first phase (276 ticks) and from "Oh I'm dead!" to his second life (104 ticks). Move it in /s2 gui. The tick counts were measured from an M1 run.
 - Leave Class In Chat (Dungeons > Auto Requeue, on by default): in a dungeon, Hypixel's party leave, kick and disconnect lines get the class that player was playing, in the class colour, like "[VIP+] Name has left the party. (Tank)". Works with Auto Requeue off.
 - Dungeon Sim Redstone Warriors: the Redstone Warrior room has two from Floor II, with a flame burst around them and golden apples to heal when low.
 - Dungeon Sim Sadan's Sleeping Golems: they stand in his hall, wake when hit and chase you, with Sadan's lines for each one waking.
