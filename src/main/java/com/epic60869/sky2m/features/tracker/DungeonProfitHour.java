@@ -422,10 +422,13 @@ public final class DungeonProfitHour {
     /** Chest profit per run, your average score and your usual gap between runs, on one floor. */
     public record History(int runs, double chestTotal, double chestPerRun, double score, double gapSeconds) {}
 
-    static History history(String floor) {
-        JsonArray chests = read(chestFile());
-        JsonArray runs = read(DIR.resolve("sky2m").resolve("run-history.json"));
-        return history(floor, chests, runs);
+    public static History history(String floor) {
+        return history(floor, read(chestFile()), runHistory());
+    }
+
+    /** Sky2M's Run History (config/sky2m/run-history.json), oldest first. */
+    public static JsonArray runHistory() {
+        return read(DIR.resolve("sky2m").resolve("run-history.json"));
     }
 
     /** From Sky2M's chest-history and run-history JSON. Runs before your first chest on the floor don't count. */
@@ -711,7 +714,7 @@ public final class DungeonProfitHour {
         return -1;
     }
 
-    static String time(double seconds) {
+    public static String time(double seconds) {
         int s = (int) Math.round(seconds);
         return s / 60 + ":" + String.format(Locale.ROOT, "%02d", s % 60);
     }
@@ -758,7 +761,7 @@ public final class DungeonProfitHour {
         return (value < 0 ? "-" : "") + CombatFeatures.formatCoins(Math.abs(value));
     }
 
-    static String whole(double value) {
+    public static String whole(double value) {
         return String.format(Locale.US, "%,d", Math.round(value));
     }
 
