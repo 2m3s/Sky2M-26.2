@@ -21,7 +21,8 @@ import java.util.Locale;
  * target level (50), XP per run (your last run of the floor, else its base S+ XP with the XP Bonus setting) and run time
  * (your Run History average plus your usual gap between runs) fill in, and you can type over them. Your Catacombs XP is
  * loaded from your profile when the screen opens. One panel has the runs and time to the target, the other the runs to
- * each level on the way.
+ * each level on the way. Below them, After runs: type how many runs of the floor and it says the Catacombs level you'll
+ * be, the XP they give and how long they take.
  */
 public class CataCalcScreen extends Screen {
     private static final String[] FLOORS = {"E", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "M1", "M2", "M3", "M4", "M5", "M6", "M7"};
@@ -31,11 +32,15 @@ public class CataCalcScreen extends Screen {
     /** Kept while the game runs. */
     private static String floor;
     private static String targetText = "50";
+    private static String runsText = "100";
+    /** The After runs section's rows: label, value. */
+    private static final int AFTER_ROWS = 3;
 
     private final Screen parent;
     private String xpText = "", timeText = "";
     private boolean fillDefaults = true;
-    private EditBox targetBox, xpBox, timeBox;
+    private EditBox targetBox, xpBox, timeBox, runsBox;
+    private final List<String[]> after = new ArrayList<>();
     /** Your Catacombs XP once loaded, -1 while loading, -2 if it couldn't be. */
     private double xp = -1;
     private String xpError = "";
@@ -71,7 +76,21 @@ public class CataCalcScreen extends Screen {
     }
 
     private int panelH() {
-        return 128 + RESULT_ROWS * ROW + 22 + 34;
+        return 128 + RESULT_ROWS * ROW + 22 + 34 + afterH() + 8;
+    }
+
+    /** Where the two result panels start. */
+    private int resultsTop() {
+        return fieldY() + Sky2MGuiStyle.SEARCH_HEIGHT + 6 + 16;
+    }
+
+    /** The After runs section, under the result panels. */
+    private int afterY() {
+        return resultsTop() + 22 + RESULT_ROWS * ROW + 8;
+    }
+
+    private int afterH() {
+        return 22 + AFTER_ROWS * ROW;
     }
 
     private int panelY() {
@@ -103,9 +122,15 @@ public class CataCalcScreen extends Screen {
             double gap = DungeonProfitHour.history(floor).gapSeconds();
             timeBox.setValue(run > 0 ? DungeonProfitHour.time(run + Math.max(0, gap)) : "");
         }
+        runsBox = new EditBox(font, 0, 0, 10, 10, Component.empty());
+        runsBox.setMaxLength(8);
+        Sky2MGuiStyle.placeSearch(runsBox, panelX() + 16, afterY() + 32, 80);
+        runsBox.setValue(runsText);
+        addRenderableWidget(runsBox);
         targetBox.setResponder(s -> refresh());
         xpBox.setResponder(s -> refresh());
         timeBox.setResponder(s -> refresh());
+        runsBox.setResponder(s -> refresh());
         refresh();
     }
 
@@ -133,8 +158,10 @@ public class CataCalcScreen extends Screen {
         targetText = targetBox.getValue();
         xpText = xpBox.getValue();
         timeText = timeBox.getValue();
+        if (runsBox != null) runsText = runsBox.getValue();
         totals.clear();
         levels.clear();
+        after.clear();
         CataCalculator.PerRun per = CataCalculator.perRun(floor);
         double perRun = number(xpText);
         double auto = per.xp();
@@ -144,13 +171,16 @@ public class CataCalcScreen extends Screen {
 
         if (xp == -1) {
             totals.add(new String[]{"§7Loading your Catacombs XP...", ""});
+            after.add(new String[]{"§7Loading your Catacombs XP...", ""});
             return;
         }
         if (xp == -2) {
             totals.add(new String[]{"§cCouldn't load your profile", ""});
             totals.add(new String[]{"§8" + xpError, ""});
+            after.add(new String[]{"§cCouldn't load your profile", ""});
             return;
         }
+        afterRuns(perRun, runSeconds);
         totals.add(new String[]{"Now", String.format(Locale.US, "§fCatacombs %.2f", CataCalculator.level(xp))});
         totals.add(new String[]{"§8  XP", "§8" + DungeonProfitHour.whole(xp)});
         if (target < 1 || target > 100) {
@@ -183,6 +213,24 @@ public class CataCalcScreen extends Screen {
             String time = runSeconds > 0 ? "  §8" + DungeonProfitHour.hours(r * runSeconds) : "";
             levels.add(new String[]{"Catacombs " + lv, "§f" + DungeonProfitHour.whole(r) + " runs" + time});
         }
+    }
+
+    /** After runs: the level you'll be after that many runs of the floor, the XP they give and the time they take. */
+    private void afterRuns(double perRun, double runSeconds) {
+        double runs = Math.floor(number(runsText));
+        if (runs <= 0) {
+            after.add(new String[]{"§7Type how many runs", ""});
+            return;
+        }
+        if (perRun <= 0) {
+            after.add(new String[]{"§cType the XP per run", ""});
+            return;
+        }
+        double gained = runs * perRun;
+        double now = CataCalculator.level(xp), then = CataCalculator.level(xp + gained);
+        after.add(new String[]{"Catacombs", String.format(Locale.US, "§f%.2f §7→ §a%.2f §8(+%.2f)", now, then, then - now)});
+        after.add(new String[]{"XP gained", "§6" + CombatFeatures.formatCoins(gained) + " §8(" + DungeonProfitHour.whole(runs) + " " + floor + " runs)"});
+        after.add(new String[]{"Time", runSeconds > 0 ? "§a" + DungeonProfitHour.hours(runs * runSeconds) : "§8Type a run time"});
     }
 
     private static double number(String text) {
@@ -241,6 +289,22 @@ public class CataCalcScreen extends Screen {
         results(g, x + 8, top, half, boxH, "To the target", totals);
         results(g, x + 8 + half + 8, top, half, boxH, "Levels on the way", levels);
 
+        // After runs: the Runs box on the left, what they get you on the right.
+        int ay = afterY();
+        Sky2MGuiStyle.inset(g, x + 8, ay, x + w - 8, ay + afterH());
+        Sky2MGuiStyle.heading(g, font, "After runs of " + floor, x + 8, ay + 6, w - 16);
+        g.text(font, "Runs", runsBox.getX(), ay + 21, Sky2MGuiStyle.TEXT, false);
+        Sky2MGuiStyle.field(g, runsBox);
+        int rx0 = runsBox.getX() + 80 + 18, rx1 = x + w - 15, ry = ay + 20;
+        for (String[] row : after) {
+            g.text(font, Component.literal(row[0]), rx0, ry, Sky2MGuiStyle.TEXT_DIM, false);
+            if (!row[1].isEmpty()) {
+                Component value = Component.literal(row[1]);
+                g.text(font, value, rx1 - font.width(value), ry, Sky2MGuiStyle.TEXT, false);
+            }
+            ry += ROW;
+        }
+
         // Done.
         int doneW = 80, doneX = x + (w - doneW) / 2, doneY = y + h - 26;
         boolean doneHover = mouseX >= doneX && mouseX < doneX + doneW && mouseY >= doneY && mouseY < doneY + 18;
@@ -269,7 +333,7 @@ public class CataCalcScreen extends Screen {
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (event.button() == InputConstants.MOUSE_BUTTON_LEFT) {
-            for (EditBox box : new EditBox[]{targetBox, xpBox, timeBox}) {
+            for (EditBox box : new EditBox[]{targetBox, xpBox, timeBox, runsBox}) {
                 if (Sky2MGuiStyle.inField(box, event.x(), event.y())) {
                     setFocused(box);
                     return super.mouseClicked(event, doubleClick) || true;
@@ -306,6 +370,18 @@ public class CataCalcScreen extends Screen {
         StringBuilder sb = new StringBuilder();
         for (String[] r : totals) sb.append(r[0]).append('=').append(r[1]).append('\n');
         for (String[] r : levels) sb.append(r[0]).append('=').append(r[1]).append('\n');
+        return sb.toString();
+    }
+
+    /** For the game test: the After runs section for that many runs. */
+    public String afterText(double yourXp, String perRun, String runTime, String runs) {
+        xp = yourXp;
+        xpBox.setValue(perRun);
+        timeBox.setValue(runTime);
+        runsBox.setValue(runs);
+        refresh();
+        StringBuilder sb = new StringBuilder();
+        for (String[] r : after) sb.append(r[0]).append('=').append(r[1]).append('\n');
         return sb.toString();
     }
 }

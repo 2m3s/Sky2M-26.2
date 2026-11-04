@@ -103,7 +103,7 @@ All notable changes to Sky2M are listed here, newest first.
 - "Sky Mall & Lottery: Everywhere" (Chat > Spam Filters): hide or move the Sky Mall and Lottery buff messages on the mining and foraging islands too.
 
 ### Changed
-- /s2 catacalc opens a Catacombs Calculator screen (also Dungeons > Catacombs Calculator > Open): pick a floor, and your target level, XP per run (from your last run of it) and run time (from Run History) fill in for you to change. It shows your level, the XP and runs to the target and how long they take, and the runs to each level on the way. /s2 catacalc 50 m7 still answers in chat.
+- /s2 catacalc opens a Catacombs Calculator screen (also Dungeons > Catacombs Calculator > Open): pick a floor, and your target level, XP per run (from your last run of it) and run time (from Run History) fill in for you to change. It shows your level, the XP and runs to the target and how long they take, and the runs to each level on the way. After Runs: type how many runs of the floor and it says the Catacombs level you'll be, the XP they give and how long they take. /s2 catacalc 50 m7 still answers in chat.
 - Chroma enchants now flow as one smooth, softer rainbow across the whole tooltip instead of a full rainbow squeezed into each enchant name.
 - /boss in the Dungeon Sim switches the floor to the boss's (keeping Master Mode), so /boss storm on an F1 map shows F7 on the scoreboard.
 - Dungeon Sim items no longer lose durability (fishing rods, weapons and armour).
