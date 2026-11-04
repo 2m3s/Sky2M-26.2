@@ -268,6 +268,12 @@ public final class SimMort {
             return false;
         }
 
+        // Nothing moves him: a fishing rod's pull, knockback and pushes all end up here.
+        @Override
+        public void setDeltaMovement(net.minecraft.world.phys.Vec3 motion) {
+            super.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+        }
+
         @Override
         public boolean shouldBeSaved() {
             return false;
