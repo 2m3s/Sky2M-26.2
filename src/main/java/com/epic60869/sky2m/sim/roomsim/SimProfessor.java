@@ -133,19 +133,21 @@ final class SimProfessor extends SimBoss.Fight {
     private static final double TNT_RADIUS = 3.5;
 
     /**
-     * Rogue Guardians: 100,000 / 50,000,000 health and 2,376 / 55,800 damage, F3 / M3 (wiki's range, read as F3-M3);
-     * on M3 they come as Elder Rogue Guardians straight away. The F3 Elder's "higher stats" have no number on the
-     * wiki: {@link #ELDER_BOOST} is APPROXIMATE, as are the spawn rate, cap, laser rate and when they turn Elder.
+     * Rogue Guardians, from the Rogue Guardian page's two F3 and two M3 entries
+     * (https://hypixelskyblock.minecraft.wiki/w/Rogue_Guardian): F3's Rogue 100,000 health / 2,376 damage and its
+     * Elder 200,000 / 4,320; M3's are Elders from the start (The Professor's page), 50,000,000 / 55,800 (M3's
+     * weaker entry, 20,000,000 / 45,000, would be a plain M3 Rogue, which never spawns). The page does not label
+     * which entry is the Elder: the stronger one is taken to be. The spawn rate, cap, laser rate and when they turn
+     * Elder are APPROXIMATE.
      */
-    private static double rogueHealth() {
-        return SimHealth.byMode(100_000, 50_000_000);
+    private static double rogueHealth(boolean elder) {
+        return elder ? SimHealth.byMode(200_000, 50_000_000) : SimHealth.byMode(100_000, 20_000_000);
     }
 
-    private static double rogueDamage() {
-        return SimHealth.byMode(2_376, 55_800);
+    private static double rogueDamage(boolean elder) {
+        return elder ? SimHealth.byMode(4_320, 55_800) : SimHealth.byMode(2_376, 45_000);
     }
 
-    private static final double ELDER_BOOST = 1.5;
     private static final int ROGUE_EVERY = 300;
     private static final int ROGUE_MAX = 4;
     private static final int ROGUE_BEAM_EVERY = 60;
@@ -915,8 +917,11 @@ final class SimProfessor extends SimBoss.Fight {
             putBody(level, p);
             level.playSound(null, p.at.x, p.at.y, p.at.z, SoundEvents.ELDER_GUARDIAN_AMBIENT, SoundSource.HOSTILE,
                     1f, 1.2f);
-            SimBoss.say(level.getServer(), "The Professor",
-                    REVIVE_LINES[ThreadLocalRandom.current().nextInt(REVIVE_LINES.length)]);
+            // The wiki's revive lines: "Revive, (name)!" or one of the others. Which name Hypixel puts in (the
+            // Guardian's full name is assumed) and how often each is said are not on the wiki.
+            ThreadLocalRandom rnd = ThreadLocalRandom.current();
+            SimBoss.say(level.getServer(), "The Professor", rnd.nextBoolean() ? "Revive, " + p.kind.display + "!"
+                    : REVIVE_LINES[rnd.nextInt(REVIVE_LINES.length)]);
         }
     }
 
@@ -977,11 +982,11 @@ final class SimProfessor extends SimBoss.Fight {
         ThreadLocalRandom rnd = ThreadLocalRandom.current();
         Vec3 home = near.add(rnd.nextDouble() * 4 - 2, rnd.nextDouble(), rnd.nextDouble() * 4 - 2);
         Rogue r = new Rogue(home, clock);
-        r.health = new SimBoss.Health(rogueHealth());
-        r.damage = rogueDamage();
-        r.nextBeam = clock + ROGUE_BEAM_EVERY;
         // Master Mode's Rogues are Elder Rogue Guardians from the start (wiki), with the wiki's M3 numbers.
         r.elder = master;
+        r.health = new SimBoss.Health(rogueHealth(r.elder));
+        r.damage = rogueDamage(r.elder);
+        r.nextBeam = clock + ROGUE_BEAM_EVERY;
         putRogueBody(level, r);
         rogues.add(r);
     }
@@ -1004,11 +1009,13 @@ final class SimProfessor extends SimBoss.Fight {
         List<ServerPlayer> players = SimBoss.playersInRing(level);
         for (Rogue r : rogues) {
             if (!r.elder && clock >= r.bornAt + ROGUE_ELDER_AFTER) {
-                // A Rogue that lives long enough becomes an Elder Rogue Guardian (wiki); the boost is APPROXIMATE.
+                // A Rogue that lives long enough becomes an Elder Rogue Guardian (wiki), with the Elder's numbers
+                // and its health topped up by what it gained (when is APPROXIMATE).
                 r.elder = true;
-                r.health.max *= ELDER_BOOST;
-                r.health.hp *= ELDER_BOOST;
-                r.damage *= ELDER_BOOST;
+                double gained = rogueHealth(true) - r.health.max;
+                r.health.max = rogueHealth(true);
+                r.health.hp = Math.min(r.health.max, r.health.hp + Math.max(0, gained));
+                r.damage = rogueDamage(true);
                 if (r.body != null) {
                     r.body.discard();
                 }

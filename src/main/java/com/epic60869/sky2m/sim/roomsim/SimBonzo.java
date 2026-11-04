@@ -128,12 +128,23 @@ final class SimBonzo extends SimBoss.Fight {
         final boolean balloon;
         /** Pull per tick for a lobbed Master Mode balloon; 0 flies straight. */
         final double gravity;
+        /**
+         * The players one Balloon Barrage wave has already hit, shared by every balloon of the wave; null for a
+         * single shot. Close to Bonzo the wave's balloons overlap, and the sim's hits have no invulnerability window,
+         * so without this one wave landed several times over on whoever stood next to him.
+         */
+        final java.util.Set<UUID> volley;
 
         Shot(Vec3 pos, Vec3 vel, boolean balloon, double gravity) {
+            this(pos, vel, balloon, gravity, null);
+        }
+
+        Shot(Vec3 pos, Vec3 vel, boolean balloon, double gravity, java.util.Set<UUID> volley) {
             this.pos = pos;
             this.vel = vel;
             this.balloon = balloon;
             this.gravity = gravity;
+            this.volley = volley;
         }
     }
 
@@ -489,11 +500,12 @@ final class SimBonzo extends SimBoss.Fight {
         if (t >= 0 && t % BARRAGE_WAVE_GAP == 0 && t / BARRAGE_WAVE_GAP < BARRAGE_WAVES) {
             int wave = t / BARRAGE_WAVE_GAP;
             Vec3 from = body.position().add(0, 1.6, 0);
+            java.util.Set<UUID> hitThisWave = new java.util.HashSet<>();
             for (int i = 0; i < BARRAGE_BALLOONS; i++) {
                 double a = barrageSpin + Math.PI * 2 * (i + (wave % 2) * 0.5) / BARRAGE_BALLOONS;
                 double up = i % 3 == 0 ? 0.12 : -0.02;
                 Vec3 dir = new Vec3(Math.cos(a), up, Math.sin(a)).normalize();
-                shots.add(new Shot(from, dir.scale(0.55), true, 0));
+                shots.add(new Shot(from, dir.scale(0.55), true, 0, hitThisWave));
             }
             body.swing(InteractionHand.MAIN_HAND);
             level.playSound(null, from.x, from.y, from.z, SoundEvents.FIREWORK_ROCKET_LAUNCH, SoundSource.HOSTILE,
@@ -527,7 +539,10 @@ final class SimBonzo extends SimBoss.Fight {
                 }
                 for (ServerPlayer p : players) {
                     if (p.position().add(0, 1.0, 0).distanceToSqr(s.pos) <= SHOT_HIT_RADIUS * SHOT_HIT_RADIUS) {
-                        hurtPlayer(level, p, skullDamage(), s.vel.x, s.vel.z, 0.5, 0.3);
+                        // One hit per player per barrage wave (the balloon still pops on him).
+                        if (s.volley == null || s.volley.add(p.getUUID())) {
+                            hurtPlayer(level, p, skullDamage(), s.vel.x, s.vel.z, 0.5, 0.3);
+                        }
                         pop(level, s);
                         gone = true;
                         break;

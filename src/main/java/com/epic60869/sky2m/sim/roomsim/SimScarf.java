@@ -234,13 +234,24 @@ final class SimScarf extends SimBoss.Fight {
         final double damage;
         final double blast;
         final boolean arrow;
+        /**
+         * The players one volley (a Skull Barrage fan, an Arrow Barrage) has already hit, shared by its shots; null
+         * for a single shot. The fan's skulls and blasts overlap near the target, and the sim's hits have no
+         * invulnerability window, so without this one fan landed three or four times on the same player.
+         */
+        final Set<UUID> volley;
 
         Shot(Vec3 pos, Vec3 vel, double damage, double blast, boolean arrow) {
+            this(pos, vel, damage, blast, arrow, null);
+        }
+
+        Shot(Vec3 pos, Vec3 vel, double damage, double blast, boolean arrow, Set<UUID> volley) {
             this.pos = pos;
             this.vel = vel;
             this.damage = damage;
             this.blast = blast;
             this.arrow = arrow;
+            this.volley = volley;
         }
     }
 
@@ -562,10 +573,11 @@ final class SimScarf extends SimBoss.Fight {
                 if (dir.lengthSqr() > 0.01) {
                     dir = dir.normalize();
                     int n = master ? 9 : 7;
+                    Set<UUID> fan = new HashSet<>();
                     for (int i = 0; i < n; i++) {
                         double spread = Math.toRadians(-55 + 110.0 * i / (n - 1));
                         Vec3 d = rotate(dir, spread);
-                        shots.add(new Shot(from, d.scale(0.8), scarfSkull(), 2.5, false));
+                        shots.add(new Shot(from, d.scale(0.8), scarfSkull(), 2.5, false, fan));
                     }
                     body.swing(InteractionHand.MAIN_HAND);
                     level.playSound(null, from.x, from.y, from.z, SoundEvents.WITHER_SHOOT, SoundSource.HOSTILE,
@@ -1017,10 +1029,11 @@ final class SimScarf extends SimBoss.Fight {
         Vec3 from = mob.position().add(0, 1.5, 0);
         double off = ThreadLocalRandom.current().nextDouble() * Math.PI * 2;
         int n = 24;
+        Set<UUID> volley = new HashSet<>();
         for (int i = 0; i < n; i++) {
             double a = off + Math.PI * 2 * i / n;
             Vec3 dir = new Vec3(Math.cos(a), 0.04, Math.sin(a)).normalize();
-            shots.add(new Shot(from, dir.scale(1.1), damage, 0, true));
+            shots.add(new Shot(from, dir.scale(1.1), damage, 0, true, volley));
         }
         mob.swing(InteractionHand.MAIN_HAND);
         level.playSound(null, from.x, from.y, from.z, SoundEvents.ARROW_SHOOT, SoundSource.HOSTILE, 1.2f, 0.8f);
@@ -1180,7 +1193,7 @@ final class SimScarf extends SimBoss.Fight {
                 BlockPos bp = BlockPos.containing(s.pos);
                 if (!level.getBlockState(bp).getCollisionShape(level, bp).isEmpty()) {
                     if (s.blast > 0) {
-                        explode(level, s.pos, s.blast, s.damage);
+                        explode(level, s.pos, s.blast, s.damage, s.volley);
                     } else {
                         level.sendParticles(ParticleTypes.SMOKE, s.pos.x, s.pos.y, s.pos.z, 4, 0.1, 0.1, 0.1, 0.02);
                     }
@@ -1190,8 +1203,8 @@ final class SimScarf extends SimBoss.Fight {
                 for (ServerPlayer p : players) {
                     if (p.position().add(0, 1.0, 0).distanceToSqr(s.pos) <= SHOT_HIT_RADIUS * SHOT_HIT_RADIUS) {
                         if (s.blast > 0) {
-                            explode(level, s.pos, s.blast, s.damage);
-                        } else {
+                            explode(level, s.pos, s.blast, s.damage, s.volley);
+                        } else if (s.volley == null || s.volley.add(p.getUUID())) {
                             hurtPlayer(level, p, s.damage, s.vel.x, s.vel.z, 0.4, 0.2);
                         }
                         gone = true;
@@ -1214,12 +1227,13 @@ final class SimScarf extends SimBoss.Fight {
         shots.removeAll(done);
     }
 
-    private static void explode(ServerLevel level, Vec3 at, double radius, double damage) {
+    /** A skull's blast: hurts everyone in {@code radius}, once per player per {@code volley} (null: no limit). */
+    private static void explode(ServerLevel level, Vec3 at, double radius, double damage, Set<UUID> volley) {
         level.sendParticles(ParticleTypes.EXPLOSION, at.x, at.y, at.z, 2, radius / 3, 0.3, radius / 3, 0);
         level.playSound(null, at.x, at.y, at.z, SoundEvents.GENERIC_EXPLODE, SoundSource.HOSTILE, 0.8f, 1.2f);
         for (ServerPlayer p : SimBoss.playersInRing(level)) {
             Vec3 d = p.position().add(0, 1.0, 0).subtract(at);
-            if (d.lengthSqr() <= radius * radius) {
+            if (d.lengthSqr() <= radius * radius && (volley == null || volley.add(p.getUUID()))) {
                 hurtPlayer(level, p, damage, d.x, d.z, 0.8, 0.5);
             }
         }
