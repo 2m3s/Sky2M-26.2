@@ -84,7 +84,40 @@ public final class SimVitals {
         long absorptionUntil;
         /** No damage at all until this tick - a death save's short immunity. */
         long immuneUntil;
+        /**
+         * The last hits that landed, by {@link #hitKey}: {@code {server tick, Hypixel damage before Defense}}. The
+         * sim's stand-in for vanilla's hurt immunity, see {@link #throughHitWindow}.
+         */
+        final Map<String, double[]> lastHits = new java.util.HashMap<>();
     }
+
+    /**
+     * Vanilla's hurt immunity, for ordinary hits: a mob's swing, arrow or potion within this many ticks of the last
+     * one THAT mob landed counts only for what it adds on top (vanilla's own rule: a bigger hit inside the window
+     * takes the difference, a smaller one nothing). Ten ticks, vanilla's half second.
+     *
+     * <p>{@link #onPlayerDamage} refuses every vanilla hit so the pool can take it instead, and a refused hit never
+     * starts vanilla's {@code invulnerableTime} - so nothing limited how often a hit could land. Per attacker, not
+     * per player as vanilla has it: on Hypixel a room of mobs each lands its own hit, and one shared window would
+     * have made five zombies hit like one.
+     */
+    static final int HIT_WINDOW_TICKS = 10;
+
+    /**
+     * The same window for the exact-number attacks ({@link #dealHypixel}): the same attack (same source, damage type
+     * and number) landing on the same player again within this many ticks is dropped. Shorter than
+     * {@link #HIT_WINDOW_TICKS} on purpose: the bosses' own ticking attacks already pace themselves (Scarf's Soul
+     * Sand and Sadan's L.A.S.R. every 10 ticks, the Professor's lasers every 15, Necron's skulls every 8), and what is
+     * caught here is the overlap - two balloons, three skulls or a blast and its echo landing in the same instant,
+     * which all hit in full before. APPROXIMATE: Hypixel's own rule for its ability damage is not documented.
+     */
+    static final int EXACT_HIT_WINDOW_TICKS = 5;
+
+    /**
+     * The most an unknown hit (no pool, no exact number) is worth, in regular-mob hits of the floor
+     * ({@link #MOB_HIT}). APPROXIMATE: a cap, not a Hypixel number - see {@link #hypixelDamage}.
+     */
+    static final double MAX_SCALED_MOB_HITS = 3;
 
     private static final Map<UUID, Vitals> VITALS = new ConcurrentHashMap<>();
     private static long serverTicks;
@@ -112,6 +145,9 @@ public final class SimVitals {
     static Vitals of(ServerPlayer sp) {
         Vitals v = VITALS.computeIfAbsent(sp.getUUID(), id -> new Vitals());
         if (v.health < 0) {
+            // A new session (or a new player in it) starts in his wardrobe's armour, not in empty armour slots; the
+            // pools below are sized with it on (SimGear.dressIfBare).
+            SimGear.dressIfBare(sp);
             update(sp, v);
             v.health = v.maxHealth;
             v.mana = v.maxMana;
@@ -200,11 +236,50 @@ public final class SimVitals {
      * (after EASY's {@code min(d, d / 2 + 1)}, which vanilla applies before the damage event fires), times
      * {@link #MOB_HIT}. So a starred mob's harder swing, a skeleton's arrow and a miniboss's ice spray all keep
      * the size they have relative to a zombie's swing.
+     *
+     * <p>Only for a hit with neither a pool's number nor an exact one. Capped at {@link #MAX_SCALED_MOB_HITS} of the
+     * floor's mob hit: a vanilla number that has nothing to do with a swing - an explosion's 20 and more, a wither
+     * skull, a boss body's attack attribute - scaled the same way came to ten or more zombie hits in one.
      */
-    static double hypixelDamage(float vanillaAmount, String floor) {
+    public static double hypixelDamage(float vanillaAmount, String floor) {
         float ref = SimHealth.meleeDamage(floor, SimHealth.Role.REGULAR);
         float easy = Math.min(ref, ref / 2f + 1f);
-        return vanillaAmount / Math.max(0.5f, easy) * MOB_HIT[SimHealth.tier(floor)];
+        double mobHit = MOB_HIT[SimHealth.tier(floor)];
+        return Math.min(MAX_SCALED_MOB_HITS * mobHit, vanillaAmount / Math.max(0.5f, easy) * mobHit);
+    }
+
+    /**
+     * Which hit this is, for the hurt-immunity windows: the attacker (else the projectile, else nothing) and the
+     * damage type, plus the number for an exact attack, so a boss's different attacks never block each other.
+     */
+    private static String hitKey(DamageSource source, Entity attacker, boolean exact, double raw) {
+        Entity who = attacker != null ? attacker : source.getDirectEntity();
+        String key = (who == null ? "-" : who.getUUID().toString()) + '|' + source.getMsgId();
+        return exact ? "x|" + key + '|' + Math.round(raw) : key;
+    }
+
+    /**
+     * What of {@code raw} (Hypixel damage before Defense) gets through the hurt-immunity window for this key, or 0
+     * when it is all blocked. Records the hit. See {@link #HIT_WINDOW_TICKS} and {@link #EXACT_HIT_WINDOW_TICKS}.
+     */
+    private static double throughHitWindow(Vitals v, String key, boolean exact, double raw) {
+        if (v.lastHits.size() > 64) {
+            long cutoff = serverTicks - HIT_WINDOW_TICKS;
+            v.lastHits.values().removeIf(h -> h[0] < cutoff);
+        }
+        double[] last = v.lastHits.get(key);
+        int window = exact ? EXACT_HIT_WINDOW_TICKS : HIT_WINDOW_TICKS;
+        if (last == null || serverTicks - (long) last[0] >= window) {
+            v.lastHits.put(key, new double[]{serverTicks, raw});
+            return raw;
+        }
+        if (exact || raw <= last[1]) {
+            return 0;
+        }
+        // Vanilla: a harder hit inside the window lands for the difference, and the window keeps its start.
+        double extra = raw - last[1];
+        last[1] = raw;
+        return extra;
     }
 
     /**
@@ -272,23 +347,34 @@ public final class SimVitals {
         if (serverTicks < v.immuneUntil) {
             return false;
         }
-        double taken;
-        if (!Double.isNaN(pendingHit)) {
-            // A boss or miniboss attack with Hypixel's own number (dealHypixel); true damage ignores Defense.
-            taken = pendingTrue ? pendingHit : pendingHit * throughDefense(v.defense);
+        boolean exact = !Double.isNaN(pendingHit);
+        double raw;
+        if (exact) {
+            // A boss or miniboss attack with Hypixel's own number (dealHypixel).
+            raw = pendingHit;
         } else {
             // A pooled mob's swing or arrow carries its own Hypixel hit (SimHealth.Pool#hit); anything else is
             // scaled from its vanilla damage.
             double own = SimHealth.hitOf(attacker);
-            double raw = own > 0 ? own : hypixelDamage(amount, SimState.floorLabel());
-            taken = raw * throughDefense(v.defense);
+            raw = own > 0 ? own : hypixelDamage(amount, SimState.floorLabel());
         }
+        // A mob that hits Tanks harder (Thorn's wolf, 3.5x: SimHealth.setTankMultiplier).
+        if (attacker != null && SimParty.dungeonClass(sp) == SimStats.DungeonClass.TANK) {
+            raw *= SimHealth.tankMultiplier(attacker);
+        }
+        // The hurt-immunity window vanilla would have kept, had the hit not been refused (HIT_WINDOW_TICKS).
+        raw = throughHitWindow(v, hitKey(source, attacker, exact, raw), exact, raw);
+        if (raw <= 0) {
+            return false;
+        }
+        // Defense: Hypixel's def / (def + 100). True damage ignores it.
+        double taken = exact && pendingTrue ? raw : raw * throughDefense(v.defense);
         // The class passives and ultimates that cut a hit (Castle of Stone, Protective Barrier, Bone Plating).
         taken = SimClassKit.incoming(sp, v.health, v.maxHealth, taken);
         // What the worn gear takes off (SimGear): the Wither sets' -10% per piece against withers, the Black Belt's
         // -6%, a Soulweaver skull's -5%, and the Blue Whale's Ingest (+5% damage reduction while absorbing).
         java.util.List<SimItemBuild> worn = SimItemBuild.armour(sp);
-        if (attacker instanceof net.minecraft.world.entity.boss.wither.WitherBoss) {
+        if (fromWither(attacker)) {
             taken *= 1 - SimGear.witherReduction(worn);
         }
         taken = SimGear.beltIncoming(sp, taken);
@@ -335,6 +421,23 @@ public final class SimVitals {
         }
         mirrorHearts(sp, v);
         return false;
+    }
+
+    /**
+     * Whether a hit counts as one from a wither for the Wither sets' "-10% damage from withers" per piece.
+     *
+     * <p>A vanilla Wither attacker, or - since the F7/M7 fight (SimNecron) deals every attack of Maxor, Storm, Goldor,
+     * Necron and the King through {@link #dealHypixel} with an attacker-less magic source - any attacker-less hit
+     * while a Floor VII boss room is up. Before, only the first counted, which no attack in the sim is: Necron's
+     * armour took nothing off in the one fight it is made for. APPROXIMATE: the dragons of the last phase are
+     * counted too, which the sim cannot tell apart from the King's own hits.
+     */
+    private static boolean fromWither(Entity attacker) {
+        if (attacker instanceof net.minecraft.world.entity.boss.wither.WitherBoss) {
+            return true;
+        }
+        int tier = SimHealth.tier(SimState.floorLabel());
+        return attacker == null && (tier == 7 || tier == 14) && SimBoss.isActive();
     }
 
     /**

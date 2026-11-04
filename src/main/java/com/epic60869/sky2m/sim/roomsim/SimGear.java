@@ -935,8 +935,44 @@ public final class SimGear {
     public static ClassGear classGear(SimStats.DungeonClass c) {
         load();
         synchronized (GEAR) {
-            return GEAR.getOrDefault(c, ClassGear.EMPTY);
+            return playable(c, GEAR.getOrDefault(c, ClassGear.EMPTY));
         }
+    }
+
+    /** Default gear per class, built once ({@link #defaultGear} builds every piece maxed, and gear is read per hit). */
+    private static final Map<SimStats.DungeonClass, ClassGear> DEFAULT_GEAR = new EnumMap<>(SimStats.DungeonClass.class);
+
+    /**
+     * What a class's saved gear plays as: itself, except that a player who is not staff and has nothing at all in the
+     * class's wardrobe (every slot empty, no pet) plays the class's default gear ({@link #defaultGear}).
+     *
+     * <p>A non-staff player always plays the default stats ({@link SimStats#profile}), whose base is WITHOUT gear and
+     * expects the wardrobe's set on top. But {@link #load} gave every class EMPTY gear whenever a stats file was
+     * already there when the game started - the rule for a staff profile from before the wardrobe, whose typed base
+     * already counted its gear - and a gear file saved after that kept the EMPTY classes. So a non-staff player who
+     * had ever used the sim before played every floor in 1,400 health and 300 Defense (about 3,200 and 700 with the
+     * old no-gear boost). Decided here, on each read, and not at load: staff status is not known yet when the gear
+     * first loads (it arrives after the Sky2M login), and logging in as staff later gives the saved EMPTY gear back.
+     * Changing the gear ({@link #update}) starts from what is played, so it saves the defaults with the change.
+     */
+    private static ClassGear playable(SimStats.DungeonClass c, ClassGear stored) {
+        if (!bare(stored) || com.epic60869.sky2m.features.sbc.SbcStaff.isStaff()) {
+            return stored;
+        }
+        return DEFAULT_GEAR.computeIfAbsent(c, SimGear::defaultGear);
+    }
+
+    /** Nothing in any wardrobe slot and no pet out: gear never set up (or the old EMPTY start). */
+    private static boolean bare(ClassGear g) {
+        if (g == null) {
+            return true;
+        }
+        for (WardrobeSlot w : g.slots()) {
+            if (w != null && !w.isEmpty()) {
+                return false;
+            }
+        }
+        return NONE_ID.equals(g.pet().id());
     }
 
     /** Any player's gear (a guest's as he sent it). Server thread. */
@@ -999,7 +1035,7 @@ public final class SimGear {
     private static void update(SimStats.DungeonClass c, java.util.function.UnaryOperator<ClassGear> f) {
         load();
         synchronized (GEAR) {
-            GEAR.put(c, f.apply(GEAR.getOrDefault(c, ClassGear.EMPTY)));
+            GEAR.put(c, f.apply(playable(c, GEAR.getOrDefault(c, ClassGear.EMPTY))));
         }
         changed();
     }
@@ -1230,6 +1266,44 @@ public final class SimGear {
             }
             sp.setItemSlot(PIECE_SLOTS[i], piece);
         }
+    }
+
+    /**
+     * Puts the wardrobe's active slot on a player who has none of it on, at the start of a sim session and of each
+     * new floor. Server thread.
+     *
+     * <p>The armour used to go on only when he picked a class, swapped a wardrobe slot or loaded a loadout. A fresh
+     * sim world (the void-world rebuild deletes the old one) or a new player file starts with empty armour slots,
+     * so he played the whole floor in his base stats alone - 1,400 health and 300 Defense with the defaults, his
+     * "max gear" sitting in the wardrobe uncounted ({@link SimStats#effective} reads the real armour slots) - and on
+     * the floor's numbers that is a ton of damage. Only when NO armour slot holds a wardrobe piece, so a mask he
+     * swapped on by hand, or a slot he took off on purpose (the wardrobe's unequip, active slot -1), is left alone.
+     *
+     * @return whether anything was put on
+     */
+    static boolean dressIfBare(ServerPlayer sp) {
+        if (sp == null) {
+            return false;
+        }
+        for (EquipmentSlot slot : PIECE_SLOTS) {
+            ItemStack worn = sp.getItemBySlot(slot);
+            if (!worn.isEmpty() && isSimArmour(worn)) {
+                return false;
+            }
+        }
+        ClassGear g = gear(sp);
+        if (g.active() < 0) {
+            return false;
+        }
+        boolean any = false;
+        for (SimItemBuild b : g.armour()) {
+            any |= b != null && !b.isEmpty();
+        }
+        if (!any) {
+            return false;
+        }
+        equipOnServer(sp, g);
+        return true;
     }
 
     /** Whether a stack is one of the wardrobe's pieces (it carries the build mark, or an old set's id). */
@@ -1559,8 +1633,11 @@ public final class SimGear {
                 return;
             }
             // A fresh install gets each class's usual gear; a stats profile from before the wardrobe already
-            // counted its gear, so it starts with none (see SimStats.Stat).
-            boolean fresh = !Files.exists(FILE) && !SimStats.savedBeforeThisLaunch();
+            // counted its gear, so it starts with none (see SimStats.Stat) - but only a profile whose saved base
+            // really looks like it includes gear (SimStats.storedBaseIncludesGear), not any stats file at all. A
+            // player who is not staff plays the defaults and gets the default gear either way (playable).
+            boolean fresh = !Files.exists(FILE)
+                    && !(SimStats.savedBeforeThisLaunch() && SimStats.storedBaseIncludesGear());
             for (SimStats.DungeonClass c : SimStats.DungeonClass.values()) {
                 GEAR.put(c, fresh ? defaultGear(c) : ClassGear.EMPTY);
             }

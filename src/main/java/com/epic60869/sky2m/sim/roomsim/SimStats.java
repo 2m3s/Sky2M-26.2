@@ -272,6 +272,17 @@ public final class SimStats {
 
     private static final boolean SAVED_AT_STARTUP = Files.exists(FILE);
 
+    /**
+     * Whether the saved profile's base looks like one from before the wardrobe (2026-11-01), whose defaults INCLUDED
+     * the gear (2,500 health, 800 defense): at least 2,000 health or 600 defense, well above today's no-gear 1,400 /
+     * 300. Only then does {@link SimGear} start a staff player with no gear, so it is not counted twice. APPROXIMATE
+     * by nature - the file carries no date or version - but a base typed that high stands for gear either way.
+     */
+    static boolean storedBaseIncludesGear() {
+        Profile p = stored();
+        return p != null && (p.get(Stat.HEALTH) >= 2_000 || p.get(Stat.DEFENSE) >= 600);
+    }
+
     private static void replace(Profile next) {
         profile = next;
         persist();
@@ -373,6 +384,16 @@ public final class SimStats {
     public static Effective effective(Profile p, String heldId, String floor) {
         SimGear.ClassGear g = SimGear.classGear(p.selected());
         return effective(p, g.armour(), g.equipment(), g.pet(), clientBuild(heldId), floor, null);
+    }
+
+    /**
+     * The default profile of class {@code c} in that class's default wardrobe slot ({@link SimGear#defaultGear}: its
+     * usual set, the dungeon equipment and pet, all maxed), on {@code floor}, holding nothing. What a fresh install
+     * plays with; for the stats preview and the damage tests.
+     */
+    public static Effective defaultGearEffective(DungeonClass c, String floor) {
+        SimGear.ClassGear g = SimGear.defaultGear(c);
+        return effective(defaultsWithClass(c), g.armour(), g.equipment(), g.pet(), SimItemBuild.EMPTY, floor, null);
     }
 
     /**

@@ -253,6 +253,9 @@ public final class SimHealth {
             case "Crypt Prince":
                 return CRYPT_UNDEAD;
             case "Lost Adventurer":
+            case "Redstone Warrior":
+                // The Redstone Warrior's wiki table matches the Lost Adventurer's row for row
+                // (https://hypixelskyblock.minecraft.wiki/w/Redstone_Warrior).
                 return LOST_ADVENTURER;
             case "Frozen":
             case "Frozen Adventurer":
@@ -320,6 +323,37 @@ public final class SimHealth {
         if (mob != null && hit > 0) {
             BOSS_HITS.put(mob.getUUID(), hit);
         }
+    }
+
+    /**
+     * Per-mob multipliers on a hit that lands on a Tank ({@link SimVitals}): Thorn's wolf does 3.5x to Tanks on
+     * Hypixel (https://hypixelskyblock.minecraft.wiki/w/Thorn). Cleared with the pools ({@link #forget}).
+     */
+    private static final Map<UUID, Double> TANK_MULTIPLIERS = new ConcurrentHashMap<>();
+
+    /**
+     * Makes this mob's hits on a Tank (the hit player's class, {@link SimParty#dungeonClass}) {@code multiplier}
+     * times as strong, before Defense. A non-positive or non-finite value removes it.
+     * Server thread.
+     */
+    static void setTankMultiplier(Entity mob, double multiplier) {
+        if (mob == null) {
+            return;
+        }
+        if (!(multiplier > 0) || Double.isInfinite(multiplier)) {
+            TANK_MULTIPLIERS.remove(mob.getUUID());
+        } else {
+            TANK_MULTIPLIERS.put(mob.getUUID(), multiplier);
+        }
+    }
+
+    /** {@link #setTankMultiplier}'s value for this mob, 1 when none was set. */
+    static double tankMultiplier(Entity mob) {
+        if (mob == null) {
+            return 1;
+        }
+        Double m = TANK_MULTIPLIERS.get(mob.getUUID());
+        return m == null ? 1 : m;
     }
 
     /** A sim mob's Hypixel hit on a player: its pool's, a boss mob's ({@link #setBossHit}), or 0 for none. */
@@ -550,6 +584,7 @@ public final class SimHealth {
     static void forget() {
         POOLS.clear();
         BOSS_HITS.clear();
+        TANK_MULTIPLIERS.clear();
     }
 
     /**

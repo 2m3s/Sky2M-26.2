@@ -295,7 +295,9 @@ public record SimItemBuild(String id, int stars, int masterStars, int crimsonSta
 
     /**
      * A player's four armour builds, helmet to boots: what is really in his armour slots (a mask swapped on by hand
-     * counts), falling back to his wardrobe's build when the slot holds something that is not a sim item.
+     * counts). An empty slot, or one holding something that is not a sim item, is {@link #EMPTY}: the wardrobe's
+     * build only counts once it is worn, which {@code SimGear.dressIfBare} sees to at the start of a session and of
+     * each floor.
      */
     public static List<SimItemBuild> armour(ServerPlayer sp) {
         if (sp == null) {

@@ -90,6 +90,8 @@ public final class SimState {
             replaceMapCode(code);
         }
         setFloorLabel(floor);
+        // The host's floor is the guest's whatever map he enters next; it is not waiting for a map of its own.
+        floorLabelPending = false;
         setGeneratedFloor(generated);
     }
 
@@ -107,6 +109,7 @@ public final class SimState {
     public static void enter(String code) {
         active = true;
         mapCode = code == null ? "" : code;
+        claimFloorLabel();
         // The dungeon gate is set HERE rather than on the world-load path, so it can never disagree with this
         // flag. Secret routes, auto routes, the map and every other clear feature gate on DungeonState, and a
         // sim where they all sit out is a sim he cannot practise in.
@@ -122,7 +125,14 @@ public final class SimState {
      * stood in Atlas and was told "No abilities in a trap room", stood in Museum and the sidebar said Atlas.
      */
     public static void replaceMapCode(String code) {
-        mapCode = code == null ? "" : code;
+        String next = code == null ? "" : code;
+        // The same map again (SimWorld.open enters sim mode in the sim world and then builds in place, which calls
+        // both) keeps the floor it was claimed with.
+        boolean same = active && next.equals(mapCode) && !next.isEmpty();
+        mapCode = next;
+        if (!same || floorLabelPending) {
+            claimFloorLabel();
+        }
     }
 
     public static void leave() {
@@ -134,9 +144,37 @@ public final class SimState {
         com.epic60869.sky2m.sim.secrets.DungeonState.setRoomSim(false);
     }
 
-    /** The map code this session was built from, for showing and for sharing. */
-    /** The floor the current map was generated as, for the sidebar. Defaults to F7, the one he practises. */
-    private static String floorLabel = "F7";
+    /** The floor a map with no floor of its own plays as: F7, the one he practises. */
+    public static final String DEFAULT_FLOOR = "F7";
+
+    /**
+     * The floor the current map was generated as: the sidebar, and every per-floor number in the sim (mob health
+     * and damage in {@link SimHealth}, the mob-hit fallback in {@link SimVitals}, the dungeon item boost).
+     */
+    private static String floorLabel = DEFAULT_FLOOR;
+
+    /**
+     * Whether {@link #setFloorLabel} has been called since the last map was entered: the floor picker (the floor
+     * generator, the map editor's Play, a /boss) sets the label BEFORE the world opens or the map is rebuilt, and the
+     * next {@link #enter} / {@link #replaceMapCode} claims it ({@link #claimFloorLabel}).
+     */
+    private static boolean floorLabelPending;
+
+    /**
+     * A new map takes the floor that was picked for it, or the default when nothing picked one.
+     *
+     * <p>The label used to be a plain static that only the floor generator, the map editor and /boss ever set, so a
+     * map with no floor of its own - a single room, a typed map code, a run rebuilt from the history - kept whatever
+     * the PREVIOUS map had been: one F7 floor generated earlier and every room after it hit with F7 numbers (an F7
+     * zombie's 8,640 against a 1,400 health profile) while he thought he was practising an F1 room. Now such a map is
+     * the default floor, and only the map the label was picked for gets it.
+     */
+    private static void claimFloorLabel() {
+        if (!floorLabelPending) {
+            floorLabel = DEFAULT_FLOOR;
+        }
+        floorLabelPending = false;
+    }
 
     /**
      * Whether what is loaded is a whole generated floor rather than a single room.
@@ -161,7 +199,8 @@ public final class SimState {
     }
 
     public static void setFloorLabel(String label) {
-        floorLabel = label == null || label.isBlank() ? "F7" : label;
+        floorLabel = label == null || label.isBlank() ? DEFAULT_FLOOR : label.trim().toUpperCase(java.util.Locale.ROOT);
+        floorLabelPending = true;
     }
 
     /**
@@ -263,6 +302,7 @@ public final class SimState {
         return decoded;
     }
 
+    /** The map code this session was built from, for showing and for sharing. */
     public static String mapCode() {
         return mapCode;
     }

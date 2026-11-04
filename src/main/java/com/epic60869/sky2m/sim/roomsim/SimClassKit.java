@@ -298,7 +298,8 @@ public final class SimClassKit {
 
     /**
      * A new floor starts with an empty inventory: everything in the main inventory, hotbar and off hand from the last
-     * sim is cleared (worn armour stays - the wardrobe owns it), and the class orb is given back. Mort's class presets
+     * sim is cleared (worn armour stays - the wardrobe owns it, and is put on when none of it is worn), and the class
+     * orb is given back. Mort's class presets
      * fill it again. Server thread, every player in the sim (party guests too).
      */
     public static void resetInventories(ServerLevel level) {
@@ -310,6 +311,9 @@ public final class SimClassKit {
             sp.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND, ItemStack.EMPTY);
             sp.containerMenu.setCarried(ItemStack.EMPTY);
             ensureOrbOnServer(sp);
+            // And his wardrobe's armour on, if none of it is: a floor played in empty armour slots counted none of
+            // his gear (SimGear.dressIfBare).
+            SimGear.dressIfBare(sp);
             sp.inventoryMenu.broadcastChanges();
         }
     }
