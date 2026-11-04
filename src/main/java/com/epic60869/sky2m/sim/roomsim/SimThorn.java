@@ -62,9 +62,9 @@ import java.util.concurrent.ThreadLocalRandom;
  * (fire: spirit animals in it lose 5% of their health a second). Step up into the <b>crowd</b> and swarms of Spirit
  * Bats come for you. Thorn speeds up with every hit he takes, and on his last life turns his back to you.
  *
- * <p><b>Lives.</b> F4 takes {@link #LIVES_NORMAL} hits. Master Mode takes {@link #LIVES_MASTER}. Hypixel's Thorn has
- * "4-6" health, one taken per Spirit Bow hit, with no F4/M4 split on the wiki; one extra life here fills the M4
- * ring's 30 blocks in five even shares of 6, as F4's 25 fill in four.
+ * <p><b>Lives.</b> F4 takes {@link #LIVES_NORMAL} hits, M4 {@link #LIVES_MASTER}. Hypixel's Thorn has "4-6" health, one
+ * taken per Spirit Bow hit; the range is read as F4-M4, the way the wiki writes every other Thorn number (the Spirit
+ * Bear's "5M-180M" is its F4 and M4 health on its own page). M4's 30 ring blocks fill in six even shares of 5.
  *
  * <p><b>Health and damage.</b> The spirit animals and the Spirit Bear have Hypixel's health and hit ({@link Animal};
  * https://hypixelskyblock.minecraft.wiki/w/Spirit_Bear), before the player's Defense; the Bull's charge, the
@@ -76,7 +76,7 @@ import java.util.concurrent.ThreadLocalRandom;
 final class SimThorn extends SimBoss.Fight {
 
     private static final int LIVES_NORMAL = 4;
-    private static final int LIVES_MASTER = 5;
+    private static final int LIVES_MASTER = 6;
     private static final int BEAR_DELAY_TICKS = 68;
     /** A new bear after a miss or a crumbled bow. APPROXIMATE. */
     private static final int BEAR_AGAIN_TICKS = 100;
@@ -156,6 +156,18 @@ final class SimThorn extends SimBoss.Fight {
     private static final double CIRCLE_HEAL_PER_SECOND = 0.02;
     /** Orange fire: spirit animals in it lose 5% of their health per second (wiki). */
     private static final double FIRE_PER_SECOND = 0.05;
+
+    /** The Spirit Wolf's 3.5x damage to Tanks (wiki). */
+    private static final double WOLF_TANK_MULTIPLIER = 3.5;
+    /** The Spirit Bear "heals over time, but very slowly" (wiki, no number): APPROXIMATE, 0.2% of its health a second. */
+    private static final double BEAR_REGEN_PER_SECOND = 0.002;
+    /**
+     * The Spirit Bear's Spirit Bow (wiki: it attacks with a Golden Sword or a Spirit Bow, no separate numbers): a shot
+     * at its base damage at a player out of sword reach. Range and cooldown APPROXIMATE.
+     */
+    private static final double BEAR_BOW_MIN = 5;
+    private static final double BEAR_BOW_RANGE = 20;
+    private static final int BEAR_BOW_EVERY = 60;
 
     /** The sim's own id for the boss's Spirit Bow. Not Hypixel's: nothing reads it but this class. */
     static final String SPIRIT_BOW_ID = "SIM_THORN_SPIRIT_BOW";
@@ -522,6 +534,10 @@ final class SimThorn extends SimBoss.Fight {
         double hit = kind.damage() * (crowd ? CROWD_BAT_HITS : 1);
         // The wolves' and the bear's own swings (vanilla AI) read this; the others' attacks are the fight's.
         SimHealth.setBossHit(body, hit);
+        if (kind == Animal.WOLF) {
+            // "3.5x Damage to Tank class" (wiki).
+            SimHealth.setTankMultiplier(body, WOLF_TANK_MULTIPLIER);
+        }
         Spirit s = new Spirit(kind, body, hp, crowd);
         s.nextAct = clock + 40 + ThreadLocalRandom.current().nextInt(40);
         spirits.add(s);
@@ -559,7 +575,7 @@ final class SimThorn extends SimBoss.Fight {
                 }
             }
             switch (s.kind) {
-                case WOLF, BEAR -> {
+                case WOLF -> {
                     if (clock % 20 == 0) {
                         ServerPlayer target = nearest(players, s.body.position());
                         if (target != null) {
@@ -567,6 +583,7 @@ final class SimThorn extends SimBoss.Fight {
                         }
                     }
                 }
+                case BEAR -> tickBear(level, s, players);
                 case BULL -> tickBull(level, s, players, master);
                 case RABBIT -> tickRabbit(level, s, players);
                 case CHICKEN -> tickChicken(level, s, players, master);
@@ -574,6 +591,39 @@ final class SimThorn extends SimBoss.Fight {
                 case BAT -> tickBat(level, s, s.crowd ? crowdPlayers(level) : players);
             }
         }
+    }
+
+    /**
+     * Spirit Bear: its Golden Sword is the vanilla swing (its hit is the wiki's, {@link SimHealth#setBossHit}); a player
+     * out of reach gets a Spirit Bow shot instead. It heals very slowly the whole time.
+     */
+    private void tickBear(ServerLevel level, Spirit s, List<ServerPlayer> players) {
+        ServerPlayer target = nearest(players, s.body.position());
+        if (clock % 20 == 0) {
+            if (target != null) {
+                s.body.setTarget(target);
+            }
+            s.health.hp = Math.min(s.health.max, s.health.hp + s.health.max * BEAR_REGEN_PER_SECOND);
+        }
+        if (target == null || clock < s.nextAct) {
+            return;
+        }
+        double d = s.body.distanceTo(target);
+        if (d < BEAR_BOW_MIN || d > BEAR_BOW_RANGE || !s.body.hasLineOfSight(target)) {
+            return;
+        }
+        s.nextAct = clock + BEAR_BOW_EVERY;
+        Vec3 from = s.body.getEyePosition();
+        Vec3 to = target.getEyePosition().subtract(0, 0.4, 0);
+        Vec3 step = to.subtract(from);
+        int points = (int) Math.max(4, step.length() * 2);
+        for (int i = 0; i <= points; i++) {
+            Vec3 p = from.add(step.scale((double) i / points));
+            level.sendParticles(ParticleTypes.CRIT, p.x, p.y, p.z, 1, 0, 0, 0, 0);
+        }
+        level.playSound(null, s.body.getX(), s.body.getY(), s.body.getZ(), SoundEvents.ARROW_SHOOT,
+                SoundSource.HOSTILE, 1f, 0.8f);
+        SimVitals.dealHypixel(level, target, level.damageSources().magic(), s.kind.damage(), false);
     }
 
     /** Spirit Bull: a wind-up facing its target, then a straight rush that tramples whoever it runs into. */

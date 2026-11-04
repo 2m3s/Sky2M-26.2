@@ -20,9 +20,12 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
+import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Giant;
 import net.minecraft.world.entity.monster.zombie.Zombie;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -38,7 +41,6 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -51,14 +53,15 @@ import java.util.concurrent.ThreadLocalRandom;
  * Sadan's Interest Meter lasts: two minutes, less one second for every Terracotta killed. Each one that dies
  * leaves a flower pot behind and rises again from it 10 seconds later - the pot is what the Terracotta Timer
  * counts down over - the pot turning back into terracotta two seconds before it does. When the meter runs out,
- * Sadan's "ENOUGH!".</li>
- * <li><b>Giants.</b> The four Giants wake in the corners and walk at you, each with its own attack:
+ * Sadan's "ENOUGH!" and the Terracottas are gone. Sleeping Golems stand in the hall all the while: hit one and it
+ * wakes and runs at you (Sadan has a word about it). They are left out of the phases: nothing needs them dead.</li>
+ * <li><b>Giants.</b> The four Giants wake in the corners and walk at you, hitting whoever they reach, each with its own
+ * attack too:
  * <i>Bigfoot</i> leaps and stomps every seven seconds (get out of the ring of cloud round him; it hurts less the
  * further out you are), <i>L.A.S.R.</i> locks his eye beam on a player and keeps it there for five seconds, the
  * beam following you and hitting harder the longer it is on you, the <i>Jolly Pink Giant</i> lobs boulders at
- * your feet, and the <i>Diamond Giant</i> winds up and swings very hard at anyone close. In Master Mode they are
- * four Mutant Giants instead, each with two of those four attacks at random, used side by side. In Master Mode
- * the Terracottas keep rising through this phase too (the sim's own). Kill all four.</li>
+ * your feet, and the <i>Diamond Giant</i> throws his giant sword down onto a player. In Master Mode they are four
+ * Mutant Giants instead, each with two of those four attacks at random, used side by side. Kill all four.</li>
  * <li><b>The Giant One.</b> A cutscene: Sadan merges with The Giant One, a hole opens in the middle of the hall and
  * the Giant is hooked up out of it. Falling into the hole kills you - and every Tank on the team, through
  * Diversion. The hole closes when the cutscene ends. Sadan then fights with all four Giants' attacks at once; in
@@ -76,16 +79,20 @@ import java.util.concurrent.ThreadLocalRandom;
  *
  * <p><b>Health and damage are Hypixel's</b>, before the player's Defense:
  * <ul>
- * <li>Sadan 40,000,000 on F6 and 600,000,000 on M6 (https://hypixelskyblock.minecraft.wiki/w/Sadan). As The Giant
- * One he has the Giants' attacks, so each deals that Giant's number (APPROXIMATE: the wiki gives his last form no
- * numbers of its own).</li>
- * <li>F6's Giants, 25,000,000 each: Bigfoot's stomp up to 88,000 (https://hypixelskyblock.minecraft.wiki/w/Bigfoot),
+ * <li>Sadan 40,000,000 on F6 and 600,000,000 on M6 (https://hypixelskyblock.minecraft.wiki/w/Sadan, the Variants
+ * table; the infobox's range says 800,000,000 for M6), his own hit (his golden sword) 30,960 / 720,000. As The Giant
+ * One he also has the Giants' attacks, each at that Giant's number (APPROXIMATE: the wiki gives his last form no
+ * numbers for them).</li>
+ * <li>Terracottas 12,000,000 / 250,000,000, hitting for 9,900 / 95,900 ({@link SimHealth#TERRACOTTA}); Golems
+ * 20,000,000 / 300,000,000 with 200 Defense, hitting for 96,000 / 1,000,000 (the Sadan page's mob table).</li>
+ * <li>F6's Giants, 25,000,000 each, a 17,600 hit when they reach you: Bigfoot's stomp up to 88,000
+ * (https://hypixelskyblock.minecraft.wiki/w/Bigfoot),
  * one shot of L.A.S.R.'s beam 8,800, every half second for about five seconds, then five seconds' rest
  * (https://hypixelskyblock.minecraft.wiki/w/L.A.S.R.), the Jolly Pink Giant's boulder up to 52,800
- * (https://hypixelskyblock.minecraft.wiki/w/Jolly_Pink_Giant), the Diamond Giant's sword 25,160
+ * (https://hypixelskyblock.minecraft.wiki/w/Jolly_Pink_Giant), the Diamond Giant's thrown sword 25,160
  * (https://hypixelskyblock.minecraft.wiki/w/The_Diamond_Giant).</li>
- * <li>M6's Mutant Giants (https://hypixelskyblock.minecraft.wiki/w/Mutant_Giant), 600,000,000 each, two random
- * attacks each at stomp 4,000,000, beam 500,000 a shot, boulder 3,000,000 and sword 200,000.</li>
+ * <li>M6's Mutant Giants (https://hypixelskyblock.minecraft.wiki/w/Mutant_Giant), 600,000,000 each, a 1,000,000 hit,
+ * two random attacks each at stomp 4,000,000, beam 500,000 a shot, boulder 3,000,000 and thrown sword 200,000.</li>
  * </ul>
  */
 final class SimSadan extends SimBoss.Fight {
@@ -95,10 +102,39 @@ final class SimSadan extends SimBoss.Fight {
         return SimHealth.byMode(40_000_000, 600_000_000);
     }
 
+    /** Sadan's own hit (his golden sword), F6 then M6. */
+    private static double sadanDamage() {
+        return SimHealth.byMode(30_960, 720_000);
+    }
+
     /** A Giant's health: 25,000,000 on F6, a Mutant Giant's 600,000,000 on M6. */
     private static double giantHealth() {
         return SimHealth.byMode(25_000_000, 600_000_000);
     }
+
+    /** A Giant's base damage, its hit when it reaches you: 17,600 on F6, a Mutant Giant's 1,000,000 on M6. */
+    private static double giantDamage() {
+        return SimHealth.byMode(17_600, 1_000_000);
+    }
+
+    /** A Giant's (or Sadan's) melee: reach and time between hits. APPROXIMATE (the wiki: "when in range"). */
+    private static final double MELEE_REACH = 5;
+    private static final int MELEE_EVERY = 30;
+
+    /** A Golem's health and hit, F6 then M6 (the Sadan page's Sleeping / Woke Golem). */
+    private static double golemHealth() {
+        return SimHealth.byMode(20_000_000, 300_000_000);
+    }
+
+    private static double golemDamage() {
+        return SimHealth.byMode(96_000, 1_000_000);
+    }
+
+    /** A Golem's 200 Defense (the wiki's): a player's hit lands at 100 / (100 + 200). */
+    private static final double GOLEM_TAKEN = 100.0 / (100.0 + 200.0);
+    /** Where the Sleeping Golems stand, in the arena's coordinates: down the middle of the hall. APPROXIMATE. */
+    private static final int[] GOLEM_X = {-19, 1};
+    private static final int[] GOLEM_Z = {54, 66, 78};
 
     /** The tomb, in the arena's own coordinates: the floor the fight is on. */
     private static final int[] TOMB_MIN = {-29, 69, 39};
@@ -135,7 +171,7 @@ final class SimSadan extends SimBoss.Fight {
         LASR("L.A.S.R.", 8_800, 500_000),
         /** The boulder: up to 52,800 / 3,000,000. */
         JOLLY("Jolly Pink Giant", 52_800, 3_000_000),
-        /** The sword: 25,160 / 200,000. */
+        /** The thrown sword: 25,160 / 200,000. */
         DIAMOND("The Diamond Giant", 25_160, 200_000),
         SADAN("Sadan", 0, 0);
 
@@ -187,14 +223,24 @@ final class SimSadan extends SimBoss.Fight {
                     "Whoops! There goes my third Giant!"},
     };
 
+    /** Hypixel's lines when a Golem wakes (the wiki's Dialogue); {@code %s} is the player who woke it. */
+    private static final String[] FIRST_GOLEM = {
+            "You weren't supposed to wake up that Golem, %s!",
+            "My Terracotta Army wasn't enough? You had to awaken a Golem on top, %s?!",
+    };
+    private static final String GOLEM_WOKEN = "All my Golems want is some peace and quiet!";
+    private static final String ALL_GOLEMS = "Thanks to %s, all of my Golems have been awoken!";
+
     private Phase phase = Phase.TERRACOTTAS;
     private int phaseTicks;
     private int ticks;
-    private final boolean master = SimState.floorLabel().toUpperCase(Locale.ROOT).startsWith("M");
+    private final boolean master = SimHealth.master(SimState.floorLabel());
     private final List<Slot> slots = new ArrayList<>();
     private final List<Big> giants = new ArrayList<>();
     private Big sadan;
     private final List<Bomb> bombs = new ArrayList<>();
+    private final List<Golem> golems = new ArrayList<>();
+    private int golemsWoken;
     /** Sadan's Interest Meter, in ticks left. */
     private int interest = INTEREST_TICKS;
     private boolean tiredSaid;
@@ -249,10 +295,13 @@ final class SimSadan extends SimBoss.Fight {
             }
         }
 
+        /** Ticks until its next melee hit. */
+        int meleeCooldown = MELEE_EVERY;
+
+        /** Held in place by Bigfoot's leap. */
         boolean rooted() {
             Move stomp = state.get(Kind.BIGFOOT);
-            Move swing = state.get(Kind.DIAMOND);
-            return (stomp != null && stomp.windup >= 0) || (swing != null && swing.windup >= 0);
+            return stomp != null && stomp.windup >= 0;
         }
 
         String name() {
@@ -261,6 +310,17 @@ final class SimSadan extends SimBoss.Fight {
     }
 
     private record Bomb(Vec3 at, int landsAt, double damage) {
+    }
+
+    /** One Golem in the hall: asleep (no AI) until hit, then it chases. */
+    private static final class Golem {
+        final GolemBody body;
+        final SimBoss.Health health = new SimBoss.Health(golemHealth());
+        boolean awake;
+
+        Golem(GolemBody body) {
+            this.body = body;
+        }
     }
 
     SimSadan(SimBossArena arena) {
@@ -289,6 +349,7 @@ final class SimSadan extends SimBoss.Fight {
             slots.get(i).risesAt = 40 + (i % 8) * 4;
         }
         interest = INTEREST_TICKS;
+        spawnGolems(level);
         toPhase(Phase.TERRACOTTAS);
     }
 
@@ -299,7 +360,6 @@ final class SimSadan extends SimBoss.Fight {
         switch (phase) {
             case TERRACOTTAS -> terracottaPhase(level);
             case GIANTS_WAKING -> {
-                tickSlots(level, master);
                 if (phaseTicks == 40) {
                     SimBoss.say(level.getServer(), "Sadan", "My giants! Unleashed!");
                     wakeGiants(level);
@@ -307,7 +367,6 @@ final class SimSadan extends SimBoss.Fight {
                 }
             }
             case GIANTS -> {
-                tickSlots(level, master);
                 boolean anyAlive = false;
                 for (Big g : giants) {
                     if (!g.dead) {
@@ -325,6 +384,7 @@ final class SimSadan extends SimBoss.Fight {
                     // Hypixel's line: Boss Phases' Sadan phase starts on it.
                     say(level, "You did it. I understand now, you have earned my respect.");
                     clearTerracottas(level);
+                    clearGolems();
                     giants.clear();
                     toPhase(Phase.MERGE);
                 }
@@ -344,6 +404,7 @@ final class SimSadan extends SimBoss.Fight {
                     // Hypixel's death lines.
                     say(level, "NOOOOOOOOO!!! THIS IS IMPOSSIBLE!!");
                     clearTerracottas(level);
+                    clearGolems();
                     for (Big g : giants) {
                         g.body.discard();
                     }
@@ -362,6 +423,7 @@ final class SimSadan extends SimBoss.Fight {
         }
         tickHole(level);
         tickBombs(level);
+        tickGolems(level);
         if (t % 20 == 0) {
             clearDrops(level);
         }
@@ -406,9 +468,8 @@ final class SimSadan extends SimBoss.Fight {
             interest = 0;
             // Hypixel's line: Boss Phases' Giants start on it.
             say(level, "ENOUGH!");
-            if (!master) {
-                clearTerracottas(level);
-            }
+            // The wiki's Terracottas attack "until the Interest Meter runs out", on F6 and M6 alike.
+            clearTerracottas(level);
             toPhase(Phase.GIANTS_WAKING);
         }
     }
@@ -629,28 +690,18 @@ final class SimSadan extends SimBoss.Fight {
         if (target != null && !g.rooted()) {
             walk(level, g, target);
         }
+        melee(level, g, target);
         for (Kind k : g.moves) {
             Move m = g.state.get(k);
             if (m.cooldown > 0) {
                 m.cooldown--;
             }
-            // Two attacks at once (a Mutant Giant, or Sadan with all four): the stomp's leap and the sword's
-            // wind-up do not overlap, the beam and the boulders go on through either.
+            // Two attacks at once (a Mutant Giant, or Sadan with all four), each on its own timing.
             switch (k) {
-                case BIGFOOT -> {
-                    Move swing = g.state.get(Kind.DIAMOND);
-                    if (swing == null || swing.windup < 0) {
-                        stomp(level, g, m, targets);
-                    }
-                }
+                case BIGFOOT -> stomp(level, g, m, targets);
                 case LASR -> laser(level, g, m, targets);
                 case JOLLY -> lob(level, g, m, targets);
-                case DIAMOND -> {
-                    Move stomp = g.state.get(Kind.BIGFOOT);
-                    if (stomp == null || stomp.windup < 0) {
-                        swing(level, g, m, targets);
-                    }
-                }
+                case DIAMOND -> throwSword(level, g, m, targets);
                 default -> {
                 }
             }
@@ -668,9 +719,8 @@ final class SimSadan extends SimBoss.Fight {
         double len = Math.sqrt(dx * dx + dz * dz);
         double x = b.getX();
         double z = b.getZ();
-        boolean close = g.moves.contains(Kind.BIGFOOT) || g.moves.contains(Kind.DIAMOND);
-        double reach = close ? 4 : 12;
-        if (len > reach) {
+        // Every Giant "runs at the player and damages them when in range" (the wiki's, all four).
+        if (len > MELEE_REACH - 1) {
             double speed = (g.kind == Kind.SADAN ? 0.07 : 0.05) * (master ? 1.3 : 1.0);
             x += dx / len * speed;
             z += dz / len * speed;
@@ -875,41 +925,74 @@ final class SimSadan extends SimBoss.Fight {
         bombs.removeAll(done);
     }
 
-    /** The Diamond Giant's swing: a second's wind-up when you are close, then a very hard hit. */
-    private void swing(ServerLevel level, Big g, Move m, List<ServerPlayer> targets) {
-        boolean own = g.kind == Kind.SADAN;
-        double reach = own ? 7 : 6.5;
-        int telegraph = 20;
+    /**
+     * The hit every Giant (and Sadan) lands on whoever it reaches: the Giant's base damage, Sadan's own. Not while
+     * Bigfoot's leap holds him in the air.
+     */
+    private void melee(ServerLevel level, Big g, ServerPlayer target) {
+        if (g.meleeCooldown > 0) {
+            g.meleeCooldown--;
+        }
+        if (target == null || g.meleeCooldown > 0 || g.rooted() || horizontal(target, g.body) > MELEE_REACH
+                || target.getY() - g.body.getY() > 6) {
+            return;
+        }
+        g.meleeCooldown = MELEE_EVERY;
+        GiantBody b = g.body;
+        b.swing(InteractionHand.MAIN_HAND);
+        level.playSound(null, b.getX(), b.getY(), b.getZ(), SoundEvents.PLAYER_ATTACK_STRONG, SoundSource.HOSTILE,
+                2f, 0.5f);
+        double damage = g.kind == Kind.SADAN ? sadanDamage() : giantDamage();
+        hurtPlayer(level, target, damage, target.getX() - b.getX(), target.getZ() - b.getZ(), 1.0, 0.4);
+    }
+
+    /**
+     * The Diamond Giant's sword: now and then he throws his giant sword down onto a player (the wiki's), a marked
+     * spot it lands on a second and a half later. Cooldown, mark and radius APPROXIMATE.
+     */
+    private void throwSword(ServerLevel level, Big g, Move m, List<ServerPlayer> targets) {
+        double radius = 2.5;
+        int fall = 30;
         GiantBody b = g.body;
         if (m.windup < 0) {
             if (m.cooldown > 0) {
                 return;
             }
             ServerPlayer t = nearest(targets, b.position());
-            if (t == null || horizontal(t, b) > reach) {
+            if (t == null || horizontal(t, b) > 30) {
                 return;
             }
             m.windup = 0;
+            m.aim = t.position();
+            b.swing(InteractionHand.MAIN_HAND);
+            level.playSound(null, b.getX(), b.getY() + 8, b.getZ(), SoundEvents.TRIDENT_THROW, SoundSource.HOSTILE,
+                    2f, 0.5f);
         }
         m.windup++;
-        if (m.windup < telegraph) {
-            if (m.windup % 2 == 0) {
-                level.sendParticles(ParticleTypes.CRIT, b.getX(), b.getY() + 7, b.getZ(), 6, 1.5, 1.5, 1.5, 0.1);
-            }
-            if (m.windup == 1) {
-                level.playSound(null, b.getX(), b.getY(), b.getZ(), SoundEvents.RAVAGER_ROAR, SoundSource.HOSTILE,
-                        1.5f, 0.6f);
+        Vec3 at = m.aim;
+        if (m.windup < fall) {
+            if (m.windup % 3 == 0) {
+                DustParticleOptions cyan = new DustParticleOptions(0x55FFFF, 1.3f);
+                for (int i = 0; i < 16; i++) {
+                    double a = Math.PI * 2 * i / 16;
+                    level.sendParticles(cyan, at.x + Math.cos(a) * radius, at.y + 0.1, at.z + Math.sin(a) * radius, 1,
+                            0, 0, 0, 0);
+                }
+                // The sword coming down.
+                double h = 14.0 * (fall - m.windup) / fall;
+                level.sendParticles(ParticleTypes.ENCHANTED_HIT, at.x, at.y + h, at.z, 6, 0.2, 1.0, 0.2, 0);
             }
             return;
         }
         m.windup = -1;
-        m.cooldown = master ? 40 : 60;
-        b.swing(InteractionHand.MAIN_HAND);
-        level.playSound(null, b.getX(), b.getY(), b.getZ(), SoundEvents.PLAYER_ATTACK_STRONG, SoundSource.HOSTILE,
-                2f, 0.5f);
+        m.cooldown = master ? 100 : 140;
+        level.sendParticles(ParticleTypes.EXPLOSION, at.x, at.y + 0.5, at.z, 3, 0.6, 0.3, 0.6, 0);
+        level.playSound(null, at.x, at.y, at.z, SoundEvents.ANVIL_LAND, SoundSource.HOSTILE, 1.5f, 0.6f);
         for (ServerPlayer p : targets) {
-            if (horizontal(p, b) <= reach + 0.5 && p.getY() - b.getY() < 6) {
-                hurtPlayer(level, p, Kind.DIAMOND.attack(), p.getX() - b.getX(), p.getZ() - b.getZ(), 1.4, 0.5);
+            double dx = p.getX() - at.x;
+            double dz = p.getZ() - at.z;
+            if (dx * dx + dz * dz <= radius * radius && Math.abs(p.getY() - at.y) < 3) {
+                hurtPlayer(level, p, Kind.DIAMOND.attack(), dx, dz, 0.8, 0.5);
             }
         }
     }
@@ -925,6 +1008,106 @@ final class SimSadan extends SimBoss.Fight {
                 .append(Component.literal(SimBoss.shortHealth(g.health.hp)).withStyle(ChatFormatting.GREEN)
                         .append(Component.literal("❤").withStyle(ChatFormatting.RED)));
         g.body.setCustomName(tag);
+    }
+
+    // ------------------------------------------------------------------ Golems
+
+    /** The Sleeping Golems down the hall, asleep until hit. */
+    private void spawnGolems(ServerLevel level) {
+        clearGolems();
+        golemsWoken = 0;
+        BlockPos c = arena.toWorld(arena.centre);
+        for (int x : GOLEM_X) {
+            for (int z : GOLEM_Z) {
+                BlockPos p = arena.toWorld(x, TOMB_MIN[1], z);
+                GolemBody body = new GolemBody(level);
+                body.setNoAi(true);
+                body.setPersistenceRequired();
+                body.setCustomNameVisible(true);
+                double gx = p.getX() + 0.5;
+                double gz = p.getZ() + 0.5;
+                float yaw = (float) (Math.toDegrees(Math.atan2(c.getZ() - gz, c.getX() - gx)) - 90);
+                body.snapTo(gx, ground(level, gx, gz), gz, yaw, 0f);
+                level.addFreshEntity(body);
+                // Its swing, once awake, is the wiki's hit (SimVitals reads it).
+                SimHealth.setBossHit(body, golemDamage());
+                Golem g = new Golem(body);
+                golems.add(g);
+                golemTag(g);
+            }
+        }
+    }
+
+    /** A Sleeping Golem hit: it wakes, with one of Sadan's lines about whoever woke it. */
+    private void wake(ServerLevel level, Golem g) {
+        g.awake = true;
+        g.body.setNoAi(false);
+        golemsWoken++;
+        level.playSound(null, g.body.getX(), g.body.getY(), g.body.getZ(), SoundEvents.IRON_GOLEM_REPAIR,
+                SoundSource.HOSTILE, 1.5f, 0.6f);
+        // The hit carries no attacker here, so "whoever woke it" is the nearest player (APPROXIMATE).
+        ServerPlayer who = nearest(playersInTomb(level), g.body.position());
+        String name = who == null ? "you" : who.getGameProfile().name();
+        if (golemsWoken == GOLEM_X.length * GOLEM_Z.length) {
+            say(level, String.format(ALL_GOLEMS, name));
+        } else if (golemsWoken == 1) {
+            say(level, String.format(pick(FIRST_GOLEM), name));
+        } else {
+            say(level, GOLEM_WOKEN);
+        }
+    }
+
+    /** The woken Golems run at the nearest player; a dead one goes. */
+    private void tickGolems(ServerLevel level) {
+        if (golems.isEmpty()) {
+            return;
+        }
+        List<ServerPlayer> targets = ticks % 20 == 0 ? playersInTomb(level) : null;
+        for (Golem g : new ArrayList<>(golems)) {
+            if (g.body.isRemoved()) {
+                golems.remove(g);
+                continue;
+            }
+            if (g.health.hp <= 0) {
+                level.sendParticles(ParticleTypes.POOF, g.body.getX(), g.body.getY() + 1.4, g.body.getZ(), 15, 0.5,
+                        0.8, 0.5, 0.02);
+                g.body.discard();
+                golems.remove(g);
+                continue;
+            }
+            if (g.awake && targets != null) {
+                ServerPlayer t = nearest(targets, g.body.position());
+                if (t != null) {
+                    g.body.setTarget(t);
+                }
+            }
+            if (ticks % 10 == 0) {
+                golemTag(g);
+            }
+        }
+    }
+
+    private static void golemTag(Golem g) {
+        g.body.setCustomName(Component.literal(g.awake ? "Woke Golem " : "Sleeping Golem ")
+                .withStyle(ChatFormatting.RED)
+                .append(Component.literal(SimBoss.shortHealth(g.health.hp)).withStyle(ChatFormatting.GREEN))
+                .append(Component.literal("❤").withStyle(ChatFormatting.RED)));
+    }
+
+    private void clearGolems() {
+        for (Golem g : golems) {
+            g.body.discard();
+        }
+        golems.clear();
+    }
+
+    private Golem golem(Entity e) {
+        for (Golem g : golems) {
+            if (g.body == e) {
+                return g;
+            }
+        }
+        return null;
     }
 
     // ------------------------------------------------------------------ The Giant One
@@ -1125,11 +1308,23 @@ final class SimSadan extends SimBoss.Fight {
 
     @Override
     boolean isBoss(Entity entity) {
-        return entity instanceof GiantBody && big(entity) != null;
+        return entity instanceof GiantBody ? big(entity) != null
+                : entity instanceof GolemBody && golem(entity) != null;
     }
 
     @Override
     boolean hit(ServerLevel level, LivingEntity body, float amount) {
+        Golem golem = golem(body);
+        if (golem != null) {
+            boolean landed = golem.health.hit((float) (amount * GOLEM_TAKEN));
+            if (landed) {
+                if (!golem.awake) {
+                    wake(level, golem);
+                }
+                golemTag(golem);
+            }
+            return landed;
+        }
         Big g = big(body);
         if (g == null || g.dead) {
             return false;
@@ -1164,6 +1359,7 @@ final class SimSadan extends SimBoss.Fight {
             sadan = null;
         }
         bombs.clear();
+        clearGolems();
     }
 
     @Override
@@ -1216,6 +1412,27 @@ final class SimSadan extends SimBoss.Fight {
         }
     }
 
+    /**
+     * A Golem's body: an iron golem that goes for players only (a vanilla one would fight the Terracottas, which
+     * would take seconds off the Interest Meter), and never despawns.
+     */
+    private static final class GolemBody extends IronGolem {
+        GolemBody(Level level) {
+            super(EntityTypes.IRON_GOLEM, level);
+        }
+
+        @Override
+        protected void registerGoals() {
+            super.registerGoals();
+            targetSelector.removeAllGoals(g -> true);
+            targetSelector.addGoal(1, new NearestAttackableTargetGoal<>(this, Player.class, true));
+        }
+
+        @Override
+        public void checkDespawn() {
+        }
+    }
+
     /** A Terracotta: a chasing zombie that never despawns, never burns and drops nothing. */
     private static final class Terracotta extends Zombie {
         Terracotta(Level level, float damage) {
@@ -1223,6 +1440,14 @@ final class SimSadan extends SimBoss.Fight {
             getAttribute(Attributes.MAX_HEALTH).setBaseValue(40);
             setHealth(40);
             getAttribute(Attributes.ATTACK_DAMAGE).setBaseValue(damage);
+        }
+
+        /** Players only: a zombie goes for iron golems too, and the hall's Golems are iron golems. */
+        @Override
+        protected void registerGoals() {
+            super.registerGoals();
+            targetSelector.removeAllGoals(g -> g instanceof NearestAttackableTargetGoal<?>);
+            targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(this, Player.class, true));
         }
 
         @Override

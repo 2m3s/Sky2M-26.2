@@ -101,6 +101,15 @@ public final class SimLivid extends SimBoss.Fight {
     private static final double HEAL_RADIUS = 10;
     /** Master Mode's damage boost per clone death (APPROXIMATE: the wiki gives no amount). */
     private static final double MASTER_DEATH_BUFF = 0.10;
+    /**
+     * Every Livid's 100 Defense (the wiki's), so a player's hit lands at 100 / (100 + 100) of itself. The sim's boss
+     * pools take hits with no Defense factor ({@link SimBoss#onDamage}), so it is applied here, as Thorn's Spirit Bats'.
+     */
+    private static final double DAMAGE_TAKEN = 100.0 / (100.0 + 100.0);
+    /** Frog Livid's poison: how long it lasts, how often it ticks and each tick's share of her base hit. APPROXIMATE. */
+    private static final int POISON_TICKS = 100;
+    private static final int POISON_EVERY = 20;
+    private static final double POISON_SHARE = 0.05;
     /** How far from the middle of the ring the Livids walk, in blocks: the raised inner floor. */
     private static final double ROAM_RADIUS = 17;
 
@@ -175,11 +184,13 @@ public final class SimLivid extends SimBoss.Fight {
     private enum ShotKind { DAGGER, ARROW, HARMING, SLOWNESS }
 
     private Phase phase = Phase.INTRO;
-    private final boolean master = SimState.floorLabel().toUpperCase(java.util.Locale.ROOT).startsWith("M");
+    private final boolean master = SimHealth.master(SimState.floorLabel());
     private final Colour real = Colour.values()[ThreadLocalRandom.current().nextInt(Colour.values().length)];
     private final List<Livid> livids = new ArrayList<>();
     private final List<BlockPos> glass = new ArrayList<>();
     private final List<Shot> shots = new ArrayList<>();
+    /** Players Frog Livid has poisoned, to the tick it wears off. */
+    private final java.util.Map<UUID, Integer> poisoned = new java.util.HashMap<>();
     private int ticks;
     /** The tick the real Livid died on, for her last lines. */
     private int diedAt;
@@ -432,10 +443,32 @@ public final class SimLivid extends SimBoss.Fight {
                 writeName(l);
             }
         }
+        tickPoison(level);
         Livid her = realLivid();
         if (her == null || her.health.hp <= 0) {
             die(level);
         }
+    }
+
+    /** Frog Livid's poison: a small Hypixel hit once a second while it lasts, with green particles for the look. */
+    private void tickPoison(ServerLevel level) {
+        if (poisoned.isEmpty()) {
+            return;
+        }
+        DustParticleOptions green = new DustParticleOptions(0x4E9331, 1f);
+        poisoned.entrySet().removeIf(e -> {
+            ServerPlayer p = level.getServer().getPlayerList().getPlayer(e.getKey());
+            if (p == null || !p.isAlive() || ticks >= e.getValue()) {
+                return true;
+            }
+            if (ticks % 5 == 0) {
+                level.sendParticles(green, p.getX(), p.getY() + 1, p.getZ(), 3, 0.3, 0.5, 0.3, 0);
+            }
+            if ((e.getValue() - ticks) % POISON_EVERY == 0) {
+                hurtPlayer(level, p, damage(POISON_SHARE), false, 0, 0, 0, 0);
+            }
+            return false;
+        });
     }
 
     /** A Livid's hit after Master Mode's buffs. */
@@ -471,8 +504,10 @@ public final class SimLivid extends SimBoss.Fight {
             hurtPlayer(level, target, damage(1.0), false, target.getX() - b.getX(),
                     target.getZ() - b.getZ(), 0.4, 0.25);
             if (l.colour == Colour.FROG) {
-                // Frog's poison rides on its hit (APPROXIMATE: five seconds of Poison II).
-                target.addEffect(new MobEffectInstance(MobEffects.POISON, 100, 1));
+                // Frog's poison rides on its hit (the wiki: "Poisons players", no numbers). Dealt by the fight in
+                // Hypixel damage ({@link #tickPoison}), not as vanilla Poison, whose attacker-less ticks SimVitals
+                // would scale up from the vanilla amount.
+                poisoned.put(target.getUUID(), ticks + POISON_TICKS);
             }
             l.swingCooldown = master ? 18 : 25;
         }
@@ -671,7 +706,7 @@ public final class SimLivid extends SimBoss.Fight {
             double dx = p.getX() - b.getX();
             double dz = p.getZ() - b.getZ();
             if (dx * dx + dz * dz <= radius * radius && Math.abs(p.getY() - b.getY()) < 3) {
-                // APPROXIMATE: half her base damage, as true damage.
+                // True damage, the wiki's ("a knockback circle dealing True Damage"); the half share APPROXIMATE.
                 hurtPlayer(level, p, damage(0.5), true, dx, dz, 1.6, 0.6);
             }
         }
@@ -752,8 +787,8 @@ public final class SimLivid extends SimBoss.Fight {
                 continue;
             }
             switch (s.kind()) {
-                // APPROXIMATE: a dagger or arrow her base damage; the Harming potion half of it, as the true
-                // damage the wiki says it deals.
+                // APPROXIMATE: a dagger or arrow her base damage; the Harming potion half of it. True damage is the
+                // wiki's ("Throws a Splash Potion of Harming, dealing True Damage"); the share is not.
                 case DAGGER -> hurtPlayer(level, p, damage(1.0), false, p.getX() - s.from().x, p.getZ() - s.from().z,
                         0.3, 0.2);
                 case ARROW -> hurtPlayer(level, p, damage(0.6), false, p.getX() - s.from().x, p.getZ() - s.from().z,
@@ -818,6 +853,7 @@ public final class SimLivid extends SimBoss.Fight {
         }
         removeLivids(level);
         shots.clear();
+        poisoned.clear();
         diedAt = ticks;
         phase = Phase.DYING;
     }
@@ -912,7 +948,7 @@ public final class SimLivid extends SimBoss.Fight {
             return false;
         }
         // Every Livid has its own pool; only the real one's running out ends the fight (checked in fight()).
-        boolean landed = l.health.hit(amount);
+        boolean landed = l.health.hit((float) (amount * DAMAGE_TAKEN));
         if (landed) {
             if (l.colour != real && l.health.hp <= 0) {
                 cloneDied(level, l);
@@ -932,6 +968,7 @@ public final class SimLivid extends SimBoss.Fight {
     void discard(ServerLevel level) {
         removeLivids(level);
         shots.clear();
+        poisoned.clear();
         woolCue = null;
     }
 
