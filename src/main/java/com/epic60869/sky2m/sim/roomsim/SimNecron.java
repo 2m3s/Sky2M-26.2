@@ -1188,7 +1188,7 @@ final class SimNecron extends SimBoss.Fight {
                     }
                     boolean manned = false;
                     for (ServerPlayer p : players(level)) {
-                        manned |= pl.pad.contains(p.position());
+                        manned |= standsOnPad(level, pl, p);
                     }
                     // Stepping on the pad drops the crusher, as on Hypixel; it crushes Storm only if he is under it
                     // when it lands. It used to wait for him to be under it already, so a pad stepped on early did
@@ -1219,6 +1219,22 @@ final class SimNecron extends SimBoss.Fight {
                 }
             }
         }
+    }
+
+    /**
+     * On the ground, on the pad itself, as on Hypixel: the block under his feet is the pad's block (the one under the
+     * crusher). Being anywhere in the pad's box used to count, so jumping or flying over it, or walking past, dropped it.
+     */
+    private static boolean standsOnPad(ServerLevel level, Pillar pl, ServerPlayer p) {
+        if (!p.onGround() || !pl.pad.contains(p.position())) {
+            return false;
+        }
+        BlockPos below = BlockPos.containing(p.getX(), p.getY() - 0.1, p.getZ());
+        if (below.getY() != PAD_TOP) {
+            return false;
+        }
+        BlockState padBlock = level.getBlockState(new BlockPos(pl.cx, PAD_TOP, pl.cz));
+        return !padBlock.isAir() && level.getBlockState(below).is(padBlock.getBlock());
     }
 
     private boolean under(Pillar pl) {
