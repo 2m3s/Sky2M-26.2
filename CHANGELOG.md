@@ -5,6 +5,7 @@ All notable changes to Sky2M are listed here, newest first.
 ## 1.0.4
 
 ### Added
+- Leave Class In Chat (Dungeons > Auto Requeue, on by default): in a dungeon, Hypixel's party leave, kick and disconnect lines get the class that player was playing, in the class colour, like "[VIP+] Name has left the party. (Tank)". Works with Auto Requeue off.
 - Dungeon Sim Redstone Warriors: the Redstone Warrior room has two from Floor II, with a flame burst around them and golden apples to heal when low.
 - Dungeon Sim Sadan's Sleeping Golems: they stand in his hall, wake when hit and chase you, with Sadan's lines for each one waking.
 - Dungeon Sim F7/M7 lines: Storm's lightning, pillar and "Not a single intact pillar remains!" lines, Goldor's lines when hit at terminals, when a gate goes down and when someone runs ahead of the gates, the Wither King's Defeat lines, and each wither's lines when the whole party dies.

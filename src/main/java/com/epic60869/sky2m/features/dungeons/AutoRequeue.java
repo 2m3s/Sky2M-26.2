@@ -26,6 +26,7 @@ import java.util.regex.Pattern;
  * doesn't requeue when someone left, was kicked or disconnected at any point in that run (from "Starting in 1 second."),
  * not only during the delay. /s2 requeue cancel and !dt in party chat skip the next one. /instancerequeue only works
  * for the leader. With Leave Title, a teammate leaving shows their name and class (in the class colour) as a title.
+ * Leave Class In Chat (its own switch, on by default) adds that class to Hypixel's leave line itself while in a dungeon.
  */
 public final class AutoRequeue {
     private static final Pattern MEMBER_GONE = Pattern.compile("(?:has left the party|has been removed from the party|was removed from your party because they disconnected|has disconnected|has been kicked from the party|You left the party|The party was disbanded)");
@@ -78,6 +79,15 @@ public final class AutoRequeue {
                     say("Not requeueing: someone left the party.");
                 }
             }
+        });
+        // Leave Class In Chat: its own switch, so it works with Auto Requeue off.
+        net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents.MODIFY_GAME.register((message, overlay) -> {
+            FeatureConfigs.AutoRequeue c = config();
+            if (overlay || c == null || !c.leaveClassInChat || !Sky2MLocation.inDungeon()) return message;
+            String text = message.getString().trim();
+            if (!MEMBER_GONE.matcher(text).find() || text.contains(":")) return message;
+            String name = leftName(text);
+            return name == null ? message : withClass(message, classes.get(name));
         });
         ClientTickEvents.END_CLIENT_TICK.register(mc -> {
             rememberClasses();
@@ -155,6 +165,20 @@ public final class AutoRequeue {
             title.append(Component.literal(" " + dungeonClass.displayName()).withColor(dungeonClass.color() & 0xFFFFFF));
         }
         return title;
+    }
+
+    /**
+     * A leave line with the class they were playing after it, in the class colour: "[VIP+] Name has left the party. (Tank)".
+     * Unchanged when the class isn't known (they were never seen in the dungeon tab).
+     */
+    public static Component withClass(Component message, DungeonClass dungeonClass) {
+        if (dungeonClass == null || dungeonClass == DungeonClass.UNKNOWN) return message;
+        return message.copy().append(Component.literal(" (" + dungeonClass.displayName() + ")").withColor(dungeonClass.color() & 0xFFFFFF));
+    }
+
+    /** For the game test: what the dungeon tab last showed this teammate as. */
+    public static void rememberClassForTest(String name, DungeonClass dungeonClass) {
+        classes.put(name, dungeonClass);
     }
 
     private static void leaveTitle(String text) {
