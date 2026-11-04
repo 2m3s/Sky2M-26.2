@@ -159,6 +159,10 @@ public final class SimSurvival {
             if (!SimState.isActive()) {
                 return;
             }
+            if (server.getTickCount() % 20 == 0) {
+                // Nobody left in the void of the build's holding area once the build is done.
+                SimBuilder.rescueHeld(server.overworld());
+            }
             for (ServerPlayer sp : server.getPlayerList().getPlayers()) {
                 if (sp.isOnFire()) {
                     sp.clearFire();

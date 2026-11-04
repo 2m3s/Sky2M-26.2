@@ -214,6 +214,7 @@ All notable changes to Sky2M are listed here, newest first.
 - Remove the Big Drop Animation (the rainbow item name for drops worth over 5M) and its "is worth X coins!" chat line.
 
 ### Fixed
+- Fix the Dungeon Sim sometimes leaving you in the void after generating a floor: the build now moves everyone in the sim into the Entrance whether or not it can find you through the client, and anyone still at the build's waiting spot afterwards is moved there too.
 - Fix the Dungeon Sim not putting your wardrobe armour on when a session or floor starts, so your gear counted for nothing and low floors hit far too hard.
 - Fix the Dungeon Sim giving no armour or pet to players who had used it before (an older stats file), so they played with no gear.
 - Fix single rooms and map codes in the Dungeon Sim using the previous map's floor for mob damage (often F7's); a map with no floor picked plays as F7.

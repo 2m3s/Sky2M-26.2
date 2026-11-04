@@ -1107,14 +1107,19 @@ public final class SimBuilder {
         // The same spot death sends him back to - one definition of "the middle of the room", so the place he
         // starts and the place he returns to cannot drift apart.
         SimSurvival.setHome(new net.minecraft.core.BlockPos(fx, y, fz));
-        if (uuid == null) {
+        landingSpot = new net.minecraft.core.BlockPos(fx, y, fz);
+        landingYaw = faceYaw;
+        if (uuid == null && !party) {
             return;
         }
         level.getServer().execute(() -> {
-            ServerPlayer host = level.getServer().getPlayerList().getPlayer(uuid);
-            // The party guests come along, out of the holding area (holdPlayer) into the same room.
-            java.util.List<ServerPlayer> moving = host == null ? java.util.List.of()
-                    : party ? level.getServer().getPlayerList().getPlayers() : java.util.List.of(host);
+            ServerPlayer host = uuid == null ? null : level.getServer().getPlayerList().getPlayer(uuid);
+            // The party guests come along, out of the holding area (holdPlayer) into the same room. A build's
+            // landing moves everyone on the server, so it no longer depends on finding the host by the client's
+            // player: read on the server thread, that could be null (the client between players) and the host was
+            // left in the holding area's void (2026-11-04, an M7 floor).
+            java.util.List<ServerPlayer> moving = party ? level.getServer().getPlayerList().getPlayers()
+                    : host == null ? java.util.List.of() : java.util.List.of(host);
             for (ServerPlayer sp : moving) {
                 // A room that names a facing (the trap rooms and Teleport Maze face in from their doorway) is
                 // turned by the shortest way from where he was looking - the yaw stays a running value rather
@@ -1125,6 +1130,10 @@ public final class SimBuilder {
                     yaw += delta;
                 }
                 sp.teleportTo(level, fx + 0.5, y, fz + 0.5, java.util.Set.of(), yaw, sp.getXRot(), false);
+            }
+            if (party) {
+                // The build is over: anyone still at the holding area from here on is stuck (rescueHeld).
+                holding = false;
             }
         });
     }
@@ -1293,6 +1302,36 @@ public final class SimBuilder {
     private static final net.minecraft.core.BlockPos HOLDING_AREA =
             new net.minecraft.core.BlockPos(8000, 200, 8000);
 
+    /** Where the last build put everyone (its landing), and the way it faced them; null before the first build. */
+    private static volatile net.minecraft.core.BlockPos landingSpot;
+    private static volatile Float landingYaw;
+    /** Set while a build has players in the holding area on purpose, so {@link #rescueHeld} leaves them there. */
+    private static volatile boolean holding;
+
+    /**
+     * The safety net for the holding area (2026-11-04: a generated M7 floor built but left the player in the void
+     * at the holding area). Once no build is holding anyone, a player still out there is put on the last build's
+     * landing. Server thread, every 20 ticks from {@link SimSurvival}'s tick or anything that calls it.
+     */
+    static void rescueHeld(ServerLevel level) {
+        net.minecraft.core.BlockPos spot = landingSpot;
+        if (holding || spot == null) {
+            return;
+        }
+        for (ServerPlayer sp : level.getServer().getPlayerList().getPlayers()) {
+            if (sp.level() != level || Math.abs(sp.getX() - HOLDING_AREA.getX()) > 64
+                    || Math.abs(sp.getZ() - HOLDING_AREA.getZ()) > 64) {
+                continue;
+            }
+            float yaw = landingYaw != null ? landingYaw : sp.getYRot();
+            sp.teleportTo(level, spot.getX() + 0.5, spot.getY(), spot.getZ() + 0.5, java.util.Set.of(), yaw,
+                    sp.getXRot(), false);
+            sp.fallDistance = 0;
+            LOGGER.error("[SimPhase] {} was still in the holding area after the build - moved to the landing at {}",
+                    sp.getGameProfile().name(), spot);
+        }
+    }
+
     /**
      * Moves the player out to the holding area for the duration of a build.
      *
@@ -1306,6 +1345,7 @@ public final class SimBuilder {
         if (uuid == null) {
             return;
         }
+        holding = true;
         level.getServer().execute(() -> {
             level.setBlockAndUpdate(HOLDING_AREA.below(),
                     net.minecraft.world.level.block.Blocks.BARRIER.defaultBlockState());
