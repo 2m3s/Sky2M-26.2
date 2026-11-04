@@ -38,6 +38,7 @@ public final class TeamSecrets {
     /** Each teammate's class, kept after they leave the tab or turn into a ghost. */
     private static final Map<String, DungeonClass> classes = new LinkedHashMap<>();
     private static long showAt, retryAt;
+    private static int colourTicks;
     private static Map<String, Long> shown;
 
     private TeamSecrets() {}
@@ -86,6 +87,8 @@ public final class TeamSecrets {
         for (DungeonPlayerManager.DungeonPlayer p : players) {
             if (p == null) continue;
             if (p.dungeonClass() != DungeonClass.UNKNOWN) classes.put(p.name(), p.dungeonClass());
+            // Their rank colour, kept for the end of the run even if they've left the tab list.
+            if (++colourTicks % 20 == 0) PlayerNameColour.of(p.name());
             if (before.putIfAbsent(p.name(), -1L) == null) {
                 String name = p.name();
                 secrets(name).whenComplete((total, error) -> {
@@ -130,13 +133,19 @@ public final class TeamSecrets {
         mc.gui.hud.getChat().addClientSystemMessage(Compat.PREFIX.get().append(
             Component.literal(updated ? "Team secrets (updated):" : "Team secrets this run:").withStyle(ChatFormatting.GOLD)));
         for (Map.Entry<String, Long> e : found.entrySet()) {
-            mc.gui.hud.getChat().addClientSystemMessage(line(e.getKey(), classes.get(e.getKey()), e.getValue()));
+            mc.gui.hud.getChat().addClientSystemMessage(line(e.getKey(), classes.get(e.getKey()), e.getValue(), PlayerNameColour.of(e.getKey())));
         }
     }
 
     /** " Name Tank: 12", the class in its colour; "?" when their profile couldn't be loaded. */
     public static Component line(String name, DungeonClass dungeonClass, long found) {
-        MutableComponent out = Component.literal(" " + name).withStyle(ChatFormatting.WHITE);
+        return line(name, dungeonClass, found, null);
+    }
+
+    /** The same with the name in its rank colour ({@link PlayerNameColour}), white when that isn't known. */
+    public static Component line(String name, DungeonClass dungeonClass, long found, Integer nameColour) {
+        MutableComponent out = Component.literal(" ").append(nameColour == null
+            ? Component.literal(name).withStyle(ChatFormatting.WHITE) : Component.literal(name).withColor(nameColour));
         if (dungeonClass != null && dungeonClass != DungeonClass.UNKNOWN) {
             out.append(Component.literal(" " + dungeonClass.displayName()).withColor(dungeonClass.color() & 0xFFFFFF));
         }
