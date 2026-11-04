@@ -2698,6 +2698,11 @@ public final class FeatureConfigs {
         public boolean roomLabels = true;
 
         @Expose
+        @ConfigOption(name = "Blood Rush Path", desc = "A red line on the map along the fewest doors from your room (or the Entrance) to Blood. Only uses the rooms and doors Hypixel's own map shows you, so nothing is revealed early: it appears once Blood (or its door) is on the map. Classic map style only.")
+        @ConfigEditorBoolean
+        public boolean bloodRushPath = false;
+
+        @Expose
         @ConfigOption(name = "Background", desc = "Draw a blurred background behind the dungeon map.")
         @ConfigEditorBoolean
         public boolean background = false;
