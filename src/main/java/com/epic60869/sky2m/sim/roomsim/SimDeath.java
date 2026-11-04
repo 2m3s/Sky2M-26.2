@@ -240,10 +240,12 @@ public final class SimDeath {
         if (isGhost(sp)) {
             return;
         }
-        boolean spirit = SimClassKit.spiritSaveAvailable(sp);
-        if (spirit) {
+        if (SimClassKit.spiritSaveAvailable(sp)) {
             SimClassKit.useSpiritSave(sp);
         }
+        // The score's rule is Hypixel's: the run's first death, by a player with a Legendary Spirit pet in his pets,
+        // not only the one out (SimClassKit.hasSpiritForScore).
+        boolean spirit = SimScore.deaths() == 0 && SimClassKit.hasSpiritForScore(sp);
         SimScore.died(spirit);
         boolean ghost = ghostMode();
         String cause = cause(source);

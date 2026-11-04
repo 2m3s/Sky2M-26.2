@@ -215,6 +215,7 @@ All notable changes to Sky2M are listed here, newest first.
 - Remove the Big Drop Animation (the rainbow item name for drops worth over 5M) and its "is worth X coins!" chat line.
 
 ### Fixed
+- Fix the Score Calculator's Spirit pet rule: the first death always cost 1 point, as if every player had a Spirit pet, so runs read a point high (a 299 could show as 300). It now costs 1 only when the first player to die has a Legendary Spirit pet in their pets menu (out or not), looked up from their profile, with teammates looked up ahead of time; until the answer is in it costs 2. Sky2M's other dungeon score had the opposite bug (its lookup never worked, so it always cost 2) and uses the same check now. In the Dungeon Sim, a Legendary Spirit pet counts as your active pet or one of your Pet Rules pets, not only the one that's out.
 - Fix the Dungeon Sim sometimes leaving you in the void after generating a floor: the build now moves everyone in the sim into the Entrance whether or not it can find you through the client, and anyone still at the build's waiting spot afterwards is moved there too.
 - Fix the Dungeon Sim not putting your wardrobe armour on when a session or floor starts, so your gear counted for nothing and low floors hit far too hard.
 - Fix the Dungeon Sim giving no armour or pet to players who had used it before (an older stats file), so they played with no gear.

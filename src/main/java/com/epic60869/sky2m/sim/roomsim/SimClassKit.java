@@ -1001,6 +1001,22 @@ public final class SimClassKit {
         return SimParty.member(sp).pet().perk() == SimGear.Perk.FIRST_DEATH_SAVE && !kit(sp).spiritUsed;
     }
 
+    /**
+     * Hypixel's score rule (the wiki's Dungeon Score page): the run's first death costs 1 skill point instead of 2 when
+     * that player has a Legendary Spirit pet in their pets menu, out or not. The sim has no owned-pets list (every pet
+     * can be picked), so the pets he carries this run stand for it: his active pet and his Pet Rules' pets.
+     */
+    public static boolean hasSpiritForScore(ServerPlayer sp) {
+        SimGear.ClassGear gear = SimParty.member(sp).gear();
+        return isLegendarySpirit(gear.pet()) || gear.rule() != null
+                && (isLegendarySpirit(gear.rule().a()) || isLegendarySpirit(gear.rule().b()));
+    }
+
+    private static boolean isLegendarySpirit(SimGear.PetBuild build) {
+        return build != null && build.pet() != null && "SPIRIT".equals(build.pet().id())
+                && "LEGENDARY".equals(build.pet().rarity());
+    }
+
     /** Spends the Spirit pet's first-death help. */
     public static void useSpiritSave(ServerPlayer sp) {
         kit(sp).spiritUsed = true;
