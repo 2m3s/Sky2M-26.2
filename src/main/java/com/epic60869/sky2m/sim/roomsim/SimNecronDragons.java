@@ -43,7 +43,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * <li>The Wither King's lines: "You... again?" opens the phase (Boss Phases' "Wither King", Dungeon Features),
  * "I no longer wish to fight, but I know that will not stop you." comes before the dragons (Rag Axe's prompt).
  * His boss bar is named "Wither King" (the relic place timer starts on it).</li>
- * <li>One dragon every 30 seconds, as on Hypixel: each one is announced by Hypixel's flame particles (20 flames at
+ * <li>One dragon at a time, in a random order, every 30 seconds (sooner after a kill): each one is announced by Hypixel's flame particles (20 flames at
  * y 19 over its statue, which Wither Dragons' spawn alerts and timers read) and appears five seconds later at its
  * statue, an ender dragon with the relic "collar" armour stand Wither Dragons matches it by. Killed inside its
  * statue's box (Wither Dragons' kill area) it destroys the statue; killed outside it, it can come back, again and
@@ -57,17 +57,32 @@ import java.util.concurrent.ThreadLocalRandom;
  * cauldron fails the run. With all five placed the Wither King is summoned on his throne: he pulls in and kills
  * anyone who gets close, sweeps a beam round the throne room and calls lightning. He cannot be damaged.</li>
  * </ul>
- * All five statues down and the Wither King gives up; the run ends.
+ * All five statues down and the Wither King gives up (his Victory lines); the run ends. A failed run (or the whole
+ * party dead) gets his Defeat lines instead.
  *
  * <p>The dragons have no AI (the fight flies them), so the vanilla ender dragon's own flight, block breaking and
  * End fight never run; their body parts, which are what arrows hit, are placed by the fight on the server.
  */
 final class SimNecronDragons {
 
-    /** Ticks from the flames to the dragon (Wither Dragons' 100-tick spawn timer). */
-    private static final int SPAWN_TICKS = 100;
+    /**
+     * Ticks from the flames to the dragon. M7 POV videos show 3.4-4.3 s between the spawn marker and the dragon, so
+     * 3.8 s (APPROXIMATE; Wither Dragons' own spawn timer counts 100 ticks, so it shows about a second left when
+     * the dragon appears).
+     */
+    private static final int SPAWN_TICKS = 76;
     /** "The Wither King spawns one of five dragons every 30 seconds." */
     private static final int SPAWN_EVERY = 600;
+    /**
+     * After a dragon is slain at its statue the next comes this soon if the 30 s timer is further off: M7 POV videos
+     * kill four dragons in 25-38 s of P5, one at a time, which the 30 s timer alone cannot do (APPROXIMATE).
+     */
+    private static final int NEXT_AFTER_KILL = 60;
+    /**
+     * Statues to destroy to finish: the wiki says "Destroying all five statues completes the floor". (In both M7 POV
+     * videos the run ended about 5 s after the fourth kill; the wiki's five is kept.)
+     */
+    private static final int STATUES_TO_WIN = 5;
     private static final Vec3 MIDDLE = new Vec3(54.5, 15, 76.5);
     /** The dragons' room, for the Soul Dragon's teleports and the Power Dragon's TNT (APPROXIMATE bounds). */
     private static final AABB ROOM = new AABB(15, 10, 50, 95, 22, 130);
@@ -100,6 +115,7 @@ final class SimNecronDragons {
     private static final String[] KING_RANDOM = {
             "Does that mean Necron is no more? I have been a mediocre master.",
             "Storm was my favorite sparring partner, you must have enjoyed fighting him!",
+            "This world isn't worth fighting for, how can you be so determined?",
             "Mortals fighting against supreme beings, what a moving spectacle.",
             "I enjoy your passion, if the circumstances had been different, we could have been friends.",
             "I have worked on this spell for centuries.",
@@ -123,6 +139,11 @@ final class SimNecronDragons {
             "I hope you'll become the Heroes I could never be.",
             "So long champions of this mad world!",
             "My strengths are depleting, this… this is it…"};
+    /** His Defeat lines: the run failing (all five dragons up, a wrong relic) or the whole party dead. */
+    private static final String[] KING_DEFEAT = {
+            "Thank you for coming all the way here.",
+            "Now I will truly have peace.",
+            "Let's enjoy your final moments in silence."};
     private static final int VICTORY_LINE_EVERY = 40;
     private static final int KING_RANDOM_EVERY = 600;
 
@@ -210,13 +231,18 @@ final class SimNecronDragons {
         return 1_000_000_000;
     }
 
+    /** The Wither King's {@code i}th Defeat line, or null past the last. */
+    static String defeatLine(int i) {
+        return i >= 0 && i < KING_DEFEAT.length ? KING_DEFEAT[i] : null;
+    }
+
     boolean finished() {
         return finished;
     }
 
     /** The Wither King's bar: the share of statues still standing. */
     float progress() {
-        return (DEFS.size() - slain) / (float) DEFS.size();
+        return Math.max(0, STATUES_TO_WIN - slain) / (float) STATUES_TO_WIN;
     }
 
     /** A dragon's body, or the Wither King's (which takes no damage: {@link #hit} refuses it). */
@@ -282,6 +308,7 @@ final class SimNecronDragons {
                 dragons.add(new Dragon(next, now));
                 int i = DEFS.indexOf(next);
                 if (firstSpawn) {
+                    // One at a time, as in M7 POV videos (a random one of those left: the order differs every run).
                     firstSpawn = false;
                     SimBoss.say(server, "Wither King", "My enemies are now my strongest allies!");
                 } else if (diedAway[i]) {
@@ -304,7 +331,7 @@ final class SimNecronDragons {
             fight.failRun(level, "all five dragons were alive at once.");
             return;
         }
-        if (slain >= DEFS.size()) {
+        if (slain >= STATUES_TO_WIN) {
             SimBoss.say(server, "Wither King", "Incredible. You did what I couldn't do myself.");
             victoryAt = now;
             endAt = now + VICTORY_LINE_EVERY * (KING_VICTORY.length + 1);
@@ -539,8 +566,9 @@ final class SimNecronDragons {
             slain++;
             statueDown[DEFS.indexOf(d.def)] = true;
             SimNecron.broadcast(server, name.copy().append(Component.literal(" was slain at its statue! (" + slain + "/"
-                    + DEFS.size() + ")").withStyle(ChatFormatting.GREEN)));
-            if (slain < DEFS.size()) {
+                    + STATUES_TO_WIN + ")").withStyle(ChatFormatting.GREEN)));
+            nextSpawnAt = Math.min(nextSpawnAt, now + NEXT_AFTER_KILL);
+            if (slain < STATUES_TO_WIN) {
                 SimBoss.say(server, "Wither King", KING_STATUE[ThreadLocalRandom.current().nextInt(KING_STATUE.length)]);
             }
         } else {

@@ -49,7 +49,6 @@ import net.minecraft.world.phys.Vec3;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -74,28 +73,39 @@ import java.util.concurrent.ThreadLocalRandom;
  * otherwise the crystals are wasted. The crystals come back 34 ticks after each laser. The first laser lets him
  * lose 75% of his health, then he enrages; later lasers have no cap. He chases the closest player and fires
  * wither skulls from his three heads.</li>
- * <li><b>P2 Storm</b> (y 165). Storm can only be hurt for 10 s after a crusher hits him: stand on a pad to arm its
- * crusher, and it drops when Storm floats under it. The purple, green and yellow crushers work once each; the red
- * one is broken. He needs two crushes and enough damage. A Shadow Assassin guards each working pad, with
- * Withermancers and Wither Guards about. He throws fireballs that land as lightning, enrages after a crush and
- * at 50%, and at 60% (and on M7 again at 30%) calls the big storm: a countdown, then two strikes on everyone not
- * under an intact crusher.</li>
+ * <li><b>P2 Storm</b> (y 165). Storm can only be hurt for 10 s after a crusher hits him: stand on a pad and, about a
+ * second after Storm drifts over it, its crusher comes down on him (as in M7 POV videos; he is held over the pad
+ * meanwhile). The purple, green and yellow crushers work once each; the red one is broken. Two crushes kill him:
+ * the first window cannot take him below 45% (about where M7 parties get him), the second has no cap. A Shadow Assassin guards each working pad, with
+ * Withermancers and Wither Guards about. He throws fireballs that land as lightning, enrages on his first crush and
+ * at 50%, and on a timer calls the big storm (Giga Lightning, after his two lightning lines the first time; no
+ * crusher works before the first one): a countdown, then two strikes on everyone not under an intact crusher. A spent crusher gets one
+ * of his "pillar destroyed" lines; all three spent gets "Not a single intact pillar remains!" (and the sim re-arms
+ * them where Hypixel would softlock).</li>
  * <li><b>P3 Goldor</b> (y 107-135). The four sections with their terminals, levers and devices
  * ({@link SimTerms#startInArena}: the drill's boards and devices, at the real room's spots); a section's gate
- * opens five seconds after it is done and the section blows up behind the players a little later. Then "The Core
+ * opens two seconds after it is done and the section blows up behind the players a little later. Then "The Core
  * entrance is opening!" and Goldor fought in the core. Until then he walks the current section and cannot be
  * hurt; every 60 ticks from Storm's death (the timer Boss Phases shows) his death tick hits everyone not in the
  * current section or the core. Throughout, his frenzy burns anyone close, and he throws his Greatsword, which sets
- * off the TNT traps in the sections. In the core his swords now and then block every hit and he fires wither
- * skulls fast.</li>
+ * off the TNT traps in the sections. Hitting him in the sections does nothing but slow him (and earns one of his
+ * "Stop touching those terminals!" lines); getting ahead of a shut gate earns "What do you think you are doing
+ * there!", and a gate going down "The gate has been destroyed!" and "I will replace that gate with a stronger one!"
+ * (two seconds after the section, as in M7 videos). In the core his swords now and
+ * then block every hit and he fires wither skulls fast.</li>
  * <li><b>P4 Necron</b> (y 64). The platform they land on is destroyed in his speech and they drop into the lava
  * (which throws you back up, as on Hypixel). He circles firing wither skulls from three heads (and now and then
  * stops and fires much faster), launches four Diamond Swords, calls lightning and throws fireballs; every so often
  * he flies up and turns four beam groups round the room for 15 s. At 80% and 5% he frenzies in the middle: everyone
- * is blinded and an explosion ring grows round him, shrinking as he is hurt; when it closes he breaks off a piece
- * of the outer ring and fights on ten seconds later. On M7 a shield now and then blocks every attack.</li>
+ * is blinded and an explosion ring grows round him, shrinking as he is hurt; when it closes ("ARGH!") he breaks
+ * off a piece of the outer ring and fights on ten seconds later. Damage stops at each threshold (a hit cannot take
+ * him past 80% or 5%), goes only into the ring during a frenzy, and lands not at all in the ten seconds after. On
+ * M7 his death leads into P5 with "Let's make some space!". On M7 a shield now and then blocks every attack.</li>
  * <li><b>P5 the Wither King</b> (M7 only, y 5): see {@link SimNecronDragons}.</li>
  * </ul>
+ *
+ * <p>A party wiped in a phase hears that wither's two "FINALLY! This took way too long." lines (the Wither King's
+ * Defeat lines in P5). F7 ends at Necron: there is no P5 off Master Mode.
  *
  * <p>Between phases the players are moved down to the next level (Hypixel drops them through the floor), and death
  * sends them to the start of the phase they are in. The gaps between phases are short, after Hypixel 0.27.2.
@@ -172,8 +182,18 @@ final class SimNecron extends SimBoss.Fight {
             "Closer to me!",
             "CLOSER!",
             "Come Closer!",
+            "Do you really think we won't repair everything? Your impact will be minuscule!",
             "I am the death zone, you are smart to flee.",
-            "You are breaking precious materials, unforgivable."};
+            "You are breaking precious materials, unforgivable.",
+            // Two more seen in M7 POV videos (not on the wiki).
+            "YOUR END IS NEAR!!",
+            "The little ants have a brain it seems."};
+    /** Goldor hit while he cannot be hurt, in the terminal sections (the wiki's "When hit in a terminal section"). */
+    private static final String[] GOLDOR_HIT_LINES = {
+            "Stop touching those terminals!",
+            "You can't damage me, you can barely slow me down!",
+            "Slowing me down only prolongs your pain!",
+            "There is no stopping me down there!"};
     private static final String[] NECRON_TAUNTS = {
             "You merely adopted the Catacombs! I was molded by them!",
             "I - Necron - was destined to rule over Mankind! Dead or Alive!",
@@ -184,6 +204,10 @@ final class SimNecron extends SimBoss.Fight {
     private static final String[] NECRON_PRE_FRENZY = {
             "Sometimes when you have a problem, you just need to destroy it all and start again.",
             "WITNESS MY RAW NUCLEAR POWER!"};
+    /** What each wither says when the whole party is dead (the "All players die" rows of the wiki's Dialogue tables). */
+    private static final String[] WIPE_LINES = {
+            "FINALLY! This took way too long.",
+            "Now that you're a Ghost, can you help me clean up?"};
     private static final String[] NECRON_FRENZY = {
             "IF YOU WANT TO STAY COOL, DON'T LOOK!",
             "BOOOOOOOOOOOOOOOOOOOOOOOOOM",
@@ -216,9 +240,22 @@ final class SimNecron extends SimBoss.Fight {
     private static final double[] GUARD_HIT = {18_000, 202_500};
     private static final double[] MANCER_HEALTH = {180_000, 150_000_000};
     private static final double[] MANCER_HIT = {1_879, 216_000};
+    /**
+     * Raw M7 hits read off M7 POV videos (before Defense), F7 scaled by the withers' 7,200 / 720,000 base: Maxor's
+     * Frenzy 1,986,931 (his touch), Storm's Static Field 1,080,000 (his touch), a Crypt Wither Skull 324,000 (the
+     * Withermancers' skulls; the videos also show 120,000, not matched to an attack) and Goldor's Frenzy 3,533,045.
+     * The F7 numbers are APPROXIMATE (scaled, not seen).
+     */
+    private static final double[] MAXOR_FRENZY = {19_869, 1_986_931};
+    private static final double[] STORM_STATIC_FIELD = {10_800, 1_080_000};
+    private static final double[] MANCER_SKULL = {3_240, 324_000};
+    private static final double[] GOLDOR_FRENZY = {35_330, 3_533_045};
     /** Maxor's adds come in waves while he is invulnerable; at most this many alive (APPROXIMATE). */
     private static final int MAXOR_ADDS_CAP = 6;
     private static final int MAXOR_WAVE_EVERY = 300;
+    /** "Large numbers" of them spawn as the fight starts (Maxor's page): the first wave fills the cap (APPROXIMATE). */
+    private static final int MAXOR_FIRST_WAVE = MAXOR_ADDS_CAP;
+    private static final int MAXOR_WAVE = 3;
 
     // ---------------------------------------------------------------------------------------------- P2
 
@@ -239,10 +276,44 @@ final class SimNecron extends SimBoss.Fight {
     };
     private static final int PAD_TOP = 168;
     private static final int PILLAR_COOLDOWN = 160;
-    /** A crush leaves Storm open for 10 seconds (Storm's page), F7 and M7. */
+    /**
+     * M7 POV videos: the crusher comes down within about a second of Storm drifting over a pad a player stands on
+     * (no lever). The sim waits this long once both are true, then drops the crusher's layers one a tick, holding
+     * Storm over the pad meanwhile so the crush lands (APPROXIMATE: 14 ticks + the ~6 layers is ~1 s).
+     */
+    private static final int CRUSHER_ARM_TICKS = 14;
+    /**
+     * The first crush's damage window cannot take him below this share of his health: the wiki needs "at least two
+     * pillars and enough damage", and in M7 POV videos the party gets him from 1B to about 450M in the first window
+     * and to 0 in the second (APPROXIMATE cap, from the videos). The second window has no cap.
+     */
+    private static final double STORM_FIRST_FLOOR = 0.45;
+    /** A crush leaves Storm open for 10 seconds (Storm's page), F7 and M7; only then does damage land. */
     private static final int STORM_VULNERABLE = 200;
     /** His fireballs' lightning: a flat 75,000 / 1,000,000 since Jul 2026 (was 15% / 40% of max health, true). */
     private static final double[] STORM_BOLT = {75_000, 1_000_000};
+    /** Storm's lines, word for word (the wiki's Dialogue table): before his first Giga Lightning (the big storm). */
+    private static final String[] STORM_STORM_INTRO = {
+            "The power of lightning is quite phenomenal. A single strike can vaporize a person whole.",
+            "I'd be happy to show you what that's like!"};
+    /** When one of his crushers is destroyed (a crusher that has crushed him is spent). */
+    private static final String[] STORM_PILLAR_LINES = {
+            "THAT WAS ONLY IN MY WAY!",
+            "This factory is too small for me!",
+            "Slowing me down will be your greatest accomplishment!"};
+    /** When all three working crushers are gone. */
+    private static final String[] STORM_NO_PILLARS = {
+            "Bahahaha! Not a single intact pillar remains!",
+            "Rejoice, your last moments are with me and my lightning."};
+    /** Ticks from his first lightning line to the second, and from it to the storm's own line (APPROXIMATE). */
+    private static final int STORM_INTRO_GAP = 40;
+    /**
+     * "Storm must use Giga Lightning at least once before being able to be crushed" (The Catacombs - Floor VII page),
+     * and in M7 POV videos both storm lines come before the first crush (about 33 s into P2). So the storms run on a
+     * timer, not on his health (he cannot be hurt before a crush): his lightning lines after his opening, the first
+     * storm, then one every so often (APPROXIMATE timings).
+     */
+    private static final int STORM_FIRST_GIGA = 110, STORM_GIGA_EVERY = 400;
     /** Shadow Assassin guarding a pad: 20M (Storm's page; the sim uses it on F7, M7 takes the Shadow Assassin table). */
     private static final double PAD_ASSASSIN_HEALTH = 20_000_000;
 
@@ -276,8 +347,11 @@ final class SimNecron extends SimBoss.Fight {
      */
     private static final int[][] GATES = {{1, 123, 122, 96, 104}, {0, 17, 18, 128, 136}, {1, 49, 50, 4, 12}};
     private static final int GATE_Y0 = 115, GATE_Y1 = 134;
-    /** "There is a five-second delay before the gate opens" once a section is done (Goldor's page). */
-    private static final int GATE_DELAY = 100;
+    /**
+     * From a section's last item to its gate going down. The wiki says five seconds, but M7 POV videos show "The gate
+     * has been destroyed!" 1.4-3.8 s after the last item, and no "will open in 5 seconds" line: 2 s (APPROXIMATE).
+     */
+    static final int GATE_DELAY = 40;
     /** A finished section blows up once Goldor has passed it: five seconds after its gate (APPROXIMATE). */
     private static final int SECTION_BLOW_DELAY = 200;
     /** Goldor's Greatsword: M7 1,000,000 direct and 500,000 from a TNT trap it sets off (Goldor's page, Jul 2026). */
@@ -287,15 +361,19 @@ final class SimNecron extends SimBoss.Fight {
     /** TNT traps placed in each section (APPROXIMATE count). */
     private static final int TRAPS_PER_SECTION = 3;
     /** Goldor's frenzy: "extremely high damage" round him, no number (APPROXIMATE: 3x base every second, 5 blocks). */
-    private static final double GOLDOR_FRENZY_X = 3;
     private static final double GOLDOR_FRENZY_RADIUS = 5;
+    /** Goldor's walk through the sections, and how much a hit slows him and for how long (APPROXIMATE numbers). */
+    private static final double GOLDOR_SPEED = 0.12, GOLDOR_SLOWED = 0.06;
+    private static final int GOLDOR_SLOW_TICKS = 20;
+    /** How often he says his hit or "passing a gate early" lines at most (APPROXIMATE). */
+    private static final int GOLDOR_LINE_GAP = 100;
 
     // ---------------------------------------------------------------------------------------------- P4
 
     private static final Vec3 P4_LANDING = new Vec3(54.5, 65, 76.5);
     private static final Vec3 P4_CENTRE = new Vec3(54.5, 70, 76.5);
     static final Vec3 P5_LANDING = new Vec3(54.5, 5, 76.5);
-    /** The intro's ticks (shortened for 0.27.2's faster transitions, APPROXIMATE): second line, platform, "ARGH!". */
+    /** The intro's ticks (shortened for 0.27.2's faster transitions, APPROXIMATE): second line, platform, open. */
     private static final int NECRON_LINE2 = 40, NECRON_DROP = 55, NECRON_OPEN = 75;
     /** The frenzies: at 80% and 5% health (Necron's page). */
     private static final double[] FRENZY_AT = {0.8, 0.05};
@@ -313,6 +391,12 @@ final class SimNecron extends SimBoss.Fight {
     private static final double FRENZY_DAMAGE_X = 4;
     /** From the ring closing (and a piece of the outer ring going) to his attacks again: "This takes 10 seconds". */
     private static final int FRENZY_RESUME = 200;
+    /**
+     * The first part of those 10 s he cannot be hurt at all; after it he is stunned ("A threshold ends the frenzy and
+     * stuns him", The Catacombs - Floor VII page) and can be hurt again, down to the next threshold. The page gives no
+     * length; "a couple of seconds" (APPROXIMATE).
+     */
+    private static final int FRENZY_IMMUNE = 40;
     /** The beam attack: four rotating horizontal beam groups for 15 s (Necron's page). */
     private static final int BEAM_TICKS = 300;
     private static final double BEAM_LENGTH = 30;
@@ -328,7 +412,8 @@ final class SimNecron extends SimBoss.Fight {
     /** The fight the use/attack callbacks hand clicks to. Server thread. */
     private static SimNecron live;
 
-    final boolean master = SimState.floorLabel().toUpperCase(Locale.ROOT).startsWith("M");
+    /** Master Mode: the same F/M split as every number here ({@link SimHealth#byMode}). */
+    final boolean master = SimHealth.master(SimState.floorLabel());
     private Phase phase = Phase.MAXOR;
     /** The phase {@link #start} begins at: Maxor for the whole fight, a later one from {@code /boss storm} etc. */
     private Phase startAt = Phase.MAXOR;
@@ -347,6 +432,8 @@ final class SimNecron extends SimBoss.Fight {
     private int contactCooldown;
     /** When the run failed (all five dragons up, a wrong cauldron), or -1. */
     private int failAt = -1;
+    /** When the whole party was found dead this phase (for the wither's two wipe lines), or -1. */
+    private int wipedAt = -1;
 
     private final List<Blast> blasts = new ArrayList<>();
     private final List<Shot> shots = new ArrayList<>();
@@ -377,10 +464,18 @@ final class SimNecron extends SimBoss.Fight {
     // P2
     private final List<Pillar> pillars = new ArrayList<>();
     private int crushes;
+    /** The crusher arming or dropping on Storm, which holds him over its pad until it lands; null when none. */
+    private Pillar holding;
     private int pyStep;
     private int pyNext;
     private int pyDone;
     private int pyBursts;
+    /** When Storm started his lines before the first big storm, or -1. */
+    private int pyIntroAt = -1;
+    /** When the next Giga Lightning is due, after the first. */
+    private int pyNextStorm;
+    /** Whether he has mocked someone caught out in this big storm ("Fool, I'd hide under something..."). */
+    private boolean pyMocked;
 
     // P3
     private int deathTickBase = -1;
@@ -389,6 +484,12 @@ final class SimNecron extends SimBoss.Fight {
     private final List<Vec3> traps = new ArrayList<>();
     private int nextGreatsword;
     private int nextFrenzyPulse;
+    /** "Damaging him slows him down" (Goldor's page): until this tick he walks at {@link #GOLDOR_SLOWED}. */
+    private int goldorSlowUntil = -1;
+    private int goldorHitLineAt = -1000;
+    private int goldorGateLineAt = -1000;
+    /** When the last gate went down (the game test reads it), or -1. */
+    private int lastGateAt = -1;
 
     // P4
     /** 0 attacking, 1 beam, 2 frenzy, 3 after a frenzy. */
@@ -397,11 +498,13 @@ final class SimNecron extends SimBoss.Fight {
     private double orbit;
     private int frenzies;
     private double frenzyRadius;
-    private double frenzyHp;
+    /** Damage dealt to him during the frenzy since the last tick: it shrinks the ring, not his health. */
+    private double frenzyDamage;
     /** When the current frenzy started, for his line in it. */
     private int frenzyAt;
     /** Whether he has said his sword line this fight. */
     private boolean saidSwords;
+    private boolean saidArgh;
     private int nextBeam;
     private int nextSwords;
     private int swordsAt = -1;
@@ -515,7 +618,8 @@ final class SimNecron extends SimBoss.Fight {
      */
     void startAt(int n) {
         Phase[] order = {Phase.MAXOR, Phase.STORM, Phase.GOLDOR, Phase.NECRON, Phase.WITHER_KING};
-        startAt = order[Math.max(1, Math.min(order.length, n)) - 1];
+        // F7 ends at Necron, as on Hypixel: there is no P5 to start at.
+        startAt = order[Math.max(1, Math.min(master ? order.length : order.length - 1, n)) - 1];
     }
 
     @Override
@@ -539,6 +643,13 @@ final class SimNecron extends SimBoss.Fight {
         phaseTicks++;
         lavaBounce(level);
         if (failAt >= 0) {
+            if (phase == Phase.WITHER_KING && wipedAt < 0 && (now - failAt) % 20 == 0) {
+                // The Wither King's Defeat lines as the hand closes (the wiki; the spacing is APPROXIMATE).
+                String text = SimNecronDragons.defeatLine((now - failAt) / 20);
+                if (text != null) {
+                    SimBoss.say(level.getServer(), "Wither King", text);
+                }
+            }
             if (now - failAt == 60) {
                 // Out of the tick: leaving discards this fight.
                 MinecraftServer server = level.getServer();
@@ -546,6 +657,7 @@ final class SimNecron extends SimBoss.Fight {
             }
             return;
         }
+        wipeLines(level);
         switch (phase) {
             case MAXOR -> tickMaxor(level);
             case STORM -> tickStorm(level);
@@ -572,10 +684,45 @@ final class SimNecron extends SimBoss.Fight {
         phase = p;
         phaseTicks = 0;
         deadAt = -1;
+        wipedAt = -1;
         blasts.clear();
         shots.clear();
         zones.clear();
         clearAdds();
+    }
+
+    /**
+     * The phase's wipe lines, once, when everyone in the room is a ghost: the wither's "FINALLY! This took way too
+     * long." and "Now that you're a Ghost, can you help me clean up?" a second apart (the spacing is APPROXIMATE), or
+     * in P5 the Wither King's Defeat lines ({@link SimNecronDragons#defeatLine}). Spectators do not count either way.
+     */
+    private void wipeLines(ServerLevel level) {
+        if (phase == Phase.DONE) {
+            return;
+        }
+        MinecraftServer server = level.getServer();
+        if (wipedAt < 0) {
+            boolean ghosts = false;
+            for (ServerPlayer p : server.getPlayerList().getPlayers()) {
+                ghosts |= !p.isSpectator() && SimDeath.isGhost(p) && arena.contains(p.getX(), p.getY(), p.getZ());
+            }
+            if (!ghosts || !players(level).isEmpty()) {
+                return;
+            }
+            wipedAt = now;
+        }
+        int line = (now - wipedAt) / 20;
+        if ((now - wipedAt) % 20 != 0) {
+            return;
+        }
+        if (phase == Phase.WITHER_KING) {
+            String text = SimNecronDragons.defeatLine(line);
+            if (text != null) {
+                SimBoss.say(server, "Wither King", text);
+            }
+        } else if (line < WIPE_LINES.length) {
+            SimBoss.say(server, bodyName, WIPE_LINES[line]);
+        }
     }
 
     private static String pick(String[] lines) {
@@ -606,6 +753,10 @@ final class SimNecron extends SimBoss.Fight {
             level.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.WITHER_SPAWN, SoundSource.HOSTILE, 1f, 0.5f);
         }
         SimBoss.tell(server, ModChat.text("The run failed: " + why));
+        if (phase == Phase.WITHER_KING && wipedAt < 0) {
+            // The first of his Defeat lines; tick says the others.
+            SimBoss.say(server, "Wither King", SimNecronDragons.defeatLine(0));
+        }
     }
 
     boolean failed() {
@@ -630,9 +781,27 @@ final class SimNecron extends SimBoss.Fight {
             level.playSound(null, body.getX(), body.getY(), body.getZ(), SoundEvents.ANVIL_LAND, SoundSource.HOSTILE, 0.6f, 1.8f);
             return false;
         }
+        if (phase == Phase.GOLDOR && coreAt < 0 && health.invulnerable) {
+            // In the sections he cannot be hurt, but a hit slows him, and now and then he says so.
+            goldorSlowUntil = now + GOLDOR_SLOW_TICKS;
+            if (now - goldorHitLineAt >= GOLDOR_LINE_GAP) {
+                goldorHitLineAt = now;
+                SimBoss.say(level.getServer(), "Goldor", pick(GOLDOR_HIT_LINES));
+            }
+            return false;
+        }
+        if (phase == Phase.NECRON && act == 2) {
+            // In his frenzy the damage goes into closing the ring; his health stays at the threshold.
+            if (health.invulnerable) {
+                return false;
+            }
+            frenzyDamage += amount;
+            return true;
+        }
         if (!health.hit(amount)) {
             return false;
         }
+        // Each window's cap: Maxor's first stun (75%), Storm's first crush, Necron's next frenzy threshold.
         health.hp = Math.max(health.hp, floorHp);
         return true;
     }
@@ -809,8 +978,9 @@ final class SimNecron extends SimBoss.Fight {
         }
         // Wither Miners and Guards pour in while he cannot be hurt.
         if (health.invulnerable && !stunned && now >= nextWave) {
+            // The first wave, as the fight starts, is the big one.
+            maxorWave(level, phaseTicks <= 40 ? MAXOR_FIRST_WAVE : MAXOR_WAVE);
             nextWave = now + MAXOR_WAVE_EVERY;
-            maxorWave(level);
         }
         contact(level);
         if (health.hp <= 0) {
@@ -819,16 +989,19 @@ final class SimNecron extends SimBoss.Fight {
         }
     }
 
-    /** A wave of two Wither Miners and a Wither Guard round the room's edge, up to {@link #MAXOR_ADDS_CAP}. */
-    private void maxorWave(ServerLevel level) {
+    /**
+     * A wave of {@code count} adds round the room's edge, two Wither Miners to each Wither Guard, up to
+     * {@link #MAXOR_ADDS_CAP} alive.
+     */
+    private void maxorWave(ServerLevel level, int count) {
         ThreadLocalRandom r = ThreadLocalRandom.current();
-        for (int i = 0; i < 3 && adds.size() < MAXOR_ADDS_CAP; i++) {
+        for (int i = 0; i < count && adds.size() < MAXOR_ADDS_CAP; i++) {
             double a = r.nextDouble() * Math.PI * 2;
             int x = (int) Math.floor(LASER.x + Math.cos(a) * 22);
             int z = (int) Math.floor(LASER.z - 18 + Math.sin(a) * 14);
             double y = ground(level, x, z, 226, 214);
             Vec3 at = new Vec3(x + 0.5, y, z + 0.5);
-            if (i < 2) {
+            if (i % 3 < 2) {
                 spawnAdd(level, "Wither Miner", at, false, MINER_HEALTH, MINER_HIT,
                         new ItemStack(Items.WITHER_SKELETON_SKULL), new ItemStack(Items.STONE_PICKAXE));
             } else {
@@ -945,8 +1118,9 @@ final class SimNecron extends SimBoss.Fight {
             return;
         }
         stuns++;
-        // Hypixel's two stun lines: F7 Extras' crystal respawn timer and "Maxor Stunned!" start on them.
-        SimBoss.say(server, "Maxor", stuns == 1 ? "THAT BEAM! IT HURTS! IT HURTS!!" : "YOU TRICKED ME!");
+        // Hypixel's two stun lines, in the M7 videos' order: F7 Extras' crystal respawn timer and "Maxor Stunned!"
+        // start on them.
+        SimBoss.say(server, "Maxor", stuns == 1 ? "YOU TRICKED ME!" : "THAT BEAM! IT HURTS! IT HURTS!!");
         stunEnd = now + (master ? MAXOR_STUN[1] : MAXOR_STUN[0]);
         health.invulnerable = false;
         // The first laser can take him down to a quarter (75% of his health); after that there is no cap.
@@ -995,10 +1169,12 @@ final class SimNecron extends SimBoss.Fight {
             pillars.add(p);
         }
         crushes = 0;
+        holding = null;
         enraged = false;
         pyStep = 0;
         pyDone = 0;
         pyBursts = 0;
+        pyIntroAt = -1;
         nextVolley = now + 60;
         stormAdds(level);
     }
@@ -1058,7 +1234,7 @@ final class SimNecron extends SimBoss.Fight {
         }
         // The rest of Hypixel's opening, word for word (the spacing is APPROXIMATE).
         if (phaseTicks == 30) {
-            SimBoss.say(server, "Storm", "Don't boast about beating this simple minded Wither.");
+            SimBoss.say(server, "Storm", "Don't boast about beating this simple-minded Wither.");
         } else if (phaseTicks == 60) {
             SimBoss.say(server, "Storm", "My abilities are unparalleled, in many ways I am the last bastion.");
         } else if (phaseTicks == 90) {
@@ -1066,25 +1242,39 @@ final class SimNecron extends SimBoss.Fight {
         }
         taunt(server, "Storm", STORM_TAUNTS);
         boolean stunned = stunEnd > now;
-        if (!stunned) {
+        if (holding != null) {
+            // A crusher is coming down on him: he is held over its pad until it lands.
+            glide(body, new Vec3(holding.cx + 0.5, STORM_Y, holding.cz + 0.5), 0.6);
+        } else if (!stunned) {
             chase(body, STORM_Y, enraged ? 0.2 : 0.15, 2.5);
         }
         if (stunEnd >= 0 && now >= stunEnd) {
+            // The 10 s window is over: he cannot be hurt again until the next crush.
             stunEnd = -1;
             health.invulnerable = true;
-            enrage(server);
+            floorHp = 0;
             rearmIfSpent(server);
         }
         double frac = health.fraction();
         if (frac <= 0.5) {
             enrage(server);
         }
-        // The big storm, once below 60% (and on M7 again below 30%, APPROXIMATE thresholds): Hypixel's lines, which
-        // Boss Phases' lightning timer and Dungeon Features start on.
-        if (pyStep == 0 && pyBursts == 0
-                && (pyDone == 0 && frac <= 0.6 || master && pyDone == 1 && frac <= 0.3)) {
-            SimBoss.say(server, "Storm", pyDone == 0 ? "ENERGY HEED MY CALL!" : "THUNDER LET ME BE YOUR CATALYST!");
+        // The big storm (Giga Lightning) on its timer (STORM_FIRST_GIGA): Hypixel's lines, which Boss Phases'
+        // lightning timer and Dungeon Features start on.
+        boolean stormDue = pyStep == 0 && pyBursts == 0 && deadAt < 0
+                && (pyDone == 0 && phaseTicks >= STORM_FIRST_GIGA || pyDone > 0 && now >= pyNextStorm);
+        if (stormDue && pyDone == 0 && pyIntroAt < 0) {
+            // Before the first storm, his two lines about lightning (the wiki's "About to start Thunder Strike").
+            pyIntroAt = now;
+            SimBoss.say(server, "Storm", STORM_STORM_INTRO[0]);
+        } else if (pyIntroAt >= 0 && now - pyIntroAt == STORM_INTRO_GAP) {
+            SimBoss.say(server, "Storm", STORM_STORM_INTRO[1]);
+        }
+        if (stormDue && (pyDone > 0 || now - pyIntroAt >= 2 * STORM_INTRO_GAP)) {
+            SimBoss.say(server, "Storm", pyDone % 2 == 0 ? "ENERGY HEED MY CALL!" : "THUNDER LET ME BE YOUR CATALYST!");
             pyDone++;
+            pyNextStorm = now + STORM_GIGA_EVERY;
+            pyMocked = false;
             // F7 Extras reads the first number as the storm's length (1.35 s a number).
             pyStep = master ? 6 : 4;
             pyNext = now + 20;
@@ -1137,6 +1327,9 @@ final class SimNecron extends SimBoss.Fight {
                 return;
             }
         }
+        // Hypixel's lines for this moment, before the sim's re-arm.
+        SimBoss.say(server, "Storm", STORM_NO_PILLARS[0]);
+        SimBoss.say(server, "Storm", STORM_NO_PILLARS[1]);
         for (Pillar pl : pillars) {
             pl.used = false;
         }
@@ -1151,14 +1344,24 @@ final class SimNecron extends SimBoss.Fight {
         }
     }
 
-    /** One burst of the big storm: a strike on everyone who is not under an intact crusher. */
+    /**
+     * One burst of the big storm (Storm's Giga Lightning): a strike on everyone who is not under an intact crusher.
+     * The first time it catches someone in a storm he says his "hide under something" line (the wiki lists it as
+     * "Player under a pillar"; when exactly is APPROXIMATE).
+     */
     private void stormBurst(ServerLevel level) {
+        boolean caught = false;
         for (ServerPlayer p : players(level)) {
             if (underIntactPillar(p)) {
                 continue;
             }
             lightning(level, p.position());
             hurtPlayerTrue(level, p, STORM_STRIKE_SHARE, 0.4);
+            caught = true;
+        }
+        if (caught && !pyMocked) {
+            pyMocked = true;
+            SimBoss.say(level.getServer(), "Storm", "Fool, I'd hide under something next time if I were you!");
         }
     }
 
@@ -1178,25 +1381,36 @@ final class SimNecron extends SimBoss.Fight {
         return false;
     }
 
-    /** Arms a pillar with a player on its pad, drops it when Storm is under it, and crushes him if he still is. */
+    /**
+     * The crushers, as in M7 POV videos: a player stands on a working pad (purple, green or yellow; the red one is
+     * broken) and Storm drifts over it; about a second later the crusher (the white block mass hanging over the pad)
+     * comes down on him. Storm is held over the pad from the moment it arms, so a crush that arms always lands.
+     * States: 0 up, 3 arming, 1 dropping, 2 down.
+     */
     private void tickPillars(ServerLevel level) {
         for (Pillar pl : pillars) {
             switch (pl.state) {
                 case 0 -> {
-                    if (pl.broken || pl.used || deadAt >= 0 || body == null || now < pl.readyAt || stunEnd > now) {
+                    // No crush before his first Giga Lightning (The Catacombs - Floor VII page).
+                    if (pl.broken || pl.used || deadAt >= 0 || body == null || now < pl.readyAt || stunEnd > now
+                            || holding != null || pyDone == 0 || !over(pl)) {
                         continue;
                     }
                     boolean manned = false;
                     for (ServerPlayer p : players(level)) {
                         manned |= standsOnPad(level, pl, p);
                     }
-                    // Stepping on the pad drops the crusher, as on Hypixel; it crushes Storm only if he is under it
-                    // when it lands. It used to wait for him to be under it already, so a pad stepped on early did
-                    // nothing at all.
                     if (manned) {
+                        pl.state = 3;
+                        pl.ticks = 0;
+                        holding = pl;
+                        level.playSound(null, pl.cx, pl.bottom, pl.cz, SoundEvents.PISTON_EXTEND, SoundSource.BLOCKS, 2f, 0.5f);
+                    }
+                }
+                case 3 -> {
+                    if (++pl.ticks >= CRUSHER_ARM_TICKS) {
                         pl.state = 1;
                         pl.layers = 0;
-                        level.playSound(null, pl.cx, pl.bottom, pl.cz, SoundEvents.PISTON_EXTEND, SoundSource.BLOCKS, 2f, 0.5f);
                     }
                 }
                 case 1 -> {
@@ -1208,6 +1422,9 @@ final class SimNecron extends SimBoss.Fight {
                     }
                     pl.state = 2;
                     pl.ticks = 0;
+                    if (holding == pl) {
+                        holding = null;
+                    }
                     if (body != null && deadAt < 0 && under(pl)) {
                         crush(level, pl);
                     }
@@ -1215,6 +1432,11 @@ final class SimNecron extends SimBoss.Fight {
                 default -> {
                     if (++pl.ticks >= 30) {
                         raise(level, pl);
+                        if (pl.used && body != null && deadAt < 0) {
+                            // The crusher that got him is spent: one of his "pillar destroyed" lines (the wiki's
+                            // trigger; saying it as the crusher goes back up is APPROXIMATE).
+                            SimBoss.say(level.getServer(), "Storm", pick(STORM_PILLAR_LINES));
+                        }
                     }
                 }
             }
@@ -1235,6 +1457,12 @@ final class SimNecron extends SimBoss.Fight {
         }
         BlockState padBlock = level.getBlockState(new BlockPos(pl.cx, PAD_TOP, pl.cz));
         return !padBlock.isAir() && level.getBlockState(below).is(padBlock.getBlock());
+    }
+
+    /** Storm over the pad (its box, a block of slack), where a manned pad arms its crusher. */
+    private boolean over(Pillar pl) {
+        return body.getX() >= pl.pad.minX - 1 && body.getX() <= pl.pad.maxX + 1
+                && body.getZ() >= pl.pad.minZ - 1 && body.getZ() <= pl.pad.maxZ + 1;
     }
 
     private boolean under(Pillar pl) {
@@ -1277,19 +1505,20 @@ final class SimNecron extends SimBoss.Fight {
         MinecraftServer server = level.getServer();
         crushes++;
         pl.used = true;
-        // Hypixel's two crush lines: F7 Extras' "Storm Crushed!" title starts on them.
-        SimBoss.say(server, "Storm", crushes % 2 == 1 ? "Oof" : "Ouch, that hurt!");
+        // M7 POV videos: "Ouch, that hurt!" after each crush (F7 Extras' "Storm Crushed!" title starts on it). The
+        // wiki's other crush line, "Oof", is in the videos too but not tied to a crush there, so the sim leaves it out.
+        SimBoss.say(server, "Storm", "Ouch, that hurt!");
         level.sendParticles(ParticleTypes.EXPLOSION, body.getX(), body.getY() + 1, body.getZ(), 4, 1, 1, 1, 0);
         level.playSound(null, body.getX(), body.getY(), body.getZ(), SoundEvents.ANVIL_LAND, SoundSource.HOSTILE, 2f, 0.6f);
-        // Open for 10 seconds; he cannot die before his second crush.
-        floorHp = crushes >= crushesNeeded() ? 0 : 1;
-        if (floorHp == 0 && health.hp <= 1) {
-            // Already beaten down to the 1 HP the first crush held him at: this crush finishes him (tickStorm's death
-            // check), instead of leaving him at 1 HP looking dead until someone lands one more hit in the window.
-            health.hp = 0;
-        }
+        // Open for 10 seconds: the players' damage in the window is what takes his health. The first window cannot
+        // take him past STORM_FIRST_FLOOR, so he never dies before his second crush; later windows have no cap.
+        floorHp = crushes >= crushesNeeded() ? 0 : health.max * STORM_FIRST_FLOOR;
         health.invulnerable = false;
         stunEnd = now + STORM_VULNERABLE;
+        if (crushes == 1) {
+            // M7 POV videos: "⚠ Storm is enraged! ⚠" right after the first crush.
+            enrage(server);
+        }
     }
 
     // ---------------------------------------------------------------------------------------------- P3 Goldor
@@ -1311,6 +1540,8 @@ final class SimNecron extends SimBoss.Fight {
         // Boss Phases and Dungeon Features restart the death tick timer on this line, so the fight does too.
         deathTickBase = now;
         coreAt = -1;
+        goldorSlowUntil = -1;
+        lastGateAt = -1;
         pendingGates.clear();
         pendingBlows.clear();
         nextGreatsword = now + GREATSWORD_EVERY;
@@ -1345,6 +1576,12 @@ final class SimNecron extends SimBoss.Fight {
             if (now >= g[1]) {
                 pendingGates.remove(g);
                 openGate(level, g[0]);
+                lastGateAt = now;
+                // Hypixel's line as the gate goes down, then Goldor's answer (both from M7 POV videos).
+                SimTerms.announceGate(server);
+                if (deadAt < 0) {
+                    SimBoss.say(server, "Goldor", "I will replace that gate with a stronger one!");
+                }
             }
         }
         for (int[] b : new ArrayList<>(pendingBlows)) {
@@ -1397,8 +1634,10 @@ final class SimNecron extends SimBoss.Fight {
             int section = Math.max(1, Math.min(4, SimTerms.section()));
             ServerPlayer target = nearestIn(level, P3_SECTIONS[section - 1]);
             if (target != null) {
-                glide(body, new Vec3(target.getX(), Math.max(108, target.getY() + 0.5), target.getZ()), 0.12);
+                glide(body, new Vec3(target.getX(), Math.max(108, target.getY() + 0.5), target.getZ()),
+                        goldorSlowUntil > now ? GOLDOR_SLOWED : GOLDOR_SPEED);
             }
+            aheadOfGate(level, section);
             if (deathTickBase >= 0 && (now - deathTickBase) % DEATH_TICK == 0) {
                 deathTick(level, section);
             }
@@ -1444,6 +1683,39 @@ final class SimNecron extends SimBoss.Fight {
         }
     }
 
+    /**
+     * Someone in a later section than the one being done (past a gate that is still shut, by a leap or a pearl):
+     * Goldor's "What do you think you are doing there!" (the wiki), at most every {@link #GOLDOR_LINE_GAP} ticks.
+     */
+    private void aheadOfGate(ServerLevel level, int section) {
+        if (now - goldorGateLineAt < GOLDOR_LINE_GAP) {
+            return;
+        }
+        int open = section;
+        for (int[] g : pendingGates) {
+            // A finished section's gate is on its way down: the next section counts as reached.
+            open = Math.max(open, g[0] + 1);
+        }
+        for (ServerPlayer p : players(level)) {
+            Vec3 pos = p.position();
+            boolean ahead = false;
+            for (int s = 0; s < P3_SECTIONS.length; s++) {
+                if (P3_SECTIONS[s].contains(pos)) {
+                    if (s + 1 <= open) {
+                        ahead = false;
+                        break;
+                    }
+                    ahead = true;
+                }
+            }
+            if (ahead && !CORE.contains(pos)) {
+                goldorGateLineAt = now;
+                SimBoss.say(level.getServer(), "Goldor", "What do you think you are doing there!");
+                return;
+            }
+        }
+    }
+
     private List<ServerPlayer> p3Players(ServerLevel level) {
         List<ServerPlayer> in = new ArrayList<>();
         for (ServerPlayer p : players(level)) {
@@ -1477,7 +1749,8 @@ final class SimNecron extends SimBoss.Fight {
         circle(level, new DustParticleOptions(0xFFAA00, 1.4f), body.position(), GOLDOR_FRENZY_RADIUS);
         for (ServerPlayer p : players(level)) {
             if (p.distanceToSqr(body) < GOLDOR_FRENZY_RADIUS * GOLDOR_FRENZY_RADIUS) {
-                hurtPlayer(level, p, GOLDOR_FRENZY_X * baseDamage(), p.getX() - body.getX(), p.getZ() - body.getZ(), 1.2, 0.5);
+                hurtPlayer(level, p, SimHealth.byMode(GOLDOR_FRENZY[0], GOLDOR_FRENZY[1]), p.getX() - body.getX(),
+                        p.getZ() - body.getZ(), 1.2, 0.5);
             }
         }
     }
@@ -1650,6 +1923,7 @@ final class SimNecron extends SimBoss.Fight {
         SimBoss.say(level.getServer(), "Necron", "You went further than any human before, congratulations.");
         act = 0;
         frenzies = 0;
+        saidArgh = false;
         swordsAt = -1;
         shieldUntil = -1;
         stillUntil = -1;
@@ -1662,8 +1936,10 @@ final class SimNecron extends SimBoss.Fight {
             if (master) {
                 if (now - deadAt == DEAD_HOLD) {
                     removeBody();
+                    // M7's line into P5, from M7 POV videos.
+                    SimBoss.say(server, "Necron", "Let's make some space!");
                 }
-                if (now - deadAt >= DEAD_HOLD + 10) {
+                if (now - deadAt >= DEAD_HOLD + 20) {
                     startWitherKing(level);
                 }
             } else {
@@ -1690,9 +1966,9 @@ final class SimNecron extends SimBoss.Fight {
             SimBoss.say(server, "Necron", "That's a very impressive trick. I guess I'll have to handle this myself.");
         }
         if (phaseTicks == NECRON_OPEN) {
-            // Hypixel's line: F7 Extras arms its Necron death checks on it.
-            SimBoss.say(server, "Necron", "ARGH!");
             health.invulnerable = false;
+            // Damage stops at his first frenzy's threshold (80%), whatever the hit.
+            floorHp = health.max * FRENZY_AT[0];
             nextSkulls = now + 20;
             nextLightning = now + 60;
             nextSwords = now + 160;
@@ -1705,7 +1981,8 @@ final class SimNecron extends SimBoss.Fight {
             glide(body, new Vec3(P4_CENTRE.x, P4_CENTRE.y + 4, P4_CENTRE.z), 0.2);
             return;
         }
-        if ((act == 0 || act == 1) && frenzies < FRENZY_AT.length && health.fraction() <= FRENZY_AT[frenzies]) {
+        // Held at the threshold by the window's cap, so compare the pool itself (the float fraction can sit a hair above).
+        if ((act == 0 || act == 1) && frenzies < FRENZY_AT.length && health.hp <= health.max * FRENZY_AT[frenzies] + 1e-6) {
             startFrenzy(level);
         }
         if (act == 0) {
@@ -1716,11 +1993,15 @@ final class SimNecron extends SimBoss.Fight {
             case 1 -> necronBeam(level);
             case 2 -> necronFrenzy(level);
             default -> {
-                // After a frenzy: he gathers himself in the middle, then fights on.
+                // After a frenzy: he gathers himself in the middle, out of reach for a moment, then stunned (open
+                // again, down to the next frenzy's threshold: 5%, then after the last one 0), then fights on.
                 glide(body, new Vec3(P4_CENTRE.x, P4_CENTRE.y + 3, P4_CENTRE.z), 0.3);
+                if (health.invulnerable && now >= actAt - FRENZY_RESUME + FRENZY_IMMUNE) {
+                    health.invulnerable = false;
+                    floorHp = frenzies < FRENZY_AT.length ? health.max * FRENZY_AT[frenzies] : 0;
+                }
                 if (now >= actAt) {
                     act = 0;
-                    floorHp = 0;
                     nextSkulls = now + 10;
                     nextBeam = Math.max(nextBeam, now + 200);
                 }
@@ -1729,6 +2010,8 @@ final class SimNecron extends SimBoss.Fight {
         necronShield(level);
         contact(level);
         if (health.hp <= 0) {
+            // "ARGH!" comes before his death (F7 Extras arms its Necron death check on it), if no frenzy said it.
+            argh(server);
             if (master) {
                 // Since Hypixel's 2026 update Necron has no last line on M7; his death is a loud wither hurt
                 // sound, which starts F7 Extras' relic spawn timer.
@@ -1856,6 +2139,14 @@ final class SimNecron extends SimBoss.Fight {
         }
     }
 
+    /** "ARGH!", once a fight. */
+    private void argh(MinecraftServer server) {
+        if (!saidArgh) {
+            saidArgh = true;
+            SimBoss.say(server, "Necron", "ARGH!");
+        }
+    }
+
     /** At 80% and 5% he goes to the middle, blinds everyone and starts the frenzy. */
     private void startFrenzy(ServerLevel level) {
         frenzies++;
@@ -1863,12 +2154,12 @@ final class SimNecron extends SimBoss.Fight {
         swordsAt = -1;
         shieldUntil = -1;
         frenzyRadius = FRENZY_START_RADIUS;
-        frenzyHp = health.hp;
         frenzyAt = now;
         // One of Hypixel's lines before a frenzy (the wiki).
         SimBoss.say(level.getServer(), "Necron", pick(NECRON_PRE_FRENZY));
-        // Sim guard: the first frenzy cannot be skipped past half, and he cannot die mid-frenzy (APPROXIMATE).
-        floorHp = frenzies >= FRENZY_AT.length ? 1 : health.max * 0.5;
+        // His health holds at the threshold through the frenzy: hits shrink the ring instead ({@link #hit}).
+        floorHp = health.hp;
+        frenzyDamage = 0;
         body.snapTo(P4_CENTRE.x, P4_CENTRE.y, P4_CENTRE.z, body.getYRot(), 0f);
         for (ServerPlayer p : players(level)) {
             p.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, 60, 0, false, false));
@@ -1882,19 +2173,21 @@ final class SimNecron extends SimBoss.Fight {
      */
     private void necronFrenzy(ServerLevel level) {
         body.snapTo(P4_CENTRE.x, P4_CENTRE.y, P4_CENTRE.z, body.getYRot() + 3f, 0f);
-        double lost = Math.max(0, frenzyHp - health.hp);
-        frenzyHp = health.hp;
+        // The ring grows while he is left alone and shrinks with the damage dealt to him (Necron's page).
+        double lost = frenzyDamage;
+        frenzyDamage = 0;
         frenzyRadius += FRENZY_GROWTH - lost * (2 * FRENZY_START_RADIUS) / (FRENZY_SHRINK_SHARE * health.max);
-        if (health.hp <= floorHp) {
-            // Sim guard: held at his floor, the ring closes by itself, so a fast team cannot get stuck.
-            frenzyRadius -= 0.2;
-        }
         frenzyRadius = Math.min(FRENZY_MAX_RADIUS, frenzyRadius);
         Vec3 floor = new Vec3(P4_CENTRE.x, P4_LANDING.y, P4_CENTRE.z);
         if (frenzyRadius <= 0) {
+            // His cry when the frenzy fails (the wiki's "Frenzy fails"; M7 videos show "ARGH!" here).
+            argh(level.getServer());
             breakRing(level);
             act = 3;
             actAt = now + FRENZY_RESUME;
+            // "This takes 10 seconds" (Necron's page): he cannot be hurt until he fights on (APPROXIMATE that the
+            // whole 10 s is invulnerable).
+            health.invulnerable = true;
             return;
         }
         if (now % 3 == 0) {
@@ -2133,14 +2426,22 @@ final class SimNecron extends SimBoss.Fight {
         glide(e, new Vec3(target.getX() - dx / d * keep, y, target.getZ() - dz / d * keep), speed);
     }
 
-    /** A hit of the wither's base damage on anyone touching the body (once a second). */
+    /**
+     * A hit on anyone touching the body (once a second): Maxor's Frenzy and Storm's Static Field at the videos'
+     * numbers, the wither's base damage otherwise.
+     */
     private void contact(ServerLevel level) {
         if (body == null || --contactCooldown > 0) {
             return;
         }
+        double damage = switch (phase) {
+            case MAXOR -> SimHealth.byMode(MAXOR_FRENZY[0], MAXOR_FRENZY[1]);
+            case STORM -> SimHealth.byMode(STORM_STATIC_FIELD[0], STORM_STATIC_FIELD[1]);
+            default -> baseDamage();
+        };
         for (ServerPlayer p : players(level)) {
             if (p.distanceToSqr(body) < 2.6 * 2.6) {
-                hurtPlayer(level, p, baseDamage(), p.getX() - body.getX(), p.getZ() - body.getZ(), 1.0, 0.5);
+                hurtPlayer(level, p, damage, p.getX() - body.getX(), p.getZ() - body.getZ(), 1.0, 0.5);
                 contactCooldown = 20;
             }
         }
@@ -2402,9 +2703,9 @@ final class SimNecron extends SimBoss.Fight {
             for (Mob m : mancers) {
                 ServerPlayer t = nearest(level, m.position());
                 if (t != null && t.distanceToSqr(m) < 10 * 10) {
-                    SimHealth.Pool pool = SimHealth.get(m);
+                    // A Crypt Wither Skull, at the M7 videos' number.
                     shoot(ShotKind.SKULL, m.position().add(0, 2.2, 0), t.position().add(0, 1, 0), 0.8,
-                            pool != null && pool.hit > 0 ? pool.hit : baseDamage());
+                            SimHealth.byMode(MANCER_SKULL[0], MANCER_SKULL[1]));
                 }
             }
         }
@@ -2706,6 +3007,69 @@ final class SimNecron extends SimBoss.Fight {
 
     int now() {
         return now;
+    }
+
+    // ---------------------------------------------------------------------------------------------- game test
+
+    /** The phase being fought ("MAXOR" to "WITHER_KING", "DONE"), for Sky2MSimF7GameTest. */
+    String phaseName() {
+        return phase.name();
+    }
+
+    /** The current wither's body, or null between phases, for the game test's scripted hits. */
+    LivingEntity bodyForTest() {
+        return body;
+    }
+
+    /**
+     * The game test's stand-in for each phase's mechanic (the laser, a crush, the terminals): the current wither can
+     * be hurt now. Necron opens by himself after his speech, so his phase is left alone; Goldor's terminals are
+     * ended, which opens the core as finishing them would.
+     */
+    void openForTest() {
+        if (phase == Phase.GOLDOR && SimTerms.isActive() && level != null) {
+            SimTerms.stopInArena(level.getServer());
+        }
+        if (phase == Phase.MAXOR || phase == Phase.STORM) {
+            health.invulnerable = false;
+            floorHp = 0;
+        }
+    }
+
+    /** The current pool, {hp, max}, for the game test's window checks. */
+    double[] healthForTest() {
+        return new double[]{health.hp, health.max};
+    }
+
+    /** Fires the Energy Laser with Maxor in it, as two placed crystals and a lured Maxor would. */
+    void laserForTest() {
+        if (phase == Phase.MAXOR && body != null && level != null) {
+            body.snapTo(LASER.x, LASER.y + 5, LASER.z, 0f, 0f);
+            fireLaser(level);
+        }
+    }
+
+    /** Drops the next working crusher on Storm, as a manned pad with Storm over it would. */
+    void crushForTest() {
+        if (phase != Phase.STORM || body == null || level == null) {
+            return;
+        }
+        for (Pillar pl : pillars) {
+            if (!pl.broken && !pl.used) {
+                crush(level, pl);
+                return;
+            }
+        }
+    }
+
+    /** Finishes a P3 section, as its last terminal, lever or device would. */
+    void sectionDoneForTest(int section) {
+        sectionDone(section);
+    }
+
+    /** When the last gate went down, or -1. */
+    int lastGateAtForTest() {
+        return lastGateAt;
     }
 
     /**
