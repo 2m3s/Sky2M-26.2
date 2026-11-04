@@ -474,7 +474,8 @@ public final class RngDropList {
             // Added 2026-11-04 (a player's list, names checked against the NEU repo).
             "Mythological Dye",
             "Braided Griffin Feather",
-            "Hilt of Revelations")),
+            "Hilt of Revelations",
+            "Cretan Urn")),
         // Littlefoot Fluff is the drop; the Pocket-sized Igloo is crafted from it, so it isn't listed.
         new Category("Other", "Fishing", List.of(
             "Prince's Crown Jewel",
@@ -500,7 +501,8 @@ public final class RngDropList {
             "Calcified Heart",
             "Helixis",
             "Octopus Tendril",
-            "Severed Pincer")),
+            "Severed Pincer",
+            "Bone Dye")),
         // Pests, rare crop drops and the rare visitor rewards (Copper Dye, Dedication IV).
         new Category("Other", "Garden", List.of(
             "Pesterminator I",
@@ -520,5 +522,42 @@ public final class RngDropList {
             "Ray of Helios",
             "Dung Dye",
             "Copper Dye",
-            "Dedication IV")));
+            "Dedication IV")),
+        // Rare drops from the rest of SkyBlock (2026-11-04): the NEU repo's mob drops at 0.5% or rarer, collectibles only
+        // (no plain materials, common armour pieces or pets), each item in one category only.
+        new Category("Other", "Crimson Isle", List.of(
+            "Cyclamen Dye",
+            "Ragnarock",
+            "Fire Freeze Staff",
+            "Fire Fury Staff",
+            "Fire Veil Wand",
+            "Flaming Fist",
+            "Molten Cube",
+            "Netherrack-Looking Sunshade",
+            "Sword of Bad Health")),
+        new Category("Other", "The End", List.of(
+            "Pearlescent Dye",
+            "Tier Boost Core",
+            "Enderman Cortex Rewriter",
+            "End Stone Bow")),
+        new Category("Other", "Mining", List.of(
+            "Blue Goblin Egg",
+            "Shattered Locket",
+            "Dwarven O's Metallic Minis",
+            "Frozen Scute",
+            "Caged Wisp",
+            "Ghostly Boots")),
+        new Category("Other", "Foraging", List.of(
+            "Mango Dye",
+            "Forest's Favor",
+            "Fading Blue Rune I",
+            "Fading Green Rune I",
+            "Fading White Rune I",
+            "Tree the Fish")),
+        new Category("Other", "Winter", List.of(
+            "Holly Dye",
+            "Krampus Helmet",
+            "Winter Island",
+            "Golden Gift",
+            "Gift the Fish")));
 }
