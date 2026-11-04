@@ -623,6 +623,7 @@ public final class SimParty {
         LAST_SENT.remove(sp.getUUID());
         sendHello(sp);
         sp.setGameMode(GameType.SURVIVAL);
+        SimVitals.refill(sp);
         // Where the party is, not the void at world spawn.
         ServerPlayer host = null;
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {

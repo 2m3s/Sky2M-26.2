@@ -124,6 +124,10 @@ public final class SimVitals {
     private static SimStats.Effective update(ServerPlayer sp, Vitals v) {
         SimStats.Effective e = SimStats.effective(sp, SimItemIds.skyblockId(sp.getMainHandItem()),
                 SimState.floorLabel());
+        // A full pool stays full when the max grows (armour going on after joining), instead of regenerating up.
+        if (v.health >= v.maxHealth && e.health() > v.maxHealth) {
+            v.health = e.health();
+        }
         v.maxHealth = e.health();
         v.maxMana = e.mana();
         v.defense = e.defense();

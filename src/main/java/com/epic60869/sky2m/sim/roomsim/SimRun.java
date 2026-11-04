@@ -237,6 +237,11 @@ public final class SimRun {
             // The gate, not just the one door that was registered. killer560 (2026-09-29): "Once the start
             // finishes it needs to remove the blocks for the gate. Those infested chizzledd blocks."
             SimDoors.openEntranceGate(client, entranceDoor);
+            // Everyone through the gate at full health and mana, in whatever gear they started in.
+            var server = client.getSingleplayerServer();
+            if (server != null) {
+                server.execute(() -> SimParty.players(server).forEach(SimVitals::refill));
+            }
             // Mort's lines as the gate opens: the Score Calculator starts its run from the first, Skyblocker's
             // DungeonScore (DUNGEON_STARTED) from the second.
             broadcast(client, mort("Here, I found this map when I first entered the dungeon."));
