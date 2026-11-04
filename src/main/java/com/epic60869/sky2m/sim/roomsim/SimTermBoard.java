@@ -34,7 +34,7 @@ import java.util.Random;
  *   enchantment glint when clicked; a wrong item does nothing.</li>
  *   <li>Click the button on time! (Melody, 6 rows): three rows since Hypixel's 2026 dungeon update. A lime pane
  *   runs along columns 1-5 of the current row; the row's clay button (column 7) only counts while the pane is
- *   under the magenta column.</li>
+ *   under the magenta column; pressed at the wrong moment, the pane stands still for 2 seconds.</li>
  * </ul>
  */
 final class SimTermBoard {
@@ -75,6 +75,8 @@ final class SimTermBoard {
     private static final int MELODY_ROWS = 3;
     /** Server ticks between the lime pane's steps (Termism's "Normal", 350 ms). An approximation of Hypixel's speed. */
     private static final int MELODY_STEP_TICKS = 7;
+    /** A button clicked off the magenta column: the pane waits 2 seconds before moving again (the wiki's Melody rule). */
+    private static final int MELODY_WRONG_PAUSE_TICKS = 40;
 
     final Type type;
     private final Random random;
@@ -86,7 +88,7 @@ final class SimTermBoard {
     private int nextNumber;
     private char letter;
     private DyeColor selectColour;
-    private int melodyRow, melodyTarget, melodyMarker, melodyDir, melodyTicks;
+    private int melodyRow, melodyTarget, melodyMarker, melodyDir, melodyTicks, melodyPause;
     private boolean melodyDone;
     private Container container;
 
@@ -101,10 +103,34 @@ final class SimTermBoard {
         colour = new DyeColor[size];
     }
 
-    /** A board of a random type (Melody included, as Hypixel rolls it). */
-    static SimTermBoard random(Random random) {
-        Type[] types = Type.values();
-        return new SimTermBoard(types[random.nextInt(types.length)], random);
+    /** A fresh board of the terminal's own type (a terminal keeps its type for the run; each open is a new board). */
+    static SimTermBoard of(Type type, Random random) {
+        return new SimTermBoard(type, random);
+    }
+
+    /**
+     * Each section's terminal types, {@code perSection[i]} terminals in section i+1: drawn without repeats from the
+     * six types (a shuffled deck per section), so a section never gets the same terminal twice, and Melody at most
+     * once. Only a section with more terminals than types (none on Hypixel: 4/5/4/4) draws a second deck, without
+     * Melody. Hypixel's own draw is not published; this keeps a section's terminals spread over the types.
+     */
+    static List<List<Type>> assign(int[] perSection, Random random) {
+        List<List<Type>> out = new ArrayList<>();
+        for (int n : perSection) {
+            List<Type> section = new ArrayList<>();
+            List<Type> deck = new ArrayList<>(List.of(Type.values()));
+            Collections.shuffle(deck, random);
+            while (section.size() < n) {
+                if (deck.isEmpty()) {
+                    deck = new ArrayList<>(List.of(Type.values()));
+                    deck.remove(Type.MELODY);
+                    Collections.shuffle(deck, random);
+                }
+                section.add(deck.remove(deck.size() - 1));
+            }
+            out.add(section);
+        }
+        return out;
     }
 
     int rows() {
@@ -330,6 +356,10 @@ final class SimTermBoard {
         if (type != Type.MELODY || melodyDone || container == null) {
             return;
         }
+        if (melodyPause > 0) {
+            melodyPause--;
+            return;
+        }
         if (++melodyTicks < MELODY_STEP_TICKS) {
             return;
         }
@@ -384,8 +414,13 @@ final class SimTermBoard {
                 c.setItem(slot, st);
             }
             case MELODY -> {
-                // Only the current lane's button, and only while the pane is under the magenta column.
-                if (slot != melodyRow * COLS + 7 || melodyMarker != melodyTarget) {
+                // Only the current lane's button counts, and only while the pane is under the magenta column. Pressing
+                // it at the wrong moment holds the pane still for 2 seconds; while held, clicks do nothing.
+                if (slot != melodyRow * COLS + 7 || melodyPause > 0) {
+                    return;
+                }
+                if (melodyMarker != melodyTarget) {
+                    melodyPause = MELODY_WRONG_PAUSE_TICKS;
                     return;
                 }
                 melodyRow++;

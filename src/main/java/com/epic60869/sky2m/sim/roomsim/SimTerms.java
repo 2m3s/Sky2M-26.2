@@ -47,16 +47,22 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>Each section has Hypixel's terminals at their real spots, two levers and a device ({@link SimDevices}):
  * S1 4 terminals + Simon Says, S2 5 terminals + the lights device, S3 4 terminals + Arrow Align, S4 4 terminals +
  * Sharp Shooter, so 7/8/7/7 to finish them. Only the current section counts: the next one's terminals, levers
- * and device wait until its gate is down. A terminal is an armour stand named "Inactive Terminal"; a right click
- * opens a new random terminal of the six types ({@link SimTermBoard}) as a real server-side chest menu
- * ({@link SimTermMenu}), so Sky2M's terminal solvers work on it as on Hypixel. Closing one unsolved throws that
- * board away; the next open rolls a new one.
+ * and device wait until its gate is down - except Sharp Shooter (i4), which works from section 1 on, as in M7 runs
+ * where the Berserk does it during S1: its "completed a device!" line then counts in the section it is done in,
+ * and section 4 starts at 1/7 with no device line of its own. A terminal is an armour stand named "Inactive Terminal". When P3
+ * starts each terminal is given one of the six types ({@link SimTermBoard#assign}: a section never gets the same
+ * type twice, so Melody at most once), and a right click opens a fresh board of that type as a real server-side
+ * chest menu ({@link SimTermMenu}), so Sky2M's terminal solvers work on it as on Hypixel. Closing one unsolved, or
+ * walking away from it, throws that board away; the next open is a new board of the same type. Several players
+ * can have one terminal open at once, as on Hypixel, each on their own board progressing independently: the first
+ * to finish completes it (one "activated a terminal!" line, counted once) and the others' menus close.
  *
  * <h2>Chat</h2>
  * Everything the mod reads in P3 is sent as real system chat in Hypixel's wording: Goldor's "Who dares trespass
  * into my domain?", "Name activated a terminal! (n/7)", "activated a lever!", "completed a device!" (also as the
- * subtitle Hypixel shows), "The gate has been destroyed!" once a section is done and "The Core entrance is
- * opening!" at the end. So Terminal Progress, Terminal Timers, Boss Phases, the device solvers and F7 Extras all
+ * subtitle Hypixel shows), "The gate has been destroyed!" when a gate actually goes down ({@link #announceGate}:
+ * at once in the drill, a couple of seconds after the section in the boss room) and "The Core entrance is
+ * opening!" at the end. There is no "The gate will open in 5 seconds!" line: M7 runs never show one. So Terminal Progress, Terminal Timers, Boss Phases, the device solvers and F7 Extras all
  * run in the drill. At the end a [Sim] line gives each section's time and the total.
  *
  * <h2>Inside the real boss room</h2>
@@ -75,6 +81,11 @@ public final class SimTerms {
     /** What each section needs: terminals + 2 levers + its device (Hypixel's 7, 8, 7, 7). */
     private static final int[] TOTALS = {7, 8, 7, 7};
     private static final Random RANDOM = new Random();
+    /**
+     * Farther than this (squared, blocks) from the terminal's stand and its menu closes, as Hypixel closes a terminal
+     * you leap or walk away from. APPROXIMATE: Hypixel's exact range isn't published.
+     */
+    private static final double MAX_USE_DIST_SQ = 6.0 * 6.0;
 
     private enum Stage { IDLE, BUILDING, RUNNING, DONE }
 
@@ -84,6 +95,8 @@ public final class SimTerms {
     private static BlockPos homeBefore;
     private static int section;
     private static int count;
+    /** Sharp Shooter (i4) has been counted; and whether that was before section 4 (which then starts at 1). */
+    private static boolean i4Seen, i4Early;
     private static long phaseStartMs, sectionStartMs;
     private static final long[] splits = new long[4];
 
@@ -93,6 +106,8 @@ public final class SimTerms {
         final ArmorStand stand;
         /** Its command block: a right click on it opens the terminal too, as on Hypixel. */
         final BlockPos block;
+        /** Its terminal type for this run (set once all the stands are up). */
+        SimTermBoard.Type type = SimTermBoard.Type.PANES;
         boolean done;
 
         Terminal(int section, ArmorStand stand, BlockPos block) {
@@ -299,6 +314,8 @@ public final class SimTerms {
         }
         section = 1;
         count = 0;
+        i4Seen = false;
+        i4Early = false;
         phaseStartMs = sectionStartMs = System.currentTimeMillis();
         java.util.Arrays.fill(splits, 0);
         stage = Stage.RUNNING;
@@ -429,7 +446,9 @@ public final class SimTerms {
                 if (stage == Stage.RUNNING) {
                     tickLevers(level);
                     for (SimDevices.Device d : devices) {
-                        d.tick(level, stage == Stage.RUNNING && d.section == section);
+                        // Sharp Shooter (i4) also works before its section, as M7 Berserks do it in S1.
+                        d.tick(level, stage == Stage.RUNNING && (d.section == section
+                                || d instanceof SimDevices.SharpShooter && section < d.section));
                     }
                 }
             }
@@ -458,6 +477,8 @@ public final class SimTerms {
         }
         section = 1;
         count = 0;
+        i4Seen = false;
+        i4Early = false;
         phaseStartMs = sectionStartMs = System.currentTimeMillis();
         java.util.Arrays.fill(splits, 0);
         stage = Stage.RUNNING;
@@ -496,6 +517,16 @@ public final class SimTerms {
                 }
             }
         }
+        // Each section's types, drawn without repeats (see SimTermBoard.assign).
+        int[] perSection = new int[SimTermBuild.TERMINALS.length];
+        for (int s = 0; s < perSection.length; s++) {
+            perSection[s] = SimTermBuild.TERMINALS[s].length;
+        }
+        List<List<SimTermBoard.Type>> types = SimTermBoard.assign(perSection, RANDOM);
+        int[] next = new int[perSection.length];
+        for (Terminal t : TERMINALS) {
+            t.type = types.get(t.section - 1).get(next[t.section - 1]++);
+        }
     }
 
     private static void name(Terminal t) {
@@ -532,28 +563,59 @@ public final class SimTerms {
             sp.sendSystemMessage(Component.literal("This terminal isn't active yet!").withStyle(ChatFormatting.RED), true);
             return;
         }
-        SimTermBoard board = SimTermBoard.random(RANDOM);
+        // Several players may have the same terminal open, as on Hypixel: each gets their own board of its type.
+        SimTermBoard board = SimTermBoard.of(t.type, RANDOM);
         sp.openMenu(new SimpleMenuProvider((id, inventory, player) -> new SimTermMenu(id, inventory, board, t),
                 Component.literal(board.title())));
     }
 
-    /** Melody's ticks, and a solved terminal closed and counted (a tick after the click that solved it). */
+    /**
+     * Melody's ticks; a solved terminal counted and closed (a tick after the click that solved it), along with every
+     * other player's board on the same terminal; a terminal whose player has moved away closed unsolved.
+     */
     private static void tickMenus() {
         for (SimTermMenu menu : new ArrayList<>(SimTermMenu.OPEN)) {
+            if (!SimTermMenu.OPEN.contains(menu) || !(menu.player instanceof ServerPlayer sp)) {
+                // Closed earlier this tick (someone else finished its terminal).
+                continue;
+            }
+            if (!menu.board.solved() && sp.distanceToSqr(menu.terminal.stand.position()) > MAX_USE_DIST_SQ) {
+                sp.closeContainer();
+                continue;
+            }
             menu.board.tick();
             if (menu.board.solved() && !menu.reported) {
                 menu.reported = true;
-                if (menu.player instanceof ServerPlayer sp) {
-                    sp.closeContainer();
-                    Terminal t = menu.terminal;
-                    if (!t.done && stage == Stage.RUNNING && t.section == section) {
-                        t.done = true;
-                        name(t);
-                        progress(sp.level(), sp, "terminal");
+                Terminal t = menu.terminal;
+                // The line first, then the close, so the client still has the menu open when "activated a
+                // terminal!" arrives (Team Melody and Terminal Timers tie the line to the open terminal).
+                if (!t.done && stage == Stage.RUNNING && t.section == section) {
+                    t.done = true;
+                    name(t);
+                    progress(sp.level(), sp, "terminal");
+                }
+                sp.closeContainer();
+                // The first to finish completes it: everyone else's board on this terminal closes, uncounted.
+                for (SimTermMenu other : othersOn(SimTermMenu.OPEN, menu, m -> m.terminal)) {
+                    other.reported = true;
+                    if (other.player instanceof ServerPlayer op) {
+                        op.closeContainer();
                     }
                 }
             }
         }
+    }
+
+    /** The open menus other than {@code solver} on the same terminal: the ones to close once it is completed. */
+    static <M> List<M> othersOn(List<M> open, M solver, java.util.function.Function<M, ?> terminalOf) {
+        List<M> out = new ArrayList<>();
+        Object terminal = terminalOf.apply(solver);
+        for (M m : open) {
+            if (m != solver && terminalOf.apply(m) == terminal) {
+                out.add(m);
+            }
+        }
+        return out;
     }
 
     private static void tickLevers(ServerLevel level) {
@@ -594,6 +656,20 @@ public final class SimTerms {
     }
 
     /**
+     * Hypixel's line as a gate goes down, in chat and as a subtitle (Terminal Progress's Gate Titles reads the
+     * subtitle). Server thread.
+     */
+    static void announceGate(MinecraftServer server) {
+        Component gate = Component.literal("The gate has been destroyed!").withStyle(ChatFormatting.RED);
+        for (ServerPlayer p : SimBoss.players(server)) {
+            p.sendSystemMessage(gate);
+            p.connection.send(new ClientboundSetTitlesAnimationPacket(0, 40, 10));
+            p.connection.send(new ClientboundSetTitleTextPacket(Component.empty()));
+            p.connection.send(new ClientboundSetSubtitleTextPacket(gate));
+        }
+    }
+
+    /**
      * Counts one terminal, lever or device for the current section, with Hypixel's line, and opens the gate (or
      * the core) when the section is complete. Server thread.
      */
@@ -602,6 +678,15 @@ public final class SimTerms {
             return;
         }
         MinecraftServer server = level.getServer();
+        if (kind.equals("device") && !i4Seen) {
+            for (SimDevices.Device d : devices) {
+                if (d instanceof SimDevices.SharpShooter && d.done) {
+                    // This is i4: counted in the section it is done in; done early, section 4 starts with it.
+                    i4Seen = true;
+                    i4Early = section < d.section;
+                }
+            }
+        }
         int total = TOTALS[section - 1];
         count++;
         String name = who == null ? "Someone" : who.getGameProfile().name();
@@ -624,20 +709,15 @@ public final class SimTerms {
         splits[section - 1] = now - sectionStartMs;
         if (section < 4) {
             if (arena != null) {
+                // The boss room opens the gate itself a little later, and says so then.
                 arena.openGate(level, section);
             } else {
                 SimTermBuild.openGate(level, section);
-            }
-            // Hypixel says it in chat and as a subtitle (Terminal Progress's Gate Titles reads the subtitle).
-            Component gate = Component.literal("The gate has been destroyed!").withStyle(ChatFormatting.RED);
-            for (ServerPlayer p : SimBoss.players(server)) {
-                p.sendSystemMessage(gate);
-                p.connection.send(new ClientboundSetTitlesAnimationPacket(0, 40, 10));
-                p.connection.send(new ClientboundSetTitleTextPacket(Component.empty()));
-                p.connection.send(new ClientboundSetSubtitleTextPacket(gate));
+                announceGate(server);
             }
             section++;
-            count = 0;
+            // Section 4 starts with Sharp Shooter if it was done early (it has no device line of its own then).
+            count = section == 4 && i4Early ? 1 : 0;
             sectionStartMs = now;
             return;
         }
