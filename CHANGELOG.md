@@ -189,6 +189,7 @@ All notable changes to Sky2M are listed here, newest first.
 - Remove the Big Drop Animation (the rainbow item name for drops worth over 5M) and its "is worth X coins!" chat line.
 
 ### Fixed
+- Fix the Croesus "Chests: n/60" overlay not matching "Unclaimed chests" in the tab list: chests opened at the end of a run or with a Dungeon Chest Key only reached it once you opened Croesus, so it could still count a run you'd opened. It now shows Hypixel's own count from the tab whenever it's there (plus any runs finished since), and its own list only until then.
 - Fix Profile Icons In Chat never showing: an ironman (♲), Bingo or Stranded player's icon from the tab list wasn't added to their chat messages, because SkyBlock's tab rows were read by their placeholder names instead of the player's. Chat lines with emblems and extra tags before the name ("[318] ✭ [✌] [MVP++] Name") now get the icon too.
 - Fix slayer kill times not reaching the /s2 leaderboard: a boss first seen as it died could save an impossible time (a 0.03s Sven) as your PB, and no real kill could ever beat it to be sent. Kills are now timed from Hypixel's "Slay the boss!" sidebar line, impossibly fast times aren't saved, and the impossible PBs you already have are removed so your real times are sent again.
 - Fix Dungeon Sim party guests being left in invisible ghost blocks when the host generates a new map: everyone now waits in the holding area and lands in the new map together.
