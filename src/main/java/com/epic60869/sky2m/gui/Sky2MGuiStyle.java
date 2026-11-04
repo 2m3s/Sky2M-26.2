@@ -97,14 +97,52 @@ public final class Sky2MGuiStyle {
      * one keeps its rounded ends and stretches only the middle.
      */
     public static void button(GuiGraphicsExtractor g, Font font, String text, int x, int y, int w, int h, boolean hover) {
+        buttonFrame(g, x, y, w, h, hover);
+        String fit = font.plainSubstrByWidth(text, w - 4);
+        g.text(font, fit, x + (w - font.width(fit)) / 2, y + (h - 8) / 2, BUTTON_TEXT, false);
+    }
+
+    /** {@link #button}'s box without a label, for a widget that draws its own (coloured or disabled) text on it. */
+    public static void buttonFrame(GuiGraphicsExtractor g, int x, int y, int w, int h, boolean hover) {
         MoulConfigRenderContext ctx = context(g);
         float cap = 4, capU = cap / 48f;
         ctx.drawComplexTexture(GuiTextures.BUTTON, x, y, cap, h, b -> b.uv(0, 0, capU, 1));
         ctx.drawComplexTexture(GuiTextures.BUTTON, x + cap, y, w - 2 * cap, h, b -> b.uv(capU, 0, 1 - capU, 1));
         ctx.drawComplexTexture(GuiTextures.BUTTON, x + w - cap, y, cap, h, b -> b.uv(1 - capU, 0, 1, 1));
         if (hover) g.fill(x + 1, y + 1, x + w - 1, y + h - 1, 0x30FFFFFF);
-        String fit = font.plainSubstrByWidth(text, w - 4);
-        g.text(font, fit, x + (w - font.width(fit)) / 2, y + (h - 8) / 2, BUTTON_TEXT, false);
+    }
+
+    /** A button's label when it can't be pressed: grey on the light texture. */
+    public static final int BUTTON_TEXT_DISABLED = 0xFF8A8A8A;
+    /** The frame round a chosen or primary {@link #buttonFrame}: the headings' purple, darkened to show on the light texture. */
+    public static final int BUTTON_CHOSEN = 0xFF7A3FC0;
+
+    /**
+     * {@code text} with its light colour codes swapped for dark ones, for a label on the light {@link #button}: chosen
+     * (§6, §d) turns dark purple, set or pending (§e, §b) dark aqua, go or on (§a) dark green, warnings (§c) dark red,
+     * dim (§7) dark grey and white black. Codes that are already dark stay as they are.
+     */
+    public static String darkCodes(String text) {
+        if (text == null || text.indexOf('§') < 0) return text;
+        StringBuilder out = new StringBuilder(text.length());
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            out.append(c);
+            if (c == '§' && i + 1 < text.length()) {
+                char code = Character.toLowerCase(text.charAt(++i));
+                out.append(switch (code) {
+                    case '6', 'd' -> '5';
+                    case 'e', 'b' -> '3';
+                    case 'a' -> '2';
+                    case 'c' -> '4';
+                    case '9' -> '1';
+                    case '7' -> '8';
+                    case 'f' -> '0';
+                    default -> code;
+                });
+            }
+        }
+        return out.toString();
     }
 
     /** The width a {@link #button} needs for {@code text}. */

@@ -404,7 +404,7 @@ public final class SimWardrobeScreen extends Screen {
                 int cy = gridY + (i / COLUMNS) * (CELL + 2);
                 boolean out = SimGear.PETS.get(i).id().equals(gear.pet().id());
                 boolean hov = hover != null && hover[1] * COLUMNS + hover[0] == i;
-                g.fill(cx, cy, cx + CELL, cy + CELL, hov ? 0xFF3A2A12 : out ? 0xFF16301C : 0xFF141414);
+                g.fill(cx, cy, cx + CELL, cy + CELL, hov ? com.epic60869.sky2m.gui.Sky2MGuiStyle.ROW_HOVER : out ? 0xFF16301C : 0xFF141414);
                 g.item(icons.get(i)[0], cx + 1, cy + 1);
                 if (SimGear.PETS.get(i).classes().contains(cls())) {
                     g.text(this.font, "★", cx + CELL - 6, cy - 2, ProfitPanels.ACCENT, false);
@@ -425,7 +425,7 @@ public final class SimWardrobeScreen extends Screen {
                     int cy = gridY + r * (CELL + 2) + (r >= 4 ? 0 : 0);
                     boolean hov = hover != null && hover[0] == s && hover[1] == r;
                     boolean sel = s == selSlot && r == selRow;
-                    g.fill(cx, cy, cx + CELL, cy + CELL, hov ? 0xFF3A2A12 : r >= 4 ? 0xFF10161E
+                    g.fill(cx, cy, cx + CELL, cy + CELL, hov ? com.epic60869.sky2m.gui.Sky2MGuiStyle.ROW_HOVER : r >= 4 ? 0xFF10161E
                             : on ? 0xFF16301C : 0xFF141414);
                     ItemStack st = icons.get(s)[r];
                     if (!st.isEmpty()) {

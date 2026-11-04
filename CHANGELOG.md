@@ -120,6 +120,7 @@ All notable changes to Sky2M are listed here, newest first.
 - Dungeon Sim M7 damage from Hypixel runs: Maxor's Frenzy, Storm's Static Field, Withermancer skulls and Goldor's Frenzy; F7 is scaled down from them.
 - Dungeon Sim F7/M7 lines match M7 runs: Maxor's stun lines in order, Necron's "Let's make some space!" into the Wither King, and Goldor's "YOUR END IS NEAR!!".
 - Dungeon Sim Goldor slows down for a moment when hit in the terminal sections, and Maxor's first wave of adds is the big one.
+- Dungeon Sim screens use the /s2 settings' buttons, with purple marking the chosen option, and the loading screen uses the same frame as the other sim screens.
 - /s2 catacalc opens a Catacombs Calculator screen (also Dungeons > Catacombs Calculator > Open): pick a floor, and your target level, XP per run (from your last run of it) and run time (from Run History) fill in for you to change. It shows your level, the XP and runs to the target and how long they take, and the runs to each level on the way. After Runs: type how many runs of the floor and it says the Catacombs level you'll be, the XP they give and how long they take. /s2 catacalc 50 m7 still answers in chat.
 - Chroma enchants now flow as one smooth, softer rainbow across the whole tooltip instead of a full rainbow squeezed into each enchant name.
 - /boss in the Dungeon Sim switches the floor to the boss's (keeping Master Mode), so /boss storm on an F1 map shows F7 on the scoreboard.

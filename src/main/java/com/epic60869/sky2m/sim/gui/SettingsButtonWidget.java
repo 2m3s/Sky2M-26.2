@@ -38,8 +38,10 @@ import net.minecraft.network.chat.Component;
  *  exactly as before (right-click on it simply does nothing, same as pre-2026-09-27). Only call sites
  *  that opt in with {@code .secondaryPress(...)} - the enum-cycling buttons - respond to right-click.
  *  <p>
- *  Restyled (2026-11-01) from the amber box to the /s2 settings' colours (dark greys, purple for chosen), so the
- *  Dungeon Sim's screens match the rest of Sky2M. */
+ *  Restyled (2026-11-01) from the amber box to the /s2 settings' colours, and (2026-11-04) to MoulConfig's own
+ *  button ({@link Sky2MGuiStyle#buttonFrame}), the one the settings, leaderboard and collections use, so the Dungeon
+ *  Sim's screens match the rest of Sky2M. The button is light, so labels are dark and their colour codes are swapped
+ *  for dark ones ({@link Sky2MGuiStyle#darkCodes}). */
 public final class SettingsButtonWidget extends AbstractWidget {
 
 
@@ -108,35 +110,41 @@ public final class SettingsButtonWidget extends AbstractWidget {
     protected void extractWidgetRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         int x0 = getX();
         int y0 = getY();
+        var font = Minecraft.getInstance().font;
+        // MoulConfig's button is light with dark text, so the labels' colour codes (chosen, set, go) are swapped for
+        // their dark equivalents to stay readable on it (chosen reads purple, like the rest of the theme).
+        String text = font.plainSubstrByWidth(Sky2MGuiStyle.darkCodes(getMessage().getString()), getWidth() - 4);
+        if (!active) {
+            text = net.minecraft.ChatFormatting.stripFormatting(text);
+        }
+        int labelX = x0 + (getWidth() - font.width(text)) / 2;
+        int labelY = y0 + (getHeight() - 8) / 2;
         if (this.alpha < 1f) {
             // Fading in (the title screen's button): MoulConfig's texture draws at full opacity, so for those few
-            // frames the button is a flat box that can fade instead.
-            graphics.fill(x0, y0, x0 + getWidth(), y0 + getHeight(), faded(0xFF303036));
-            graphics.outline(x0, y0, getWidth(), getHeight(), faded(0xFF555555));
-            graphics.centeredText(Minecraft.getInstance().font, getMessage(), x0 + getWidth() / 2,
-                    y0 + (getHeight() - 8) / 2, faded(0xFFFFFFFF));
+            // frames the button is a flat box in the texture's colours that can fade instead.
+            graphics.fill(x0, y0, x0 + getWidth(), y0 + getHeight(), faded(0xFFC6C6C6));
+            graphics.outline(x0, y0, getWidth(), getHeight(), faded(0xFF6E6E6E));
+            graphics.text(font, net.minecraft.ChatFormatting.stripFormatting(text), labelX, labelY,
+                    faded(Sky2MGuiStyle.BUTTON_TEXT), false);
             return;
         }
         drawBox(graphics, x0, y0, getWidth(), getHeight(), isHovered && active, primary);
-        var font = Minecraft.getInstance().font;
-        // Light text on the dark box, so the labels' own colour codes (chosen, set, go) read as they are.
-        Component label = Component.literal(font.plainSubstrByWidth(getMessage().getString(), getWidth() - 4));
-        graphics.text(font, label, x0 + (getWidth() - font.width(label)) / 2, y0 + (getHeight() - 8) / 2,
-                active ? Sky2MGuiStyle.TEXT : 0xFF707070, false);
+        graphics.text(font, Component.literal(text), labelX, labelY,
+                active ? Sky2MGuiStyle.BUTTON_TEXT : Sky2MGuiStyle.BUTTON_TEXT_DISABLED, false);
     }
 
     /**
      * A box in this button's style, for a widget that has to be its own class but must look like one of these (the
-     * sim's filter chips, which carry a row and a selected state): a dark box on the panel's own greys (MoulConfig's
-     * light button texture stood out like a white brick on these dark screens), lighter while hovered, with a purple
-     * frame when {@code selected}, which is how these screens mark the chosen one.
+     * sim's filter chips, which carry a row and a selected state): MoulConfig's button, as the /s2 settings and the
+     * leaderboard draw it, lighter while hovered, with a purple frame when {@code selected}, which is how these screens
+     * mark the chosen one. Labels on it are dark ({@link Sky2MGuiStyle#BUTTON_TEXT}, {@link Sky2MGuiStyle#darkCodes}).
      */
     public static void drawBox(GuiGraphicsExtractor graphics, int x, int y, int w, int h, boolean hovered,
             boolean selected) {
-        graphics.fill(x, y, x + w, y + h, hovered ? 0xFF2C2C36 : 0xFF1C1C24);
-        graphics.outline(x, y, w, h, selected ? Sky2MGuiStyle.HEADING : hovered ? 0xFF6A6A7A : 0xFF3A3A46);
+        Sky2MGuiStyle.buttonFrame(graphics, x, y, w, h, hovered);
         if (selected) {
-            graphics.outline(x + 1, y + 1, w - 2, h - 2, Sky2MGuiStyle.HEADING);
+            graphics.outline(x, y, w, h, Sky2MGuiStyle.BUTTON_CHOSEN);
+            graphics.outline(x + 1, y + 1, w - 2, h - 2, Sky2MGuiStyle.BUTTON_CHOSEN);
         }
     }
 
