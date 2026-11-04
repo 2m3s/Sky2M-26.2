@@ -215,11 +215,16 @@ public class RngListScreen extends Screen {
                 checkbox(g, rx0 + 3, ry + 2, have != null, hover);
                 String when = have == null ? "" : (RngTracker.BY_HAND.equals(have.how()) ? "ticked" : "dropped") + " "
                     + DATE.format(Instant.ofEpochMilli(have.time()).atZone(ZoneId.systemDefault()));
+                // Not got yet: its base drop chance in this category instead of a date (RngChances).
+                if (have == null && line.category() != null) {
+                    String chance = RngChances.of(line.category(), item);
+                    if (chance != null) when = chance;
+                }
                 int whenW = font.width(when);
                 String fit = font.plainSubstrByWidth(item, rx1 - rx0 - 22 - whenW - 8);
                 Component name = have != null ? Component.literal(fit).withStyle(ChatFormatting.STRIKETHROUGH) : Component.literal(fit);
                 g.text(font, name, rx0 + 17, ry + 3, have != null ? 0xFF55FF55 : Sky2MGuiStyle.TEXT, false);
-                if (have != null) g.text(font, when, rx1 - 5 - whenW, ry + 3, Sky2MGuiStyle.MUTED, false);
+                if (!when.isEmpty()) g.text(font, when, rx1 - 5 - whenW, ry + 3, Sky2MGuiStyle.MUTED, false);
                 if (hover) {
                     hits.add(new Hit(rx0, Math.max(ry, viewTop), rx1 - rx0, Math.min(ry + ROW, viewBottom) - Math.max(ry, viewTop), () -> RngTracker.toggle(item)));
                     tooltip = have == null ? "Click to tick by hand"

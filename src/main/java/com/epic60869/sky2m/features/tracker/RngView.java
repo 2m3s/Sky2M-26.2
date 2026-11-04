@@ -16,8 +16,8 @@ final class RngView {
     static int filter;
     static String search = "";
 
-    /** A line on the right: a category heading (item null) or a drop. */
-    record Line(String heading, String item) {}
+    /** A line on the right: a category heading (item null) or a drop, with the category it's listed under. */
+    record Line(String heading, String item, RngDropList.Category category) {}
 
     private RngView() {}
 
@@ -32,9 +32,9 @@ final class RngView {
         for (RngDropList.Category c : RngDropList.ALL) {
             if (category != null && !category.equals(c.name())) continue;
             List<Line> items = new ArrayList<>();
-            for (String item : c.items()) if (shown(item, got)) items.add(new Line(null, item));
+            for (String item : c.items()) if (shown(item, got)) items.add(new Line(null, item, c));
             if (items.isEmpty()) continue;
-            if (category == null) out.add(new Line(c.name(), null));
+            if (category == null) out.add(new Line(c.name(), null, c));
             out.addAll(items);
         }
         return out;
