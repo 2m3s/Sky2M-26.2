@@ -222,6 +222,7 @@ All notable changes to Sky2M are listed here, newest first.
 - Remove the Big Drop Animation (the rainbow item name for drops worth over 5M) and its "is worth X coins!" chat line.
 
 ### Fixed
+- Fix Paul's +10 never being added to the dungeon map's score and its 270/300 messages, and retry the election data after 30 seconds, not 10 minutes, if it fails to load.
 - Fix dropped pets in the profit trackers (like a Hound from Sven) showing as "LVL 1 EPIC HOUND" with no icon: they show the pet's head and "[Lvl 1] Hound" in the pet's rarity colour.
 - Fix real slayer kills under a second (a one-shot Tier IV Sven) being thrown away as "too fast to be real": a short time is only ignored now when the boss was never seen alive and the sidebar didn't show when it spawned, and a saved sub-second PB is no longer deleted at startup.
 - Fix the Score Calculator's Spirit pet rule: the first death always cost 1 point, as if every player had a Spirit pet, so runs read a point high (a 299 could show as 300). It now costs 1 only when the first player to die has a Legendary Spirit pet in their pets menu (out or not), looked up from their profile, with teammates looked up ahead of time; until the answer is in it costs 2. Sky2M's other dungeon score had the opposite bug (its lookup never worked, so it always cost 2) and uses the same check now. In the Dungeon Sim, a Legendary Spirit pet counts as your active pet or one of your Pet Rules pets, not only the one that's out.
