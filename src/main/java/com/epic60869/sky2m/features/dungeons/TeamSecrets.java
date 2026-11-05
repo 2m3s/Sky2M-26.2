@@ -39,6 +39,8 @@ public final class TeamSecrets {
     private static final Map<String, DungeonClass> classes = new LinkedHashMap<>();
     private static long showAt, retryAt;
     private static int colourTicks;
+    /** Goes up on every {@link #reset}, so a look that was still loading can tell the run has changed. */
+    private static int runId;
     private static Map<String, Long> shown;
 
     private TeamSecrets() {}
@@ -74,6 +76,7 @@ public final class TeamSecrets {
     }
 
     private static void reset() {
+        runId++;
         before.clear();
         classes.clear();
         showAt = retryAt = 0;
@@ -105,16 +108,23 @@ public final class TeamSecrets {
 
     /** Loads everyone's totals now and prints this run's secrets; on the retry, only if someone's count went up. */
     private static void look(boolean retry) {
-        List<String> names = new ArrayList<>();
-        for (Map.Entry<String, Long> e : before.entrySet()) if (e.getValue() >= 0) names.add(e.getKey());
-        if (names.isEmpty()) return;
+        // Kept here: requeueing or changing world while these load clears before (and starts the next run's state).
+        Map<String, Long> start = new LinkedHashMap<>();
+        for (Map.Entry<String, Long> e : before.entrySet()) if (e.getValue() >= 0) start.put(e.getKey(), e.getValue());
+        if (start.isEmpty()) return;
+        int run = runId;
         Map<String, CompletableFuture<Long>> loads = new LinkedHashMap<>();
-        for (String name : names) loads.put(name, secrets(name).exceptionally(t -> -1L));
+        for (String name : start.keySet()) loads.put(name, secrets(name).exceptionally(t -> -1L));
         CompletableFuture.allOf(loads.values().toArray(CompletableFuture[]::new)).whenComplete((v, t) -> Minecraft.getInstance().execute(() -> {
             Map<String, Long> found = new LinkedHashMap<>();
             for (Map.Entry<String, CompletableFuture<Long>> e : loads.entrySet()) {
                 long now = e.getValue().getNow(-1L);
-                found.put(e.getKey(), now < 0 ? -1 : Math.max(0, now - before.get(e.getKey())));
+                found.put(e.getKey(), now < 0 ? -1 : Math.max(0, now - start.get(e.getKey())));
+            }
+            // A new run started while loading: still say how the last one went, but leave the new run's state alone.
+            if (run != runId) {
+                if (!retry) show(found, false);
+                return;
             }
             boolean someZero = found.values().stream().anyMatch(n -> n == 0);
             if (retry) {

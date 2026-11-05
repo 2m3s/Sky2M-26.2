@@ -223,6 +223,7 @@ All notable changes to Sky2M are listed here, newest first.
 - Remove the Big Drop Animation (the rainbow item name for drops worth over 5M) and its "is worth X coins!" chat line.
 
 ### Fixed
+- Fix Team Secrets losing the run's message and logging an error when you requeued or changed world while it was loading everyone's secrets.
 - Fix the Mimic not being detected when it dies the moment it spawns, such as a bow shot as the chest opens: the Mimic Message, score and Kill Titles now count it.
 - Fix the dungeon score reading 2-3 too low: every Bat killed now counts +1 (from Hypixel's message or a teammate's party line), and the Score Display shows Bats and Paul +10.
 - Fix the dungeon score reading about 7 too high when a room was skipped.
