@@ -19,7 +19,8 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * /s2 tracker, drawn like /s2 rnglist and /s2 hour ({@link Sky2MGuiStyle}). Category tabs across the top: Dungeons is
+ * /s2 tracker, drawn like /s2 rnglist and /s2 hour ({@link Sky2MGuiStyle}). Category tabs across the top: Today is the
+ * day's profit across everything ({@link TrackerDrops#today}); Dungeons is
  * {@link DungeonDropTracker} (chest loot since turning it on, floors on the left with how many chests you opened on
  * each, and what the chests cost); Slayer, Fishing, Diana, Mining, Farming and Foraging are what Sky2M's own trackers
  * counted ({@link TrackerDrops}). The list is most expensive first; RNG only (the default) hides anything under
@@ -33,6 +34,7 @@ public class DungeonDropScreen extends Screen {
     static final double RNG_PRICE = 100_000;
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("d MMM yyyy HH:mm", Locale.ROOT);
     private static final String DUNGEONS = "Dungeons";
+    private static final String TODAY = "Today";
 
     /** Kept while the game runs, like the RNG screen's search. */
     private static String search = "";
@@ -46,6 +48,8 @@ public class DungeonDropScreen extends Screen {
     private double listScroll, partScroll;
     /** The open tab's tracker counts, read once per tab. */
     private List<TrackerDrops.Part> parts = List.of();
+    /** The Today tab's activities, read when the tab opens. */
+    private List<TrackerDrops.Day> days = List.of();
     private final List<Hit> hits = new ArrayList<>();
 
     private record Hit(int x, int y, int w, int h, Runnable action) {}
@@ -57,7 +61,13 @@ public class DungeonDropScreen extends Screen {
     }
 
     private void loadCategory() {
-        parts = category.equals(DUNGEONS) ? List.of() : TrackerDrops.load(category);
+        parts = category.equals(DUNGEONS) || category.equals(TODAY) ? List.of() : TrackerDrops.load(category);
+        days = category.equals(TODAY) ? TrackerDrops.today() : List.of();
+    }
+
+    /** The Today activities picked in the left box (all when none is). */
+    private List<TrackerDrops.Day> pickedDays() {
+        return part == null ? days : days.stream().filter(d -> d.name().equals(part)).toList();
     }
 
     private void pickCategory(String c) {
@@ -117,9 +127,16 @@ public class DungeonDropScreen extends Screen {
 
     /** The open tab's rows, RNG only applied. */
     private List<DungeonDropTracker.Row> rows() {
-        List<DungeonDropTracker.Row> rows = category.equals(DUNGEONS)
-            ? DungeonDropTracker.rows(DungeonDropTracker.drops(), part, search)
-            : TrackerDrops.rows(parts, part, search);
+        List<DungeonDropTracker.Row> rows;
+        if (category.equals(TODAY)) {
+            List<DungeonDropTracker.Drop> drops = new ArrayList<>();
+            for (TrackerDrops.Day day : pickedDays()) drops.addAll(day.drops());
+            rows = DungeonDropTracker.rows(drops, null, search);
+        } else {
+            rows = category.equals(DUNGEONS)
+                ? DungeonDropTracker.rows(DungeonDropTracker.drops(), part, search)
+                : TrackerDrops.rows(parts, part, search);
+        }
         if (rngOnly) rows = new ArrayList<>(rows.stream().filter(r -> r.unit() >= RNG_PRICE).toList());
         return rows;
     }
@@ -137,7 +154,7 @@ public class DungeonDropScreen extends Screen {
         // Search and the category tabs.
         Sky2MGuiStyle.search(g, searchBox);
         int fx = listX() + 2, fy = y + 32;
-        List<String> tabs = new ArrayList<>(List.of(DUNGEONS));
+        List<String> tabs = new ArrayList<>(List.of(TODAY, DUNGEONS));
         tabs.addAll(List.of(TrackerDrops.CATEGORIES));
         for (String tab : tabs) {
             int fw = font.width(tab);
@@ -179,12 +196,18 @@ public class DungeonDropScreen extends Screen {
         int x0 = panelX() + 8, x1 = x0 + LEFT_W, top = bodyTop(), bottom = bodyBottom();
         Sky2MGuiStyle.inset(g, x0, top, x1, bottom);
         boolean dungeons = category.equals(DUNGEONS);
-        Sky2MGuiStyle.heading(g, font, dungeons ? "Floors" : category.equals("Slayer") ? "Bosses" : category, x0, top + 5, LEFT_W);
+        boolean today = category.equals(TODAY);
+        Sky2MGuiStyle.heading(g, font, today ? "Activities" : dungeons ? "Floors" : category.equals("Slayer") ? "Bosses" : category, x0, top + 5, LEFT_W);
         int viewTop = top + 17, viewBottom = bottom - 2;
 
         // {label, key, count}
         List<Object[]> entries = new ArrayList<>();
-        if (dungeons) {
+        if (today) {
+            double profit = 0;
+            for (TrackerDrops.Day day : days) profit += day.profit();
+            entries.add(new Object[]{"All", null, DungeonProfitHour.coins(profit)});
+            for (TrackerDrops.Day day : days) entries.add(new Object[]{day.name(), day.name(), DungeonProfitHour.coins(day.profit())});
+        } else if (dungeons) {
             List<DungeonDropTracker.Cost> chests = DungeonDropTracker.costs();
             entries.add(new Object[]{"All floors", null, chests.size() + " chests"});
             for (String f : DungeonDropTracker.floors(chests)) {
@@ -226,6 +249,7 @@ public class DungeonDropScreen extends Screen {
         int x0 = listX(), x1 = x0 + listW(), top = bodyTop(), bottom = bodyBottom();
         Sky2MGuiStyle.inset(g, x0, top, x1, bottom);
         boolean dungeons = category.equals(DUNGEONS);
+        boolean today = category.equals(TODAY);
         String title = part == null ? category : part;
         g.text(font, title, x0 + 7, top + 5, Sky2MGuiStyle.HEADING, false);
 
@@ -234,7 +258,14 @@ public class DungeonDropScreen extends Screen {
         Component total = Component.literal("worth ").withStyle(ChatFormatting.GRAY)
             .append(Component.literal(DungeonProfitHour.coins(worth)).withStyle(ChatFormatting.GOLD));
         List<Component> costTip = null;
-        if (dungeons && search.isBlank() && !rngOnly) {
+        if (today && search.isBlank()) {
+            // The whole day's profit, whatever RNG only hides from the list below.
+            double profit = 0;
+            for (TrackerDrops.Day day : pickedDays()) profit += day.profit();
+            total = Component.literal("profit ").withStyle(ChatFormatting.GRAY)
+                .append(Component.literal((profit >= 0 ? "+" : "") + DungeonProfitHour.coins(profit)).withStyle(profit >= 0 ? ChatFormatting.GREEN : ChatFormatting.RED));
+            costTip = todayTooltip(pickedDays());
+        } else if (dungeons && search.isBlank() && !rngOnly) {
             double spent = DungeonDropTracker.spent(DungeonDropTracker.costs(), part);
             double profit = worth - spent;
             total = total.copy().append(Component.literal(", cost ").withStyle(ChatFormatting.GRAY))
@@ -274,12 +305,13 @@ public class DungeonDropScreen extends Screen {
                 int cx = rx1 - 5 - font.width(count);
                 g.text(font, count, cx, ry + 3, 0xFFFFFFFF, false);
                 if (!rowWorth.isEmpty()) g.text(font, rowWorth, cx - 10 - font.width(rowWorth), ry + 3, 0xFFFFAA00, false);
-                if (hover) tooltip = tooltip(r, dungeons);
+                if (hover) tooltip = today ? todayRowTooltip(r) : tooltip(r, dungeons);
             }
             ry += ROW + 1;
         }
         if (rows.isEmpty()) {
-            String none = dungeons && DungeonDropTracker.costs().isEmpty() ? "Nothing yet - your dungeon chest loot shows up here as you open chests"
+            String none = today && days.isEmpty() ? "Nothing tracked yet today"
+                : dungeons && DungeonDropTracker.costs().isEmpty() ? "Nothing yet - your dungeon chest loot shows up here as you open chests"
                 : !search.isBlank() ? "No drops match \"" + search.trim() + "\""
                 : rngOnly ? "No RNG drops here yet - click Everything to see the rest"
                 : "Nothing tracked here yet";
@@ -311,6 +343,35 @@ public class DungeonDropScreen extends Screen {
         if (keys > 0) lines.add(Component.literal("§7Dungeon Chest Keys: §c" + DungeonProfitHour.coins(keys)));
         if (kismets > 0) lines.add(Component.literal("§7Kismet Feathers: §c" + DungeonProfitHour.coins(kismets)));
         lines.add(Component.literal("§7Profit: " + (profit >= 0 ? "§a+" : "§c") + DungeonProfitHour.coins(profit)));
+        return lines;
+    }
+
+    /** The Today profit hover: each activity's profit, then the day's loot, coins and costs. */
+    private static List<Component> todayTooltip(List<TrackerDrops.Day> days) {
+        double worth = 0, coins = 0, costs = 0;
+        List<Component> lines = new ArrayList<>();
+        for (TrackerDrops.Day day : days) {
+            worth += day.worth();
+            coins += day.coins();
+            costs += day.costs();
+            double profit = day.profit();
+            lines.add(Component.literal("§f" + day.name() + ": " + (profit >= 0 ? "§a+" : "§c") + DungeonProfitHour.coins(profit)));
+        }
+        if (!lines.isEmpty()) lines.add(Component.empty());
+        lines.add(Component.literal("§7Loot worth: §6" + DungeonProfitHour.coins(worth)));
+        if (coins > 0) lines.add(Component.literal("§7Coins: §6" + DungeonProfitHour.coins(coins)));
+        lines.add(Component.literal("§7Costs: §c" + DungeonProfitHour.coins(costs)));
+        lines.add(Component.literal("§8Since midnight. Chest loot at its price when claimed, the rest priced now."));
+        return lines;
+    }
+
+    private static List<Component> todayRowTooltip(DungeonDropTracker.Row r) {
+        List<Component> lines = new ArrayList<>();
+        lines.add(Component.literal(r.name()).withStyle(ChatFormatting.WHITE));
+        lines.add(Component.literal("§7Got today: §f" + DungeonProfitHour.whole(r.count())));
+        if (r.value() > 0) {
+            lines.add(Component.literal("§7Worth: §6" + DungeonProfitHour.coins(r.value()) + (r.count() > 1 ? " §8(" + DungeonProfitHour.coins(r.unit()) + " each)" : "")));
+        }
         return lines;
     }
 

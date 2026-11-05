@@ -1,6 +1,7 @@
 package com.epic60869.sky2m.features.tracker;
 
 import com.epic60869.sky2m.custom.RepoItems;
+import com.epic60869.sky2m.features.misc.profit.ProfitTracker;
 import com.epic60869.sky2m.price.Sky2MPriceTooltip;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -8,6 +9,8 @@ import com.google.gson.JsonParser;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -64,8 +67,70 @@ public final class TrackerDrops {
             if (part != null && !part.equals(p.name())) continue;
             for (Map.Entry<String, Long> e : p.counts().entrySet()) all.merge(e.getKey(), e.getValue(), Long::sum);
         }
+        return DungeonDropTracker.rows(drops(all), null, search);
+    }
+
+    /** One activity's day: what it dropped (each with its worth), the coins it made and what it cost. */
+    public record Day(String name, List<DungeonDropTracker.Drop> drops, double coins, double costs) {
+        public double worth() {
+            double worth = 0;
+            for (DungeonDropTracker.Drop d : drops) worth += d.value;
+            return worth;
+        }
+
+        public double profit() {
+            return worth() + coins - costs;
+        }
+
+        boolean empty() {
+            return drops.isEmpty() && coins == 0 && costs == 0;
+        }
+    }
+
+    /**
+     * Today so far (since local midnight, when the profit trackers start their day), one entry per activity that did
+     * anything. Dungeon loot is worth what it was when claimed; the trackers only keep counts, so theirs is priced now.
+     */
+    public static List<Day> today() {
+        long midnight = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        List<Day> out = new ArrayList<>();
+        out.add(dungeonDay(DungeonDropTracker.drops(), DungeonDropTracker.costs(), midnight));
+        out.add(trackerDay("Slayer", ProfitTracker.Preset.ZOMBIE, ProfitTracker.Preset.SPIDER, ProfitTracker.Preset.WOLF,
+            ProfitTracker.Preset.ENDERMAN, ProfitTracker.Preset.BLAZE, ProfitTracker.Preset.VAMPIRE));
+        out.add(trackerDay("Fishing", ProfitTracker.Preset.FISHING));
+        out.add(trackerDay("Diana", ProfitTracker.Preset.MYTHOLOGICAL_RITUAL));
+        out.add(trackerDay("Mining", ProfitTracker.Preset.MINING));
+        out.add(trackerDay("Farming", ProfitTracker.Preset.FARMING));
+        out.add(trackerDay("Foraging", ProfitTracker.Preset.FORAGING));
+        out.removeIf(Day::empty);
+        return out;
+    }
+
+    /** The dungeon chests opened from {@code since} on. Public for the game test. */
+    public static Day dungeonDay(List<DungeonDropTracker.Drop> drops, List<DungeonDropTracker.Cost> costs, long since) {
+        List<DungeonDropTracker.Drop> kept = new ArrayList<>();
+        for (DungeonDropTracker.Drop d : drops) if (d.time >= since) kept.add(d);
+        double spent = 0;
+        for (DungeonDropTracker.Cost c : costs) if (c.time >= since) spent += c.total();
+        return new Day("Dungeons", kept, 0, spent);
+    }
+
+    private static Day trackerDay(String name, ProfitTracker.Preset... presets) {
+        Map<String, Long> all = new LinkedHashMap<>();
+        double coins = 0, costs = 0;
+        for (ProfitTracker.Preset preset : presets) {
+            ProfitTracker.DayNumbers day = ProfitTracker.todayNumbers(preset);
+            day.items().forEach((id, count) -> all.merge(id, count, Long::sum));
+            coins += day.coins();
+            costs += day.costs();
+        }
+        return new Day(name, drops(all), coins, costs);
+    }
+
+    /** Counted items as drops, priced now. */
+    private static List<DungeonDropTracker.Drop> drops(Map<String, Long> counts) {
         List<DungeonDropTracker.Drop> drops = new ArrayList<>();
-        for (Map.Entry<String, Long> e : all.entrySet()) {
+        for (Map.Entry<String, Long> e : counts.entrySet()) {
             if (e.getValue() <= 0) continue;
             DungeonDropTracker.Drop d = new DungeonDropTracker.Drop();
             String key = e.getKey();
@@ -76,7 +141,7 @@ public final class TrackerDrops {
             d.value = d.id.isEmpty() ? 0 : price(d.id) * e.getValue();
             drops.add(d);
         }
-        return DungeonDropTracker.rows(drops, null, search);
+        return drops;
     }
 
     /** "ENCHANTMENT_CRITICAL_6" -> "Critical VI", else the item's name, else the id tidied up. */

@@ -5,6 +5,7 @@ All notable changes to Sky2M are listed here, newest first.
 ## 1.0.4
 
 ### Added
+- Drop Tracker Today tab (/s2 tracker): your profit for the day so far, across dungeon chests, slayer, fishing, Diana, mining, farming and foraging, with each activity's profit on the left and what you got today in the list. Hover the profit for the breakdown.
 - Slayer XP HUD (Slayers > Slayer XP HUD, on by default): this session's bosses per hour and Slayer XP per hour, counting only the time you're actually doing quests, the XP to your next slayer level from Hypixel's line after each quest, and about how many bosses and how long until you reach it. Move it in /s2 gui.
 - Bonzo Tick Timer (Dungeons > Floors 1-6, renamed from Floors 4-6; F1/M1, on by default): a HUD, like the Livid one, with the server ticks until Bonzo can be damaged, from his opening line to his first phase (276 ticks) and from "Oh I'm dead!" to his second life (104 ticks). Move it in /s2 gui. The tick counts were measured from an M1 run.
 - Leave Class In Chat (Dungeons > Auto Requeue, on by default): in a dungeon, Hypixel's party leave, kick and disconnect lines get the class that player was playing, in the class colour, like "[VIP+] Name has left the party. (Tank)". Works with Auto Requeue off.
