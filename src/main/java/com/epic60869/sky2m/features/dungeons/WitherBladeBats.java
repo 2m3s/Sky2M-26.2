@@ -30,8 +30,12 @@ public final class WitherBladeBats {
     /** Long enough for the bat's removal, about a second after it dies, if its death event never came. */
     private static final long USE_WINDOW_MS = 2500;
     private static final long LINE_WAIT_MS = 1000;
+    /** More bats than this gone within {@link #LINE_WAIT_MS} wasn't you: 26 near the entrance at the start of a run on 2026-11-06. */
+    private static final int MAX_KILLS_AT_ONCE = 3;
+    private static final long MASS_REMOVAL_IGNORE_MS = 5000;
 
     private static long lastBladeUse;
+    private static long ignoreUntil;
     /** Bats already looked at: a dying bat is seen at its death and again when it's removed. */
     private static final Set<Integer> SEEN = new HashSet<>();
     /** When each bat waiting on a line died. */
@@ -44,6 +48,7 @@ public final class WitherBladeBats {
             SEEN.clear();
             PENDING.clear();
             lastBladeUse = 0;
+            ignoreUntil = 0;
         });
         UseItemCallback.EVENT.register((player, level, hand) -> {
             if (level.isClientSide() && Sky2MLocation.inDungeon()) {
@@ -77,7 +82,17 @@ public final class WitherBladeBats {
         var player = Minecraft.getInstance().player;
         if (player == null || !SEEN.add(entity.getId())) return;
         long now = System.currentTimeMillis();
-        if (yourKill(player.distanceToSqr(entity), now - lastBladeUse)) PENDING.add(now);
+        if (now < ignoreUntil || !yourKill(player.distanceToSqr(entity), now - lastBladeUse)) return;
+        PENDING.add(now);
+        if (tooManyAtOnce(PENDING.size())) {
+            PENDING.clear();
+            ignoreUntil = now + MASS_REMOVAL_IGNORE_MS;
+        }
+    }
+
+    /** Whether this many bats waiting on a line is too many to be your kills. Public for the game test. */
+    public static boolean tooManyAtOnce(int waiting) {
+        return waiting > MAX_KILLS_AT_ONCE;
     }
 
     /** Whether a bat this far away (squared), this long after you last used a blade, counts as yours. Public for the game test. */

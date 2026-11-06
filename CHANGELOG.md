@@ -224,6 +224,7 @@ All notable changes to Sky2M are listed here, newest first.
 - Remove the Big Drop Animation (the rainbow item name for drops worth over 5M) and its "is worth X coins!" chat line.
 
 ### Fixed
+- Fix the Bat Message spamming "Bat dead!" and adding to the score when many bats vanish near you at once, such as at the start of a run: more than 3 going within a second no longer count as your kills.
 - Fix the Bat Message and score missing bats killed with a Hyperion or other Wither blade: a bat dying near you just after you use the blade now says "Bat dead!" and counts +1, for each bat, unless Hypixel or a teammate already announced it.
 - Fix Team Secrets losing the run's message and logging an error when you requeued or changed world while it was loading everyone's secrets.
 - Fix the Mimic not being detected when it dies the moment it spawns, such as a bow shot as the chest opens: the Mimic Message, score and Kill Titles now count it.
