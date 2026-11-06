@@ -153,6 +153,7 @@ All notable changes to Sky2M are listed here, newest first.
 - "Sky Mall & Lottery: Everywhere" (Chat > Spam Filters): hide or move the Sky Mall and Lottery buff messages on the mining and foraging islands too.
 
 ### Changed
+- Say the time in chat every time you finish a puzzle with Puzzle Bests on, not only for a new best, including when you leave before the map goes green or aren't alone (those don't count as a best).
 - Time rooms with one secret, from walking in to that secret, in Room Secret Time and Room Personal Bests.
 - Enchanted Book Labels: one-word Ultimate enchantments now show their first four letters (Chim for Chimera, Comb for Combo) instead of U plus one letter, so they no longer share a label.
 - /r on its own now takes you out of Sky2M chat (/s2c), like switching channel with /chat, so you're in Hypixel's private conversation it opens. /r with a message still just replies.
