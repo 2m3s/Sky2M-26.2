@@ -173,6 +173,7 @@ public final class DungeonFeatures {
         TerracottaTimer.init();
         AutoRequeue.init();
         TeamSecrets.init();
+        RoomClears.init();
         WitherBladeBats.init();
         PartyFinderStats.init();
         PfRequirements.init();

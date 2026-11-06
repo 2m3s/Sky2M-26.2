@@ -113,6 +113,8 @@ public final class TeamSecrets {
         for (Map.Entry<String, Long> e : before.entrySet()) if (e.getValue() >= 0) start.put(e.getKey(), e.getValue());
         if (start.isEmpty()) return;
         int run = runId;
+        FeatureConfigs.TeamSecrets c = config();
+        Map<String, RoomClears.Counts> rooms = c != null && c.roomsDone ? RoomClears.snapshot() : null;
         Map<String, CompletableFuture<Long>> loads = new LinkedHashMap<>();
         for (String name : start.keySet()) loads.put(name, secrets(name).exceptionally(t -> -1L));
         CompletableFuture.allOf(loads.values().toArray(CompletableFuture[]::new)).whenComplete((v, t) -> Minecraft.getInstance().execute(() -> {
@@ -123,7 +125,7 @@ public final class TeamSecrets {
             }
             // A new run started while loading: still say how the last one went, but leave the new run's state alone.
             if (run != runId) {
-                if (!retry) show(found, false);
+                if (!retry) show(found, false, rooms);
                 return;
             }
             boolean someZero = found.values().stream().anyMatch(n -> n == 0);
@@ -133,27 +135,42 @@ public final class TeamSecrets {
                 retryAt = System.currentTimeMillis() + SECOND_LOOK_MS;
             }
             shown = found;
-            show(found, retry);
+            show(found, retry, rooms);
         }));
     }
 
-    private static void show(Map<String, Long> found, boolean updated) {
+    private static void show(Map<String, Long> found, boolean updated, Map<String, RoomClears.Counts> rooms) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
         mc.gui.hud.getChat().addClientSystemMessage(Compat.PREFIX.get().append(
             Component.literal(updated ? "Team secrets (updated):" : "Team secrets this run:").withStyle(ChatFormatting.GOLD)));
         for (Map.Entry<String, Long> e : found.entrySet()) {
-            mc.gui.hud.getChat().addClientSystemMessage(line(e.getKey(), classes.get(e.getKey()), e.getValue(), PlayerNameColour.of(e.getKey())));
+            MutableComponent line = line(e.getKey(), classes.get(e.getKey()), e.getValue(), PlayerNameColour.of(e.getKey()));
+            if (rooms != null) line.append(roomsPart(rooms.getOrDefault(e.getKey().toLowerCase(java.util.Locale.ROOT), new RoomClears.Counts(List.of(), List.of()))));
+            mc.gui.hud.getChat().addClientSystemMessage(line);
         }
     }
 
+    /** " | 3-5 rooms", and the rooms themselves on hover. Public for the game test. */
+    public static Component roomsPart(RoomClears.Counts counts) {
+        int solo = counts.solo().size();
+        int stacked = counts.stacked().size();
+        List<String> names = new ArrayList<>();
+        counts.solo().forEach(room -> names.add(room + " (solo)"));
+        counts.stacked().forEach(room -> names.add(room + " (stacked)"));
+        Component hover = Component.literal(names.isEmpty() ? "No rooms" : String.join("\n", names));
+        return Component.literal(" | ").withStyle(ChatFormatting.DARK_GRAY).append(
+            Component.literal(RoomClears.rangeText(solo, stacked) + (solo + stacked == 1 ? " room" : " rooms"))
+                .withStyle(style -> style.withColor(ChatFormatting.YELLOW).withHoverEvent(new net.minecraft.network.chat.HoverEvent.ShowText(hover))));
+    }
+
     /** " Name Tank: 12", the class in its colour; "?" when their profile couldn't be loaded. */
-    public static Component line(String name, DungeonClass dungeonClass, long found) {
+    public static MutableComponent line(String name, DungeonClass dungeonClass, long found) {
         return line(name, dungeonClass, found, null);
     }
 
     /** The same with the name in its rank colour ({@link PlayerNameColour}), white when that isn't known. */
-    public static Component line(String name, DungeonClass dungeonClass, long found, Integer nameColour) {
+    public static MutableComponent line(String name, DungeonClass dungeonClass, long found, Integer nameColour) {
         MutableComponent out = Component.literal(" ").append(nameColour == null
             ? Component.literal(name).withStyle(ChatFormatting.WHITE) : Component.literal(name).withColor(nameColour));
         if (dungeonClass != null && dungeonClass != DungeonClass.UNKNOWN) {

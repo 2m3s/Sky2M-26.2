@@ -2944,6 +2944,24 @@ public final class FeatureConfigs {
         @ConfigEditorDropdown
         @ConfigAccordionId(id = 1506)
         public RoomClearMode roomClearMode = RoomClearMode.BOTH;
+
+        @Expose
+        @ConfigOption(name = "Room Secret Time", desc = "When the room you're in gets its green checkmark, say in chat (only you see it) how long it took to get all its secrets, from the first secret found while you're in the room, so running through on a blood rush doesn't count. Not for rooms with one secret.")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 1506)
+        public boolean roomSecretTime = true;
+
+        @Expose
+        @ConfigOption(name = "Room Personal Bests", desc = "Keep your fastest time for each room, on the same clock as Room Secret Time: first secret to green checkmark, so running through on a blood rush doesn't count and the walk to the first secret isn't in it. A beaten best says so on the room's chat line, and hovering the time shows the time per secret. /s2 route best, /s2 route bests, /s2 route best reset. Not for rooms with one secret, rooms someone had started before you, or the Dungeon Sim.")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 1506)
+        public boolean roomBests = true;
+
+        @Expose
+        @ConfigOption(name = "Personal Bests Solo Only", desc = "Only count a time as a best when no teammate's head was in the room on the map while you got its secrets.")
+        @ConfigEditorBoolean
+        @ConfigAccordionId(id = 1506)
+        public boolean roomBestsSoloOnly = true;
     }
 
     public enum RoomClearMode {
@@ -4406,6 +4424,11 @@ public final class FeatureConfigs {
         @ConfigOption(name = "Enabled", desc = "When a dungeon run ends, say in chat (only you see it) how many secrets each teammate found, with their class in its colour. From their total secrets at the start and end of the run (live, the same source as Odin's Secrets Counter); anyone still on 0 is checked again 30 seconds later.")
         @ConfigEditorBoolean
         public boolean enabled = true;
+
+        @Expose
+        @ConfigOption(name = "Rooms Done", desc = "Add roughly how many rooms each teammate cleared, like NoammAddons: whoever's on a room when the map shows its checkmark gets it, so \"3-5 rooms\" means 3 alone and 2 more with someone else in the room. Hover it for the rooms.")
+        @ConfigEditorBoolean
+        public boolean roomsDone = true;
     }
 
     /** SkyHanni's Item Pickup Log. */
