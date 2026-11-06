@@ -51,7 +51,13 @@ public final class DungeonMapStyles {
      */
     public static boolean needsScan() {
         FeatureConfigs.DungeonMap map = config();
-        return map != null && map.enabled && (selected() != DungeonMapStyle.SKYBLOCKER || map.bloodRushPath);
+        return map != null && map.enabled && (selected() != DungeonMapStyle.SKYBLOCKER || map.bloodRushPath || map.predictRooms);
+    }
+
+    /** Dungeons > Dungeon Map > Predict Unopened Rooms. */
+    public static boolean predictRooms() {
+        FeatureConfigs.DungeonMap map = config();
+        return map != null && map.predictRooms;
     }
 
     /**
@@ -83,6 +89,9 @@ public final class DungeonMapStyles {
             renderer.render(graphics, view, false);
             // Classic draws the map item's own 128x128 pixels, the MapView's geometry; the other styles lay rooms out their own way.
             FeatureConfigs.DungeonMap map = config();
+            if (map != null && map.predictRooms && selected() == DungeonMapStyle.SKYBLOCKER && !inSim()) {
+                SkyblockerMapStyle.drawGuesses(graphics, MapViewSource.current());
+            }
             if (map != null && map.bloodRushPath && selected() == DungeonMapStyle.SKYBLOCKER) {
                 BloodRushPath.render(graphics, view.valid() ? view : MapViewSource.current());
             }
