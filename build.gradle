@@ -255,3 +255,9 @@ tasks.withType(JavaCompile).configureEach {
     options.release = Integer.parseInt(project.java_version)
     options.encoding = 'UTF-8'
 }
+
+// The mod's own classes keep file names and line numbers (crash reports and /s2 errors still point at the line) but
+// not local variable tables, which only a debugger reads and which were a large part of the class files.
+tasks.named('compileJava', JavaCompile) {
+    options.compilerArgs += ['-g:source,lines']
+}
