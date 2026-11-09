@@ -79,6 +79,9 @@ if (hasGameTests) {
                 vmArgs "-Dsky2m.bridge=${project.findProperty('sky2mBridgePort') ?: 25599}", '-Xmx2G',
                     "-Dsky2m.hypixelHosts=localhost,127.0.0.1,${bridgeIp}"
                 if (project.hasProperty('sky2mAddons')) vmArgs "-Dfabric.addMods=${project.property('sky2mAddons')}"
+                // -Psky2mSimPartyOffline: a Dungeon Sim party hosted by this offline test client accepts the other
+                // offline test clients (dev only; the real mod always requires Mojang sign-in).
+                if (project.hasProperty('sky2mSimPartyOffline')) vmArgs '-Dsky2m.simPartyOffline=true'
                 programArgs '--username', (project.findProperty('sky2mBridgeUser') ?: 'S2Test1')
                 // -Psky2mBridgeNoJoin starts on the title screen (join later with /connect?host=).
                 if (!project.hasProperty('sky2mBridgeNoJoin')) programArgs '--quickPlayMultiplayer', bridgeHost
@@ -101,8 +104,9 @@ dependencies {
     // MoulConfig: the same config engine used by SkyHanni/NotEnoughUpdates.
     implementation "org.notenoughupdates.moulconfig:modern-26.2:${project.moulconfig_version}"
     include "org.notenoughupdates.moulconfig:modern-26.2:${project.moulconfig_version}"
+    // MoulConfig is written in Kotlin. Fabric Language Kotlin is not bundled (it was 8 MB of the jar): players install
+    // it as its own mod, and fabric.mod.json lists it under "depends" so the loader names it if it is missing.
     implementation "net.fabricmc:fabric-language-kotlin:${project.flk_version}"
-    include "net.fabricmc:fabric-language-kotlin:${project.flk_version}"
 }
 
 // The bridgeClient test run also loads the mods from run-bridge/mods (a copy of a real instance's mods), which need
@@ -250,4 +254,10 @@ jar {
 tasks.withType(JavaCompile).configureEach {
     options.release = Integer.parseInt(project.java_version)
     options.encoding = 'UTF-8'
+}
+
+// The mod's own classes keep file names and line numbers (crash reports and /s2 errors still point at the line) but
+// not local variable tables, which only a debugger reads and which were a large part of the class files.
+tasks.named('compileJava', JavaCompile) {
+    options.compilerArgs += ['-g:source,lines']
 }
